@@ -34,7 +34,7 @@ export async function getListings(): Promise<Listings> {
     supabase.from("item_bookings").select("item_id, day, quantity_booked").gte("day", today).limit(100000),
     supabase
       .from("techs")
-      .select("id, owner_id, name, role, skills, years_experience, day_rate, city_label, currency, available")
+      .select("id, owner_id, name, role, skills, years_experience, day_rate, city_label, currency, available, photo_url")
       .limit(500),
   ]);
 
@@ -82,6 +82,7 @@ export async function getListings(): Promise<Listings> {
         listed: true,
         pub: i.public_price && i.day_rate != null,
         image: i.photo_url ?? i.image_url,
+        manual: i.source === "manual",
         bookings: bookings.get(i.id) ?? {},
       };
     }),
@@ -97,6 +98,7 @@ export async function getListings(): Promise<Listings> {
       skills: t.skills ?? [],
       avail: t.available,
       cur: t.currency,
+      photo: t.photo_url,
     })),
   };
 }
@@ -120,4 +122,36 @@ export async function getCompanyPage(slug: string): Promise<CompanyPage | null> 
   });
   const { data } = await supabase.from("companies").select("id, slug, name, city_label, about, logo_url").eq("slug", slug).maybeSingle();
   return data && { id: data.id, slug: data.slug, name: data.name, city: data.city_label, about: data.about, logo: data.logo_url };
+}
+
+/** One crew member's public profile, by id. */
+export async function getTechPage(id: string): Promise<Tech | null> {
+  "use cache";
+  cacheTag("listings");
+  cacheLife("minutes");
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, {
+    auth: { persistSession: false },
+  });
+  const { data: t } = await supabase
+    .from("techs")
+    .select("id, owner_id, name, role, skills, years_experience, day_rate, city_label, currency, available, photo_url")
+    .eq("id", id)
+    .maybeSingle();
+  return (
+    t && {
+      id: t.id,
+      profileId: t.owner_id,
+      name: t.name,
+      role: t.role,
+      city: t.city_label,
+      off: [0, 0],
+      rate: Number(t.day_rate ?? 0),
+      yrs: t.years_experience,
+      skills: t.skills ?? [],
+      avail: t.available,
+      cur: t.currency,
+      photo: t.photo_url,
+    }
+  );
 }

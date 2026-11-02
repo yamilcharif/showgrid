@@ -63,6 +63,8 @@ export interface Item {
   pub: boolean;
   /** photo from the linked software */
   image: string | null;
+  /** added by hand on ShowGrid, so the owner can delete it (synced items are hidden instead) */
+  manual: boolean;
   /** units booked per day (yyyy-mm-dd), from the linked software */
   bookings: Record<string, number>;
 }
@@ -80,6 +82,7 @@ export interface Tech {
   cur: string;
   /** the crew member's profile, for messages */
   profileId: string;
+  photo: string | null;
 }
 
 export interface CartLine {

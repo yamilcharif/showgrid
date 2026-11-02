@@ -108,7 +108,7 @@ export function techFree(t: Tech) {
 
 // cables, clamps, adapters and other small parts: searchable, but kept out of the featured feed
 const ACCESSORY =
-  /\b(cables?|cords?|adapt[eo]rs?|splitters?|connectors?|clamps?|safety|extensions?|jumpers?|taps?|kits?|cases?|racks?|bags?|plugs?|couplers?|straps?|slings?|shackles?|tape|nodes?|true1|socapex|edison|powercon|xlr|ethercon|hooks?|brackets?|stands?|accessor(y|ies))\b/i;
+  /\b(cables?|cords?|adapt[eo]rs?|splitters?|connectors?|clamps?|safety|extensions?|jumpers?|taps?|kits?|cases?|racks?|bags?|plugs?|couplers?|straps?|slings?|shackles?|tape|nodes?|true1|socapex|edison|powercon|xlr|ethercon|hooks?|brackets?|stands?|covers?|dust|accessor(y|ies))\b/i;
 
 export const isAccessory = (name: string) => ACCESSORY.test(name);
 

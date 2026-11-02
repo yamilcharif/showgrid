@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { getAccount, type Account } from "@/lib/auth";
@@ -9,6 +10,7 @@ import type { Dict } from "@/lib/i18n/en";
 import { getDictionary } from "@/lib/i18n/server";
 import { signOut } from "./actions";
 import { PasswordCard } from "./PasswordCard";
+import { CrewPhotoCard } from "./CrewPhotoCard";
 import { PricingCard } from "./PricingCard";
 import { ProfileSetup } from "./ProfileSetup";
 import { PublicPageCard } from "./PublicPageCard";
@@ -50,6 +52,11 @@ function Summary({ acc, t }: { acc: Account; t: Dict["account"] }) {
     <>
       <p className="eyebrow muted">{acc.profile!.kind === "company" ? t.company : t.crew}</p>
       <h1>{acc.profile!.display_name}</h1>
+      <p>
+        <Link className="btn sm" href="/account/edit">
+          {t.edit}
+        </Link>
+      </p>
       <dl className="auth-dl">
         <dt>{t.email}</dt>
         <dd>{acc.email}</dd>
@@ -82,6 +89,7 @@ function Summary({ acc, t }: { acc: Account; t: Dict["account"] }) {
           </>
         )}
       </dl>
+      {tech && <CrewPhotoCard userId={acc.id} techId={tech.id} photo={tech.photo_url} />}
       {company && <PublicPageCard slug={company.slug} about={company.about} companyId={company.id} logo={company.logo_url} />}
       {company && <PricingCard initial={cleanRule(company.price_rule)} />}
       {company && (

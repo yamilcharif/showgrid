@@ -138,3 +138,69 @@ export async function saveLogo(url: string | null): Promise<{ error?: string }> 
   updateTag("listings");
   return {};
 }
+
+/** The crew member's profile photo: a file they uploaded to their own folder, or null to remove it. */
+export async function saveCrewPhoto(url: string | null): Promise<{ error?: string }> {
+  const t = await actionDictionary();
+  const acc = await getAccount();
+  if (!acc?.tech) return { error: t.crewDir.errOnlyCrew };
+  const prefix = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/gear-photos/crew/${acc.id}/`;
+  if (url !== null && !url.startsWith(prefix)) return { error: t.publicPage.errSave };
+  const supabase = await createClient();
+  const { error } = await supabase.from("techs").update({ photo_url: url }).eq("owner_id", acc.id);
+  if (error) return { error: t.publicPage.errSave };
+  updateTag("listings");
+  return {};
+}
+
+export interface EditState {
+  error?: string;
+  saved?: boolean;
+}
+
+/** Edit the profile after setup: name and city for everyone, about for companies, crew details for crew. */
+export async function updateProfile(_prev: EditState, form: FormData): Promise<EditState> {
+  const dict = await actionDictionary();
+  const t = dict.editProfile;
+  const acc = await getAccount();
+  if (!acc?.profile) return { error: t.errSave };
+  const name = text(form, "name");
+  if (!name) return { error: acc.company ? dict.profile.errCompanyName : dict.profile.errName };
+  const city = text(form, "city");
+  if (!PLACE_OPTS.some((p) => p.label === city && !p.country)) return { error: dict.profile.errCity };
+  const [lat, lng] = coords(city);
+  const place = {
+    city_label: city,
+    country_code: PLACE_OPTS.find((p) => p.label === city)!.cc,
+    location: `SRID=4326;POINT(${lng} ${lat})`,
+    currency: curOf(city),
+  };
+
+  const supabase = await createClient();
+  const { error: pErr } = await supabase.from("profiles").update({ display_name: name }).eq("id", acc.id);
+  if (pErr) return { error: t.errSave };
+  let error;
+  if (acc.company) {
+    ({ error } = await supabase
+      .from("companies")
+      .update({ name, about: text(form, "about", 1000) || null, ...place })
+      .eq("owner_id", acc.id));
+  } else if (acc.tech) {
+    const rate = parseFloat(text(form, "rate"));
+    ({ error } = await supabase
+      .from("techs")
+      .update({
+        name,
+        role: text(form, "role", 80) || "Technician",
+        skills: text(form, "skills", 400).split(",").map((s) => s.trim()).filter(Boolean).slice(0, 20),
+        years_experience: Math.max(0, Math.min(60, parseInt(text(form, "years"), 10) || 0)),
+        day_rate: Number.isFinite(rate) && rate > 0 ? rate : null,
+        available: form.get("available") === "on",
+        ...place,
+      })
+      .eq("owner_id", acc.id));
+  }
+  if (error) return { error: t.errSave };
+  updateTag("listings");
+  return { saved: true };
+}

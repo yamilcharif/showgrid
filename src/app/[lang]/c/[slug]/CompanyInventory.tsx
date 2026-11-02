@@ -1,9 +1,13 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { startConversation } from "@/app/[lang]/messages/actions";
 import { useApp } from "@/components/AppState";
+import { deleteItem, updateItems } from "@/app/[lang]/account/gear/actions";
+import { AddItemDialog } from "@/components/AddItemDialog";
 import { useT } from "@/components/I18n";
 import { fmt } from "@/lib/i18n/config";
 import { useListings } from "@/components/Listings";
@@ -15,12 +19,14 @@ import type { Category, Item } from "@/lib/types";
 // headline categories first; cables and small parts at the end
 const ORDER: Category[] = ["Lighting", "Audio", "Video", "Rigging", "Effects", "Staging", "Backline", "Power", "Other"];
 
-export function CompanyInventory({ company }: { company: CompanyPage }) {
+export function CompanyInventory({ company, isOwner = false }: { company: CompanyPage; isOwner?: boolean }) {
   const { items, companyById } = useListings();
   const { cart, setCartOpen, notify } = useApp();
   const { add } = useGearList();
   const [cat, setCat] = useState<Category | "all">("all");
   const [text, setText] = useState("");
+  const [adding, setAdding] = useState(false);
+  const router = useRouter();
   const co = companyById(company.id);
   const t = useT();
 
@@ -42,6 +48,17 @@ export function CompanyInventory({ company }: { company: CompanyPage }) {
   const q = text.trim().toLowerCase();
   const shown = mine.filter((i) => (cat === "all" || i.cat === cat) && (!q || `${i.name} ${i.tags} ${i.spec}`.toLowerCase().includes(q)));
   const sections = ORDER.map((c) => ({ c, list: shown.filter((i) => i.cat === c) })).filter((s) => s.list.length);
+
+  const hide = async (it: Item) => {
+    const res = await updateItems([it.id], { listed: false });
+    notify(res.error ?? t.addItem.hidden);
+    router.refresh();
+  };
+  const remove = async (it: Item) => {
+    const res = await deleteItem(it.id);
+    notify(res.error ?? fmt(t.addItem.deleted, { name: it.name }));
+    router.refresh();
+  };
 
   const share = async () => {
     const url = window.location.href;
@@ -105,6 +122,20 @@ export function CompanyInventory({ company }: { company: CompanyPage }) {
               {t.company.share}
             </button>
           </div>
+          {isOwner && (
+            <div className="owner-bar">
+              <button type="button" className="btn primary" onClick={() => setAdding(true)}>
+                + {t.addItem.add}
+              </button>
+              <Link className="btn ghost-dark" href="/account/edit">
+                {t.addItem.editProfile}
+              </Link>
+              <Link className="btn ghost-dark" href="/account/gear">
+                {t.addItem.manageGear}
+              </Link>
+              <span className="small">{t.addItem.ownerNote}</span>
+            </div>
+          )}
         </div>
       </section>
 
@@ -130,6 +161,12 @@ export function CompanyInventory({ company }: { company: CompanyPage }) {
           />
         </div>
 
+        {isOwner && (
+          <button type="button" className="co-add" onClick={() => setAdding(true)}>
+            <span aria-hidden="true">+</span>
+            {t.addItem.add}
+          </button>
+        )}
         {sections.length === 0 && <p className="muted">{t.company.noMatch}</p>}
         {sections.map(({ c, list }) => (
           <section key={c} className="co-section">
@@ -145,11 +182,13 @@ export function CompanyInventory({ company }: { company: CompanyPage }) {
                   inList={cart.find((l) => l.id === it.id)?.qty}
                   onAdd={() => add(it.id)}
                   onOpenList={() => setCartOpen(true)}
+                  owner={isOwner ? { onHide: () => hide(it), onDelete: it.manual ? () => remove(it) : undefined } : undefined}
                 />
               ))}
             </div>
           </section>
         ))}
+        {adding && <AddItemDialog companyId={company.id} onClose={() => setAdding(false)} />}
         <p className="muted small co-note">
           {fmt(t.company.note, { name: company.name })}
         </p>
@@ -164,12 +203,26 @@ interface CardProps {
   inList?: number;
   onAdd: () => void;
   onOpenList: () => void;
+  /** edit controls, only on the owner's own page */
+  owner?: { onHide: () => void; onDelete?: () => void };
 }
 
-function GearCard({ it, cur, inList, onAdd, onOpenList }: CardProps) {
+function GearCard({ it, cur, inList, onAdd, onOpenList, owner }: CardProps) {
   const t = useT();
   return (
     <article className="gcard">
+      {owner && (
+        <div className="gowner">
+          <button type="button" onClick={owner.onHide}>
+            {t.addItem.hide}
+          </button>
+          {owner.onDelete && (
+            <button type="button" onClick={owner.onDelete}>
+              {t.addItem.delete}
+            </button>
+          )}
+        </div>
+      )}
       <div className="gimg">
         {it.image ? (
           <Image src={it.image} alt="" fill sizes="(max-width: 640px) 50vw, 240px" />

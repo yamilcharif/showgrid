@@ -118,8 +118,14 @@ export function SearchBar() {
           {STATS.companies === 1 ? t.search.statCompanies[0] : t.search.statCompanies[1]} →
         </Link>
         <div><strong className="num">{STATS.units.toLocaleString("en-US")}</strong>{t.search.statUnits}</div>
-        <div><strong className="num">{STATS.techs}</strong>{STATS.techs === 1 ? t.search.statTechs[0] : t.search.statTechs[1]}</div>
-        <div><strong className="num">{STATS.countries}</strong>{STATS.countries === 1 ? t.search.statCountries[0] : t.search.statCountries[1]}</div>
+        <Link href="/crew" className="stat-link">
+          <strong className="num">{STATS.techs}</strong>
+          {STATS.techs === 1 ? t.search.statTechs[0] : t.search.statTechs[1]} →
+        </Link>
+        <Link href="/countries" className="stat-link">
+          <strong className="num">{STATS.countries}</strong>
+          {STATS.countries === 1 ? t.search.statCountries[0] : t.search.statCountries[1]} →
+        </Link>
         <div><strong>Rentman · Flex</strong>{t.search.statSync}</div>
       </div>
     </>

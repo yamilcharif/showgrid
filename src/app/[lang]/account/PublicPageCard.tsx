@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useActionState, useState } from "react";
-import { saveAbout, type AboutState } from "./actions";
+import { saveAbout, saveLogo, type AboutState } from "./actions";
 import { useT } from "@/components/I18n";
-import { LogoUpload } from "@/components/LogoUpload";
+import { ImageUpload } from "@/components/ImageUpload";
 
 export function PublicPageCard({ slug, about, companyId, logo }: { slug: string; about: string | null; companyId: string; logo: string | null }) {
   const [state, action, pending] = useActionState<AboutState, FormData>(saveAbout, {});
@@ -29,7 +29,13 @@ export function PublicPageCard({ slug, about, companyId, logo }: { slug: string;
         <b>{t.title}</b>
         <p className="muted small">{t.text}</p>
       </div>
-      <LogoUpload companyId={companyId} initial={logo} />
+      <ImageUpload
+        initial={logo}
+        folder={companyId}
+        name="logo"
+        save={saveLogo}
+        labels={{ empty: t.logo, add: t.addLogo, change: t.changeLogo, remove: t.removeLogo, hint: t.logoHint }}
+      />
       <div className="pub-link">
         <code>{url}</code>
         <div className="inv-actions">

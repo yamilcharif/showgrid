@@ -21,7 +21,17 @@ export interface Account {
     currency: string;
     verified_at: string | null;
   } | null;
-  tech: { name: string; role: string; skills: string[]; years_experience: number; day_rate: number | null; city_label: string; currency: string } | null;
+  tech: {
+    name: string;
+    role: string;
+    skills: string[];
+    years_experience: number;
+    day_rate: number | null;
+    city_label: string;
+    currency: string;
+    photo_url: string | null;
+    id: string;
+  } | null;
 }
 
 /** The signed-in visitor and their profile, or null. Read once per request. */
@@ -34,7 +44,7 @@ export const getAccount = cache(async (): Promise<Account | null> => {
   const [profile, company, tech] = await Promise.all([
     supabase.from("profiles").select("kind, display_name").eq("id", id).maybeSingle(),
     supabase.from("companies").select("id, name, slug, about, logo_url, price_rule, city_label, currency, verified_at").eq("owner_id", id).maybeSingle(),
-    supabase.from("techs").select("name, role, skills, years_experience, day_rate, city_label, currency").eq("owner_id", id).maybeSingle(),
+    supabase.from("techs").select("id, name, role, skills, years_experience, day_rate, city_label, currency, photo_url").eq("owner_id", id).maybeSingle(),
   ]);
   return {
     id,

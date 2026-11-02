@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { getCompanyPage } from "@/lib/listings";
+import { getAccount } from "@/lib/auth";
 import { fmt } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/server";
 import { CompanyInventory } from "./CompanyInventory";
@@ -29,5 +30,7 @@ export default async function CompanyPageRoute({ params }: PageProps<"/[lang]/c/
 async function Company({ params }: { params: PageProps<"/[lang]/c/[slug]">["params"] }) {
   const co = await getCompanyPage((await params).slug);
   if (!co) notFound();
-  return <CompanyInventory company={co} />;
+  // the owner gets edit controls on their own page
+  const acc = await getAccount();
+  return <CompanyInventory company={co} isOwner={acc?.company?.id === co.id} />;
 }
