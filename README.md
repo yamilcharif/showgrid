@@ -18,7 +18,7 @@ Then open http://localhost:3000.
 - `src/lib/search.ts` — query parsing, distance, availability, money formatting
 - `src/lib/sample-data.ts` — example companies, gear and crew (replaced by Supabase later)
 - `src/lib/places.ts` — city/country list (replaced by a geocoding service later)
-- `supabase/migrations` — database schema, not applied yet
+- `supabase/migrations` — database schema (applied to the Supabase project)
 - `prototype/showgrid.html` — the original clickable mockup
 
 ## Next

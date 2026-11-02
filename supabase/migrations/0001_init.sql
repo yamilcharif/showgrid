@@ -1,8 +1,8 @@
 -- ShowGrid initial schema (Supabase / Postgres).
--- Not applied yet: run with `supabase db push` once the Supabase project is linked.
+-- Applied to the showgrid Supabase project on 2026-11-02 via the SQL Editor.
 
-create extension if not exists postgis;
-create extension if not exists pg_trgm;
+create extension if not exists postgis with schema extensions;
+create extension if not exists pg_trgm with schema extensions;
 
 -- ---------- accounts ----------
 
