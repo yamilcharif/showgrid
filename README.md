@@ -26,6 +26,6 @@ Then open http://localhost:3000.
 ## Next
 
 1. ~~Connect Supabase: sign-in by email link, company and crew profiles.~~ Done (`/sign-in`, `/account`).
-2. Messages and sending gear lists as requests.
-3. Rentman sync (server-side, encrypted tokens), then Flex.
+2. ~~Messages~~ Done. Next: sending gear lists as requests.
+3. ~~Rentman sync (server-side, encrypted tokens)~~ Done: token in Supabase Vault, `src/lib/rentman.ts`, nightly via `/api/cron/sync` (Vercel Cron, needs `CRON_SECRET`). Flex next.
 4. Deploy to Vercel on show-grid.com.

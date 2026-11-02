@@ -2,11 +2,11 @@
 
 import { useEffect, useRef } from "react";
 import { coords } from "@/lib/places";
-import { companyById, itemById } from "@/lib/sample-data";
 import { SRC_LABEL, dayCount, fmtDist, freeFor, isoIn, miles, money, rangeLabel, unitFor } from "@/lib/search";
 import type { Company, Item } from "@/lib/types";
 import { useApp } from "./AppState";
 import { useGearList } from "./useGearList";
+import { useListings } from "./Listings";
 
 interface Line {
   it: Item;
@@ -18,6 +18,7 @@ interface Line {
 export function GearListDrawer() {
   const { cartOpen, setCartOpen, cart, dates, setDates, place, ready } = useApp();
   const { step, remove } = useGearList();
+  const { itemById, companyById } = useListings();
   const closeBtn = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {

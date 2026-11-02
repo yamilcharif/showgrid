@@ -1,9 +1,7 @@
 import { Results } from "@/components/Results";
-import { getRealTechs } from "@/lib/listings";
 import { SearchBar } from "@/components/SearchBar";
 
-export default async function Home() {
-  const realTechs = await getRealTechs();
+export default function Home() {
   return (
     <main>
       <section className="hero">
@@ -32,7 +30,7 @@ export default async function Home() {
 
       <section className="main">
         <div className="wrap">
-          <Results realTechs={realTechs} />
+          <Results />
         </div>
       </section>
     </main>

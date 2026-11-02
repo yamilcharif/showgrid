@@ -5,6 +5,8 @@ import { AccountLink } from "@/components/AccountLink";
 import { AppStateProvider } from "@/components/AppState";
 import { Header } from "@/components/Header";
 import { GearListDrawer } from "@/components/GearListDrawer";
+import { ListingsProvider } from "@/components/Listings";
+import { getListings } from "@/lib/listings";
 import { Toast } from "@/components/Toast";
 import "./globals.css";
 
@@ -26,10 +28,13 @@ export const metadata: Metadata = {
     "Find gear and crew for live events near you. Rental houses list live inventory from Rentman or Flex; techs and engineers list their skills.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // cached public listings, so this stays in the static shell
+  const listings = await getListings();
   return (
     <html lang="en" className={`${archivo.variable} ${mono.variable}`}>
       <body>
+        <ListingsProvider real={listings}>
         <AppStateProvider>
           <Header
             account={
@@ -50,6 +55,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <GearListDrawer />
           <Toast />
         </AppStateProvider>
+        </ListingsProvider>
       </body>
     </html>
   );

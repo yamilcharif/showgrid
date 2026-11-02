@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback } from "react";
-import { itemById } from "@/lib/sample-data";
 import { freeFor, parseQuery } from "@/lib/search";
 import { useApp } from "./AppState";
+import { useListings } from "./Listings";
 
 export function useGearList() {
   const { q, dates, setCart, setCartOpen, notify } = useApp();
+  const { itemById } = useListings();
 
   const add = useCallback(
     (id: string) => {
@@ -22,7 +23,7 @@ export function useGearList() {
       });
       notify(`Added ${qty}× ${it.name} to your gear list.`, { label: "View list", run: () => setCartOpen(true) });
     },
-    [q, dates, setCart, setCartOpen, notify],
+    [q, dates, setCart, setCartOpen, notify, itemById],
   );
 
   const step = useCallback(
@@ -34,7 +35,7 @@ export function useGearList() {
         c.map((l) => (l.id === id ? { ...l, qty: Math.max(1, delta > 0 ? Math.min(cap, l.qty + 1) : l.qty - 1) } : l)),
       );
     },
-    [dates, setCart],
+    [dates, setCart, itemById],
   );
 
   const remove = useCallback((id: string) => setCart((c) => c.filter((l) => l.id !== id)), [setCart]);

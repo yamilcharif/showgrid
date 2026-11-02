@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { RADII, STATS, isoIn, unitFor } from "@/lib/search";
+import { useMemo, useState } from "react";
+import { RADII, isoIn, statsFor, unitFor } from "@/lib/search";
+import { useListings } from "./Listings";
 import { useApp } from "./AppState";
 import { LocationBox } from "./LocationBox";
 import { SearchIcon } from "./icons";
@@ -12,6 +13,8 @@ export function SearchBar() {
   const { place, setPlace, radiusIdx, setRadiusIdx, dates, setDates, setQ, ready } = useApp();
   const [text, setText] = useState("");
   const unit = unitFor(place);
+  const listings = useListings();
+  const STATS = useMemo(() => statsFor(listings), [listings]);
 
   const run = (q: string) => {
     setQ(q.trim());

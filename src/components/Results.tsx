@@ -6,6 +6,7 @@ import {
   RADII,
   SRC_LABEL,
   fmtDist,
+  minutesSince,
   money,
   rangeLabel,
   runSearch,
@@ -15,7 +16,8 @@ import {
   type Unit,
 } from "@/lib/search";
 import { startConversation } from "@/app/messages/actions";
-import type { Category, InventorySource, Tech } from "@/lib/types";
+import type { Category, InventorySource } from "@/lib/types";
+import { useListings } from "./Listings";
 import { useApp } from "./AppState";
 import { useGearList } from "./useGearList";
 
@@ -27,7 +29,8 @@ const SRCS: InventorySource[] = ["rentman", "flex", "manual"];
 const initials = (n: string) =>
   n.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
 
-export function Results({ realTechs }: { realTechs: Tech[] }) {
+export function Results() {
+  const listings = useListings();
   const { ready, q, place, radiusIdx, setRadiusIdx, setPlace, dates } = useApp();
   const [tab, setTab] = useState<Tab>("all");
   const [cats, setCats] = useState<Set<Category>>(new Set());
@@ -35,8 +38,8 @@ export function Results({ realTechs }: { realTechs: Tech[] }) {
   const [freeOnly, setFreeOnly] = useState(false);
 
   const res = useMemo(
-    () => (ready ? runSearch({ q, place, radiusIdx, dates, extraTechs: realTechs }) : null),
-    [ready, q, place, radiusIdx, dates, realTechs],
+    () => (ready ? runSearch({ q, place, radiusIdx, dates, listings }) : null),
+    [ready, q, place, radiusIdx, dates, listings],
   );
 
   if (!res) {
@@ -223,7 +226,7 @@ function GearRow({ g, need, unit, when }: { g: GearHit; need: number; unit: Unit
           <span className="muted num">{co.city} · {fmtDist(d, unit)}</span>
           <span className={`pill${co.src === "manual" ? "" : " live"}`}>
             <i />
-            {co.src === "manual" ? "Spreadsheet" : `Live from ${SRC_LABEL[co.src]} · ${syncAgo(co.syncMin)}`}
+            {co.src === "manual" ? "Spreadsheet" : `Live from ${SRC_LABEL[co.src]} · ${syncAgo(co.syncedAt ? minutesSince(co.syncedAt) : co.syncMin)}`}
           </span>
         </div>
       </div>
@@ -258,6 +261,12 @@ function GearRow({ g, need, unit, when }: { g: GearHit; need: number; unit: Unit
             <button type="button" className="btn sm primary" onClick={() => add(it.id)}>
               Add to list
             </button>
+          )}
+          {co.profileId && (
+            <form action={startConversation}>
+              <input type="hidden" name="to" value={co.profileId} />
+              <button className="btn sm">Message</button>
+            </form>
           )}
         </div>
       </div>

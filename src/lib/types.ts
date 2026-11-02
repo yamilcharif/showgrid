@@ -10,7 +10,8 @@ export type Category =
   | "Power"
   | "Staging"
   | "Backline"
-  | "Effects";
+  | "Effects"
+  | "Other";
 
 export interface Place {
   label: string;
@@ -30,9 +31,13 @@ export interface Company {
   /** small offset from the city centre so companies don't stack */
   off: LatLng;
   src: InventorySource;
-  /** minutes since last inventory sync */
+  /** minutes since last inventory sync (sample data) */
   syncMin: number;
+  /** last inventory sync, for real companies */
+  syncedAt?: string | null;
   cur: string;
+  /** set for real members, who can be messaged; absent on sample companies */
+  profileId?: string;
 }
 
 export interface Item {
@@ -51,6 +56,8 @@ export interface Item {
   listed: boolean;
   /** show the day rate publicly; when false, "Price on request" */
   pub: boolean;
+  /** units booked per day (yyyy-mm-dd), from the linked software; absent on sample items */
+  bookings?: Record<string, number>;
 }
 
 export interface Tech {

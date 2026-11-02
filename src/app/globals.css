@@ -300,3 +300,10 @@ footer.site b { letter-spacing: 0.06em; font-variation-settings: "wdth" 125; }
 @media (max-width: 640px) {
   .pw-card .two { grid-template-columns: 1fr; }
 }
+
+/* inventory connection */
+.inv-card { margin-bottom: 24px; }
+.inv-card p { margin: 4px 0 0; }
+.inv-actions { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.steps { margin: 0; padding-left: 20px; display: grid; gap: 4px; color: var(--muted); }
+.steps b { color: var(--ink); }

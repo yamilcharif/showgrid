@@ -6,6 +6,8 @@ import { money } from "@/lib/search";
 import { signOut } from "./actions";
 import { PasswordCard } from "./PasswordCard";
 import { ProfileSetup } from "./ProfileSetup";
+import { RentmanCard } from "./RentmanCard";
+import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Your account · ShowGrid" };
 
@@ -72,15 +74,32 @@ function Summary({ acc }: { acc: Account }) {
         )}
       </dl>
       {company && (
-        <div className="auth-next">
-          <b>Next: link your inventory</b>
-          <p className="muted">Connecting Rentman or Flex is coming soon. Your gear will then show up in search.</p>
-        </div>
+        <Suspense fallback={null}>
+          <Inventory />
+        </Suspense>
       )}
       <PasswordCard hasPassword={acc.hasPassword} />
       <form action={signOut}>
         <button className="btn">Sign out</button>
       </form>
     </>
+  );
+}
+
+async function Inventory() {
+  const acc = await getAccount();
+  const supabase = await createClient();
+  // RLS only returns the owner's own connection
+  const [{ data: conn }, { data: co }] = await Promise.all([
+    supabase.from("inventory_connections").select("last_synced_at, last_error").eq("source", "rentman").maybeSingle(),
+    supabase.from("companies").select("id").eq("owner_id", acc!.id).maybeSingle(),
+  ]);
+  const { count } = co
+    ? await supabase.from("items").select("id", { count: "exact", head: true }).eq("company_id", co.id).eq("source", "rentman")
+    : { count: 0 };
+  return (
+    <RentmanCard
+      status={{ connected: Boolean(conn), lastSyncedAt: conn?.last_synced_at ?? null, lastError: conn?.last_error ?? null, items: count ?? 0 }}
+    />
   );
 }

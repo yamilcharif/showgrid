@@ -1,5 +1,4 @@
 import { ccOf, coords } from "./places";
-import { COMPANIES, ITEMS, TECHS } from "./sample-data";
 import type { Category, Company, InventorySource, Item, LatLng, Place, Tech } from "./types";
 
 export const CAT_ABBR: Record<Category, string> = {
@@ -11,6 +10,7 @@ export const CAT_ABBR: Record<Category, string> = {
   Staging: "STG",
   Backline: "BKL",
   Effects: "FX",
+  Other: "OTH",
 };
 
 export const SRC_LABEL: Record<InventorySource, string> = {
@@ -105,6 +105,10 @@ function hash(s: string) {
 }
 
 export function freeFor(it: Item, r: DateRange) {
+  if (it.bookings) {
+    const booked = Math.max(0, ...rangeDays(r).map((day) => it.bookings![day] ?? 0));
+    return Math.max(0, it.total - booked);
+  }
   let m = it.total;
   for (const day of rangeDays(r)) {
     const h = hash(it.id + day);
@@ -193,11 +197,11 @@ export interface SearchInput {
   place: Place;
   radiusIdx: number;
   dates: DateRange;
-  /** real crew from Supabase, searched alongside the sample crew */
-  extraTechs?: Tech[];
+  /** everything searchable: real listings and sample data */
+  listings: { companies: Company[]; items: Item[]; techs: Tech[] };
 }
 
-export function runSearch({ q, place, radiusIdx, dates, extraTechs = [] }: SearchInput) {
+export function runSearch({ q, place, radiusIdx, dates, listings }: SearchInput) {
   const P = parseQuery(q);
   const unit = unitFor(place);
   const inRange = (d: number, cc: string) => {
@@ -207,9 +211,10 @@ export function runSearch({ q, place, radiusIdx, dates, extraTechs = [] }: Searc
   };
 
   const gear: GearHit[] = [];
-  for (const it of ITEMS) {
+  const coById = new Map(listings.companies.map((c) => [c.id, c]));
+  for (const it of listings.items) {
     if (!it.listed) continue;
-    const co = COMPANIES.find((c) => c.id === it.co);
+    const co = coById.get(it.co);
     if (!co) continue;
     const d = miles(place.ll, coords(co.city, co.off));
     if (!inRange(d, ccOf(co.city))) continue;
@@ -219,7 +224,7 @@ export function runSearch({ q, place, radiusIdx, dates, extraTechs = [] }: Searc
   }
 
   const crew: CrewHit[] = [];
-  for (const t of [...extraTechs, ...TECHS]) {
+  for (const t of listings.techs) {
     const d = miles(place.ll, coords(t.city, t.off));
     if (!inRange(d, ccOf(t.city))) continue;
     const sc = score(`${t.name} ${t.role} ${t.skills.join(" ")}`.toLowerCase(), P.terms);
@@ -235,9 +240,16 @@ export function runSearch({ q, place, radiusIdx, dates, extraTechs = [] }: Searc
   return { P, gear, crew, unit };
 }
 
-export const STATS = {
-  companies: COMPANIES.length,
-  units: ITEMS.reduce((a, i) => a + i.qty, 0),
-  techs: TECHS.length,
-  countries: new Set([...COMPANIES.map((c) => ccOf(c.city)), ...TECHS.map((t) => ccOf(t.city))]).size,
-};
+export function statsFor({ companies, items, techs }: SearchInput["listings"]) {
+  return {
+    companies: companies.length,
+    units: items.reduce((a, i) => a + i.qty, 0),
+    techs: techs.length,
+    countries: new Set([...companies.map((c) => ccOf(c.city)), ...techs.map((t) => ccOf(t.city))]).size,
+  };
+}
+
+/** minutes since an ISO timestamp, for "synced 4 min ago" */
+export function minutesSince(iso: string) {
+  return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 6e4));
+}
