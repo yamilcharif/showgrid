@@ -200,6 +200,8 @@ export const es: Dict = {
     finding: "Buscando una foto…",
     pickOther: "¿No es la correcta? Elige otra:",
     noAuto: "No encontramos foto. Sube la tuya.",
+    noKey: "La búsqueda de fotos no está configurada en este servidor (falta SERPER_API_KEY). Por ahora sube la tuya.",
+    searchFailed: "La búsqueda de fotos no respondió (clave o límite de búsquedas). Por ahora sube la tuya.",
     uploadOwn: "Subir la mía",
     removePhoto: "Sin foto",
     saving: "Agregando…",

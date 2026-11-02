@@ -107,12 +107,22 @@ export interface FoundImage {
   url: string;
 }
 
-/** Photo suggestions for a gear name: Google Images results through Serper.dev. Empty when no key is set up. */
-export async function searchImages(query: string): Promise<FoundImage[]> {
-  const key = process.env.SERPER_API_KEY;
+export interface ImageSearch {
+  images: FoundImage[];
+  /** why there are no images: the key isn't set up on this server, or the search service failed */
+  problem?: "no-key" | "failed";
+}
+
+/** Photo suggestions for a gear name: Google Images results through Serper.dev. */
+export async function searchImages(query: string): Promise<ImageSearch> {
+  const key = process.env.SERPER_API_KEY?.trim();
   const acc = await getAccount();
   const q = query.trim().slice(0, 120);
-  if (!key || !acc?.company || q.length < 3) return [];
+  if (!acc?.company || q.length < 3) return { images: [] };
+  if (!key) {
+    console.error("searchImages: SERPER_API_KEY is not set on this server");
+    return { images: [], problem: "no-key" };
+  }
   try {
     const res = await fetch("https://google.serper.dev/images", {
       method: "POST",
@@ -121,15 +131,21 @@ export async function searchImages(query: string): Promise<FoundImage[]> {
       cache: "no-store",
       signal: AbortSignal.timeout(8000),
     });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      // 401/403: wrong key; 429/402: out of searches
+      console.error(`searchImages: Serper answered ${res.status} ${(await res.text()).slice(0, 200)}`);
+      return { images: [], problem: "failed" };
+    }
     const body = (await res.json()) as { images?: { thumbnailUrl?: string; imageUrl?: string }[] };
-    return (body.images ?? [])
+    const images = (body.images ?? [])
       .map((r) => ({ thumb: r.thumbnailUrl ?? "", url: r.imageUrl ?? "" }))
       // only photos we can copy later (https, common image formats)
       .filter((r) => r.thumb.startsWith("https://") && r.url.startsWith("https://") && !/\.(svg|gif)(\?|$)/i.test(r.url))
       .slice(0, 12);
-  } catch {
-    return [];
+    return { images };
+  } catch (e) {
+    console.error("searchImages: request failed", e);
+    return { images: [], problem: "failed" };
   }
 }
 

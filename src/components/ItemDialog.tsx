@@ -47,6 +47,7 @@ export function ItemDialog({ companyId, item, onClose }: { companyId: string; it
   const [current, setCurrent] = useState(item?.photo ?? null);
   const [found, setFound] = useState<FoundImage[] | null>(null);
   const [searching, setSearching] = useState(false);
+  const [problem, setProblem] = useState<"no-key" | "failed" | null>(null);
   // the chosen photo: a search result (copied into our storage on save) or the owner's own file
   const [picked, setPicked] = useState<FoundImage | null>(null);
   const [own, setOwn] = useState<{ file: File; preview: string } | null>(null);
@@ -66,8 +67,9 @@ export function ItemDialog({ companyId, item, onClose }: { companyId: string; it
     setSearching(true);
     const res = await searchImages(q);
     setSearching(false);
-    setFound(res);
-    if (preselect) setPicked((p) => p ?? res[0] ?? null);
+    setFound(res.images);
+    setProblem(res.problem ?? null);
+    if (preselect) setPicked((p) => p ?? res.images[0] ?? null);
   };
 
   // new items: look for a photo once the title settles. Edits search when asked (Search photos).
@@ -161,7 +163,9 @@ export function ItemDialog({ companyId, item, onClose }: { companyId: string; it
               </div>
               <div className="ai-photo-side">
                 {found && found.length > 0 && !own && <span className="muted small">{t.pickOther}</span>}
-                {found && found.length === 0 && !own && <span className="muted small">{t.noAuto}</span>}
+                {found && found.length === 0 && !own && (
+                  <span className="muted small">{problem === "no-key" ? t.noKey : problem === "failed" ? t.searchFailed : t.noAuto}</span>
+                )}
                 {found && found.length > 0 && !own && (
                   <div className="ai-thumbs">
                     {found.map((f) => (

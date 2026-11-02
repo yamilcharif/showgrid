@@ -200,6 +200,8 @@ export const en = {
     finding: "Finding a photo…",
     pickOther: "Not right? Pick another:",
     noAuto: "No photo found. Upload your own.",
+    noKey: "Photo search isn't set up on this server (SERPER_API_KEY missing). Upload your own for now.",
+    searchFailed: "Photo search didn't answer (key or search limit). Upload your own for now.",
     uploadOwn: "Upload my own",
     removePhoto: "No photo",
     saving: "Adding…",
