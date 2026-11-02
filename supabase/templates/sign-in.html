@@ -1,0 +1,5 @@
+<h2>Sign in to ShowGrid</h2>
+<p>Your sign-in code:</p>
+<p style="font-size:28px;font-weight:700;letter-spacing:4px">{{ .Token }}</p>
+<p>Type it on the sign-in page, or <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/account">click here to sign in</a>.</p>
+<p>The code and link work once and expire in 1 hour. If you didn't ask to sign in, you can ignore this email.</p>

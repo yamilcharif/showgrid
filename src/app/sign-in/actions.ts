@@ -1,6 +1,7 @@
 "use server";
 
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 export interface SignInState {
@@ -27,4 +28,20 @@ export async function sendSignInLink(_prev: SignInState, form: FormData): Promis
     };
   }
   return { sent: email };
+}
+
+export interface CodeState {
+  error?: string;
+}
+
+/** Sign in with the code from the email, so it works in any browser or window. */
+export async function verifyCode(_prev: CodeState, form: FormData): Promise<CodeState> {
+  const email = String(form.get("email") ?? "").trim().toLowerCase();
+  const token = String(form.get("code") ?? "").replace(/\s/g, "");
+  if (!/^\d{6,10}$/.test(token)) return { error: "Enter the code from the email (numbers only)." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.verifyOtp({ email, token, type: "email" });
+  if (error) return { error: "That code didn't work. It may have expired or already been used. Send a new one." };
+  redirect("/account");
 }

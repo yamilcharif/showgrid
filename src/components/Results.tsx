@@ -14,7 +14,8 @@ import {
   type GearHit,
   type Unit,
 } from "@/lib/search";
-import type { Category, InventorySource } from "@/lib/types";
+import { startConversation } from "@/app/messages/actions";
+import type { Category, InventorySource, Tech } from "@/lib/types";
 import { useApp } from "./AppState";
 import { useGearList } from "./useGearList";
 
@@ -26,7 +27,7 @@ const SRCS: InventorySource[] = ["rentman", "flex", "manual"];
 const initials = (n: string) =>
   n.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
 
-export function Results() {
+export function Results({ realTechs }: { realTechs: Tech[] }) {
   const { ready, q, place, radiusIdx, setRadiusIdx, setPlace, dates } = useApp();
   const [tab, setTab] = useState<Tab>("all");
   const [cats, setCats] = useState<Set<Category>>(new Set());
@@ -34,8 +35,8 @@ export function Results() {
   const [freeOnly, setFreeOnly] = useState(false);
 
   const res = useMemo(
-    () => (ready ? runSearch({ q, place, radiusIdx, dates }) : null),
-    [ready, q, place, radiusIdx, dates],
+    () => (ready ? runSearch({ q, place, radiusIdx, dates, extraTechs: realTechs }) : null),
+    [ready, q, place, radiusIdx, dates, realTechs],
   );
 
   if (!res) {
@@ -293,8 +294,26 @@ function CrewRow({ c, unit, when }: { c: CrewHit; unit: Unit; when: string }) {
       </div>
       <div className="side">
         <div className="rate num">
-          {money(t.rate, t.cur)}
-          <small> /day</small>
+          {t.rate ? (
+            <>
+              {money(t.rate, t.cur)}
+              <small> /day</small>
+            </>
+          ) : (
+            <small>Rate on request</small>
+          )}
+        </div>
+        <div className="btns">
+          {t.profileId ? (
+            <form action={startConversation}>
+              <input type="hidden" name="to" value={t.profileId} />
+              <button className="btn sm">Message</button>
+            </form>
+          ) : (
+            <button type="button" className="btn sm" disabled title="Sample listing: messaging opens when real crew join">
+              Message
+            </button>
+          )}
         </div>
       </div>
     </article>

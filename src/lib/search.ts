@@ -193,9 +193,11 @@ export interface SearchInput {
   place: Place;
   radiusIdx: number;
   dates: DateRange;
+  /** real crew from Supabase, searched alongside the sample crew */
+  extraTechs?: Tech[];
 }
 
-export function runSearch({ q, place, radiusIdx, dates }: SearchInput) {
+export function runSearch({ q, place, radiusIdx, dates, extraTechs = [] }: SearchInput) {
   const P = parseQuery(q);
   const unit = unitFor(place);
   const inRange = (d: number, cc: string) => {
@@ -217,7 +219,7 @@ export function runSearch({ q, place, radiusIdx, dates }: SearchInput) {
   }
 
   const crew: CrewHit[] = [];
-  for (const t of TECHS) {
+  for (const t of [...extraTechs, ...TECHS]) {
     const d = miles(place.ll, coords(t.city, t.off));
     if (!inRange(d, ccOf(t.city))) continue;
     const sc = score(`${t.name} ${t.role} ${t.skills.join(" ")}`.toLowerCase(), P.terms);

@@ -64,6 +64,8 @@ export interface Tech {
   skills: string[];
   avail: boolean;
   cur: string;
+  /** set for real members, who can be messaged; absent on sample crew */
+  profileId?: string;
 }
 
 export interface CartLine {
