@@ -9,6 +9,7 @@ import { useApp } from "@/components/AppState";
 import { deleteItem, updateItems } from "@/app/[lang]/account/gear/actions";
 import { ItemDialog, type EditableItem } from "@/components/ItemDialog";
 import { useT } from "@/components/I18n";
+import { ContactLinks } from "@/components/ContactLinks";
 import { fmt } from "@/lib/i18n/config";
 import { useListings } from "@/components/Listings";
 import { useGearList } from "@/components/useGearList";
@@ -101,6 +102,7 @@ export function CompanyInventory({ company, isOwner = false }: { company: Compan
             )}
           </p>
           {company.about && <p className="co-about">{company.about}</p>}
+          <ContactLinks contact={company.contact} t={t.contact} />
           <div className="co-stats">
             <div>
               <strong className="num">{mine.length.toLocaleString("en-US")}</strong>{t.company.items}

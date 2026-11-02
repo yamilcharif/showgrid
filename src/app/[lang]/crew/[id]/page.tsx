@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { startConversation } from "@/app/[lang]/messages/actions";
 import { initials } from "@/components/directory/CompanyCards";
+import { ContactLinks } from "@/components/ContactLinks";
 import { countryName, flag } from "@/lib/flags";
 import { fmt, plural } from "@/lib/i18n/config";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
@@ -62,6 +63,7 @@ async function Profile({ params }: { params: PageProps<"/[lang]/crew/[id]">["par
               {t.dayRate}
             </div>
           </div>
+          <ContactLinks contact={tech.contact} t={T.contact} />
           {tech.skills.length > 0 && (
             <div className="crew-skills">
               {tech.skills.map((s) => (

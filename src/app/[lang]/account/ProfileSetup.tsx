@@ -2,7 +2,9 @@
 
 import { useActionState, useState } from "react";
 import { LocationBox } from "@/components/LocationBox";
-import { useT } from "@/components/I18n";
+import Link from "next/link";
+import { useI18n } from "@/components/I18n";
+import { TERMS } from "@/lib/legal/terms";
 import { fmt } from "@/lib/i18n/config";
 import { curOf, DEFAULT_PLACE } from "@/lib/places";
 import { createProfile, type ProfileState } from "./actions";
@@ -11,7 +13,8 @@ export function ProfileSetup({ email }: { email: string }) {
   const [state, action, pending] = useActionState<ProfileState, FormData>(createProfile, {});
   const [kind, setKind] = useState<"company" | "tech">("company");
   const [place, setPlace] = useState(DEFAULT_PLACE);
-  const t = useT().profile;
+  const { t: T, locale } = useI18n();
+  const t = T.profile;
 
   return (
     <form action={action} className="auth-form">
@@ -73,6 +76,20 @@ export function ProfileSetup({ email }: { email: string }) {
         </>
       )}
 
+      <div className="terms-box">
+        <b>{t.termsTitle}</b>
+        <p className="small">{TERMS[locale].summary}</p>
+        <label className="gm-toggle terms-agree">
+          <input type="checkbox" name="terms" required />
+          <span>
+            {t.agree}{" "}
+            <Link href="/terms" target="_blank">
+              {t.termsLink}
+            </Link>
+            {t.agreeRest}
+          </span>
+        </label>
+      </div>
       {state.error && (
         <p className="auth-err" role="alert">
           {state.error}

@@ -17,6 +17,11 @@ interface Props {
   years?: number;
   rate?: number | null;
   available?: boolean;
+  phone?: string | null;
+  contactEmail?: string | null;
+  address?: string | null;
+  website?: string | null;
+  instagram?: string | null;
 }
 
 export function EditProfileForm(p: Props) {
@@ -70,6 +75,38 @@ export function EditProfileForm(p: Props) {
           </label>
         </>
       )}
+      <fieldset className="contact-fields">
+        <legend>{t.contactTitle}</legend>
+        <p className="muted small">{t.contactNote}</p>
+        <div className="two">
+          <div className="field">
+            <label htmlFor="phone">{t.phone}</label>
+            <input id="phone" name="phone" type="tel" autoComplete="tel" maxLength={40} defaultValue={p.phone ?? ""} />
+          </div>
+          {p.kind === "company" && (
+            <div className="field">
+              <label htmlFor="contact_email">{t.contactEmail}</label>
+              <input id="contact_email" name="contact_email" type="email" autoComplete="email" maxLength={200} defaultValue={p.contactEmail ?? ""} />
+            </div>
+          )}
+        </div>
+        {p.kind === "company" && (
+          <div className="field">
+            <label htmlFor="address">{t.address}</label>
+            <input id="address" name="address" autoComplete="street-address" maxLength={300} placeholder={t.addressPlaceholder} defaultValue={p.address ?? ""} />
+          </div>
+        )}
+        <div className="two">
+          <div className="field">
+            <label htmlFor="website">{t.website}</label>
+            <input id="website" name="website" inputMode="url" placeholder="yourcompany.com" maxLength={300} defaultValue={p.website ?? ""} />
+          </div>
+          <div className="field">
+            <label htmlFor="instagram">{t.instagram}</label>
+            <input id="instagram" name="instagram" placeholder="@handle" maxLength={60} defaultValue={p.instagram ? `@${p.instagram}` : ""} />
+          </div>
+        </div>
+      </fieldset>
       {state.error && (
         <p className="auth-err" role="alert">
           {state.error}

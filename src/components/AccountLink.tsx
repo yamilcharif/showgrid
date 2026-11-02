@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getAccount } from "@/lib/auth";
+import { AccountMenu } from "./AccountMenu";
 import { fmt } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/server";
 import { getConversations } from "@/lib/inbox";
@@ -26,13 +27,11 @@ export async function AccountLink() {
           {unread > 0 && <span className="badge num">{unread}</span>}
         </Link>
       )}
-      <Link className="btn ghost-dark acct" href="/account" aria-label={acc.profile?.display_name ?? t.header.finishProfile}>
-        <span className="hide-sm">{acc.profile?.display_name ?? t.header.finishProfile}</span>
-        {/* phones: an icon, so the top bar fits */}
-        <span className="show-sm" aria-hidden="true">
-          👤
-        </span>
-      </Link>
+      <AccountMenu
+        name={acc.profile?.display_name ?? t.header.finishProfile}
+        publicHref={acc.company ? `/c/${acc.company.slug}` : acc.tech ? `/crew/${acc.tech.id}` : null}
+        isCompany={Boolean(acc.company)}
+      />
     </>
   );
 }

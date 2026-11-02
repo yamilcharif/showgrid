@@ -599,3 +599,35 @@ a.co:hover { text-decoration-color: currentColor; }
   .brand { gap: 7px; }
   .logo-mark { width: 21px; height: 21px; }
 }
+
+/* terms of use */
+.legal { max-width: 760px; padding-block: 40px 72px; line-height: 1.6; }
+.legal h1 { font-size: clamp(30px, 5vw, 42px); font-weight: 800; margin: 0 0 4px; font-variation-settings: "wdth" 112; }
+.legal h2 { font-size: 18px; margin: 28px 0 8px; }
+.legal p { margin: 0 0 12px; }
+.legal-summary { border-left: 3px solid var(--tally); padding: 12px 16px; background: var(--surface); border-radius: 0 var(--r) var(--r) 0; font-weight: 600; }
+.terms-box { border: 1px solid var(--line); border-left: 3px solid var(--tally); border-radius: var(--r); padding: 12px 14px; background: var(--surface-2); display: grid; gap: 8px; }
+.terms-box p { margin: 0; color: var(--muted); }
+.terms-agree { white-space: normal; align-items: flex-start; font-size: 14px; }
+.terms-agree input { margin-top: 3px; flex: none; }
+.terms-agree a, .auth-form .muted a { color: inherit; font-weight: 600; }
+
+/* contact details */
+.contact-fields { border: 0; padding: 0; margin: 0; display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 14px; }
+.contact-fields legend { font-weight: 700; padding: 0; margin-bottom: 4px; }
+.contact-fields p { margin: 0; }
+.contact-links { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.contact-links a { display: inline-flex; gap: 6px; align-items: center; padding: 6px 12px; border: 1px solid var(--hero-line); border-radius: 999px; color: var(--hero-ink); text-decoration: none; font-size: 14px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.contact-links a:hover { border-color: var(--hero-ink); }
+.contact-links span { color: var(--hero-muted); }
+.crew-hero .contact-links { margin: 0 0 16px; }
+
+/* account menu */
+.acct-menu { position: relative; }
+.acct .caret { font-size: 11px; opacity: 0.7; margin-left: 2px; }
+.menu { position: absolute; right: 0; top: calc(100% + 8px); z-index: 30; min-width: 220px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45); padding: 6px; display: grid; }
+.menu-name { margin: 0; padding: 8px 10px 10px; font-weight: 700; border-bottom: 1px solid var(--line); margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu a, .menu-signout { display: block; width: 100%; text-align: left; padding: 9px 10px; border-radius: 8px; color: inherit; text-decoration: none; font: inherit; font-size: 14.5px; background: none; border: 0; cursor: pointer; }
+.menu a:hover, .menu-signout:hover, .menu a:focus-visible, .menu-signout:focus-visible { background: var(--surface-2); }
+.menu form { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 4px; }
+.menu-signout { color: var(--tally); font-weight: 600; }

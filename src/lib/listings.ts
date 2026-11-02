@@ -2,6 +2,7 @@ import "server-only";
 import { createClient } from "@supabase/supabase-js";
 import { cacheLife, cacheTag } from "next/cache";
 import { cleanRule } from "./pricing";
+import type { Contact } from "./contact";
 import type { Category, Company, InventorySource, Item, Tech } from "./types";
 
 export interface Listings {
@@ -116,6 +117,7 @@ export interface CompanyPage {
   city: string;
   about: string | null;
   logo: string | null;
+  contact: Contact;
 }
 
 /** A company's public page header, by slug. */
@@ -126,12 +128,22 @@ export async function getCompanyPage(slug: string): Promise<CompanyPage | null> 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, {
     auth: { persistSession: false },
   });
-  const { data } = await supabase.from("companies").select("id, slug, name, city_label, about, logo_url").eq("slug", slug).maybeSingle();
-  return data && { id: data.id, slug: data.slug, name: data.name, city: data.city_label, about: data.about, logo: data.logo_url };
+  const { data } = await supabase.from("companies").select("id, slug, name, city_label, about, logo_url, phone, contact_email, address, website, instagram").eq("slug", slug).maybeSingle();
+  return (
+    data && {
+      id: data.id,
+      slug: data.slug,
+      name: data.name,
+      city: data.city_label,
+      about: data.about,
+      logo: data.logo_url,
+      contact: { phone: data.phone, email: data.contact_email, address: data.address, website: data.website, instagram: data.instagram },
+    }
+  );
 }
 
 /** One crew member's public profile, by id. */
-export async function getTechPage(id: string): Promise<Tech | null> {
+export async function getTechPage(id: string): Promise<(Tech & { contact: Contact }) | null> {
   "use cache";
   cacheTag("listings");
   cacheLife("minutes");
@@ -141,7 +153,7 @@ export async function getTechPage(id: string): Promise<Tech | null> {
   });
   const { data: t } = await supabase
     .from("techs")
-    .select("id, owner_id, name, role, skills, years_experience, day_rate, city_label, currency, available, photo_url")
+    .select("id, owner_id, name, role, skills, years_experience, day_rate, city_label, currency, available, photo_url, phone, website, instagram")
     .eq("id", id)
     .maybeSingle();
   return (
@@ -158,6 +170,7 @@ export async function getTechPage(id: string): Promise<Tech | null> {
       avail: t.available,
       cur: t.currency,
       photo: t.photo_url,
+      contact: { phone: t.phone, website: t.website, instagram: t.instagram },
     }
   );
 }

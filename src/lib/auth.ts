@@ -17,6 +17,11 @@ export interface Account {
     about: string | null;
     logo_url: string | null;
     price_rule: unknown;
+    phone: string | null;
+    contact_email: string | null;
+    address: string | null;
+    website: string | null;
+    instagram: string | null;
     city_label: string;
     currency: string;
     verified_at: string | null;
@@ -31,6 +36,9 @@ export interface Account {
     currency: string;
     photo_url: string | null;
     id: string;
+    phone: string | null;
+    website: string | null;
+    instagram: string | null;
   } | null;
 }
 
@@ -43,8 +51,8 @@ export const getAccount = cache(async (): Promise<Account | null> => {
   const id = claims.sub;
   const [profile, company, tech] = await Promise.all([
     supabase.from("profiles").select("kind, display_name").eq("id", id).maybeSingle(),
-    supabase.from("companies").select("id, name, slug, about, logo_url, price_rule, city_label, currency, verified_at").eq("owner_id", id).maybeSingle(),
-    supabase.from("techs").select("id, name, role, skills, years_experience, day_rate, city_label, currency, photo_url").eq("owner_id", id).maybeSingle(),
+    supabase.from("companies").select("id, name, slug, about, logo_url, price_rule, city_label, currency, verified_at, phone, contact_email, address, website, instagram").eq("owner_id", id).maybeSingle(),
+    supabase.from("techs").select("id, name, role, skills, years_experience, day_rate, city_label, currency, photo_url, phone, website, instagram").eq("owner_id", id).maybeSingle(),
   ]);
   return {
     id,

@@ -5,6 +5,8 @@ import { updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAccount } from "@/lib/auth";
 import { cleanRule } from "@/lib/pricing";
+import { TERMS_VERSION } from "@/lib/legal/terms";
+import { cleanEmail, cleanInstagram, cleanPhone, cleanWebsite } from "@/lib/contact";
 import { coords, curOf, PLACE_OPTS } from "@/lib/places";
 import { createClient } from "@/lib/supabase/server";
 
@@ -27,12 +29,21 @@ export async function createProfile(_prev: ProfileState, form: FormData): Promis
   // only cities from our list for now; any address once geocoding is added
   const city = text(form, "city");
   if (!PLACE_OPTS.some((p) => p.label === city && !p.country)) return { error: (await actionDictionary()).profile.errCity };
+  // creating an account requires agreeing to the Terms of Use; when and which version are recorded
+  if (form.get("terms") !== "on") return { error: (await actionDictionary()).profile.errTerms };
   const [lat, lng] = coords(city);
   const place = { city_label: city, country_code: PLACE_OPTS.find((p) => p.label === city)!.cc, location: `SRID=4326;POINT(${lng} ${lat})`, currency: curOf(city) };
 
   const { error: profileError } = await supabase
     .from("profiles")
-    .insert({ id: claims.sub, kind, display_name: name, email: String(claims.email ?? "") });
+    .insert({
+      id: claims.sub,
+      kind,
+      display_name: name,
+      email: String(claims.email ?? ""),
+      terms_accepted_at: new Date().toISOString(),
+      terms_version: TERMS_VERSION,
+    });
   if (profileError) return { error: (await actionDictionary()).profile.errSave };
 
   let detailError;
@@ -183,7 +194,16 @@ export async function updateProfile(_prev: EditState, form: FormData): Promise<E
   if (acc.company) {
     ({ error } = await supabase
       .from("companies")
-      .update({ name, about: text(form, "about", 1000) || null, ...place })
+      .update({
+        name,
+        about: text(form, "about", 1000) || null,
+        phone: cleanPhone(text(form, "phone")),
+        contact_email: cleanEmail(text(form, "contact_email", 200)),
+        address: text(form, "address", 300) || null,
+        website: cleanWebsite(text(form, "website", 300)),
+        instagram: cleanInstagram(text(form, "instagram")),
+        ...place,
+      })
       .eq("owner_id", acc.id));
   } else if (acc.tech) {
     const rate = parseFloat(text(form, "rate"));
@@ -196,6 +216,9 @@ export async function updateProfile(_prev: EditState, form: FormData): Promise<E
         years_experience: Math.max(0, Math.min(60, parseInt(text(form, "years"), 10) || 0)),
         day_rate: Number.isFinite(rate) && rate > 0 ? rate : null,
         available: form.get("available") === "on",
+        phone: cleanPhone(text(form, "phone")),
+        website: cleanWebsite(text(form, "website", 300)),
+        instagram: cleanInstagram(text(form, "instagram")),
         ...place,
       })
       .eq("owner_id", acc.id));

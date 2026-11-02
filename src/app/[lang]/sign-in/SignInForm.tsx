@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import Link from "next/link";
 import { useT } from "@/components/I18n";
 import { fmt } from "@/lib/i18n/config";
 import {
@@ -117,6 +118,13 @@ function SendCodeForm({ onSent, ...props }: EmailProps & { onSent: (email: strin
         {pending ? t.signIn.sending : t.signIn.emailCode}
       </button>
       <p className="muted small">{t.signIn.newHere}</p>
+      <p className="muted small">
+        {t.signIn.termsNote}{" "}
+        <Link href="/terms" target="_blank">
+          {t.signIn.termsLink}
+        </Link>
+        .
+      </p>
     </form>
   );
 }

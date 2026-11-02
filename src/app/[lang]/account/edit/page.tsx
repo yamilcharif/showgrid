@@ -31,7 +31,20 @@ async function Form() {
   if (!acc) redirect("/sign-in");
   if (!acc.profile) redirect("/account");
   if (acc.company) {
-    return <EditProfileForm kind="company" name={acc.company.name} city={acc.company.city_label} about={acc.company.about} />;
+    const c = acc.company;
+    return (
+      <EditProfileForm
+        kind="company"
+        name={c.name}
+        city={c.city_label}
+        about={c.about}
+        phone={c.phone}
+        contactEmail={c.contact_email}
+        address={c.address}
+        website={c.website}
+        instagram={c.instagram}
+      />
+    );
   }
   // availability isn't on the account summary, so read it here
   const supabase = await createClient();
@@ -47,6 +60,9 @@ async function Form() {
       years={tech.years_experience}
       rate={tech.day_rate}
       available={data?.available ?? true}
+      phone={tech.phone}
+      website={tech.website}
+      instagram={tech.instagram}
     />
   );
 }
