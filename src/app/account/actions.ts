@@ -1,5 +1,6 @@
 "use server";
 
+import { updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { coords, curOf, PLACE_OPTS } from "@/lib/places";
 import { createClient } from "@/lib/supabase/server";
@@ -54,7 +55,36 @@ export async function createProfile(_prev: ProfileState, form: FormData): Promis
     await supabase.from("profiles").delete().eq("id", claims.sub);
     return { error: "We couldn't save your profile. Try again." };
   }
+  // new crew show up in search right away instead of after the cache expires
+  updateTag("listings");
   redirect("/account");
+}
+
+export interface PasswordState {
+  error?: string;
+  saved?: boolean;
+}
+
+export async function setPassword(_prev: PasswordState, form: FormData): Promise<PasswordState> {
+  const password = String(form.get("password") ?? "");
+  if (password.length < 8) return { error: "Use at least 8 characters." };
+  if (password !== String(form.get("confirm") ?? "")) return { error: "The two passwords don't match." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ password, data: { has_password: true } });
+  if (error) {
+    return {
+      error:
+        error.code === "weak_password"
+          ? "That password is too easy to guess. Try a longer one."
+          : error.code === "same_password"
+            ? "That's already your password."
+            : "We couldn't save your password. Try again.",
+    };
+  }
+  // fresh token, so the session (and the account page) sees has_password right away
+  await supabase.auth.refreshSession();
+  return { saved: true };
 }
 
 export async function signOut() {

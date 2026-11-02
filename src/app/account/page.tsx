@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { getAccount, type Account } from "@/lib/auth";
 import { money } from "@/lib/search";
 import { signOut } from "./actions";
+import { PasswordCard } from "./PasswordCard";
 import { ProfileSetup } from "./ProfileSetup";
 
 export const metadata: Metadata = { title: "Your account · ShowGrid" };
@@ -76,6 +77,7 @@ function Summary({ acc }: { acc: Account }) {
           <p className="muted">Connecting Rentman or Flex is coming soon. Your gear will then show up in search.</p>
         </div>
       )}
+      <PasswordCard hasPassword={acc.hasPassword} />
       <form action={signOut}>
         <button className="btn">Sign out</button>
       </form>

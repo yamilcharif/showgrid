@@ -288,3 +288,15 @@ footer.site b { letter-spacing: 0.06em; font-variation-settings: "wdth" 125; }
   .inbox .snip { grid-column: 1 / -1; grid-row: 2; }
   .msg { max-width: 88%; }
 }
+
+/* password sign-in */
+.auth-stack { display: grid; gap: 16px; }
+.auth-switch { display: flex; flex-wrap: wrap; gap: 6px; font-size: 14px; border-top: 1px solid var(--line); padding-top: 14px; }
+.link { background: none; border: 0; padding: 0; color: var(--ink); font: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.auth-ok { color: var(--ok); font-size: 14px; }
+.pw-card { margin-bottom: 24px; }
+.pw-card p { margin: 4px 0 0; }
+.pw-todo { border-color: var(--ink); }
+@media (max-width: 640px) {
+  .pw-card .two { grid-template-columns: 1fr; }
+}

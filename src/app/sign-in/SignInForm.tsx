@@ -1,23 +1,86 @@
 "use client";
 
-import { useActionState } from "react";
-import { sendSignInLink, verifyCode, type CodeState, type SignInState } from "./actions";
+import { useActionState, useEffect, useState } from "react";
+import {
+  sendSignInLink,
+  signInWithPassword,
+  verifyCode,
+  type CodeState,
+  type PasswordState,
+  type SignInState,
+} from "./actions";
 
 export function SignInForm({ linkError }: { linkError: boolean }) {
-  const [state, action, pending] = useActionState<SignInState, FormData>(sendSignInLink, {});
+  const [mode, setMode] = useState<"password" | "code">("password");
+  const [email, setEmail] = useState("");
+  const [sent, setSent] = useState("");
 
-  if (state.sent) return <CodeForm email={state.sent} />;
+  if (sent) return <CodeForm email={sent} />;
 
   return (
-    <form action={action} className="auth-form">
-      {linkError && !state.error && (
+    <div className="auth-form">
+      {linkError && (
         <p className="auth-err" role="alert">
-          That sign-in link didn&apos;t work. It may have expired or already been used. Send a new one, then type the code from the email.
+          That sign-in link didn&apos;t work. It may have expired or already been used. Send a new code below.
         </p>
       )}
+      {mode === "password" ? (
+        <PasswordForm email={email} setEmail={setEmail} />
+      ) : (
+        <SendCodeForm email={email} setEmail={setEmail} onSent={setSent} />
+      )}
+      <div className="auth-switch">
+        {mode === "password" ? (
+          <>
+            <span className="muted">First time here, or forgot your password?</span>
+            <button type="button" className="link" onClick={() => setMode("code")}>
+              Email me a code
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="muted">Already set a password?</span>
+            <button type="button" className="link" onClick={() => setMode("password")}>
+              Sign in with password
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface EmailProps {
+  email: string;
+  setEmail: (v: string) => void;
+}
+
+function EmailField({ email, setEmail }: EmailProps) {
+  return (
+    <div className="field">
+      <label htmlFor="email">Work email</label>
+      <input
+        id="email"
+        name="email"
+        type="email"
+        autoComplete="email"
+        required
+        placeholder="you@company.com"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+      />
+    </div>
+  );
+}
+
+function PasswordForm(props: EmailProps) {
+  const [state, action, pending] = useActionState<PasswordState, FormData>(signInWithPassword, {});
+  return (
+    <form action={action} className="auth-stack">
+      <EmailField {...props} />
       <div className="field">
-        <label htmlFor="email">Work email</label>
-        <input id="email" name="email" type="email" autoComplete="email" required placeholder="you@company.com" />
+        <label htmlFor="password">Password</label>
+        <input id="password" name="password" type="password" autoComplete="current-password" required />
       </div>
       {state.error && (
         <p className="auth-err" role="alert">
@@ -25,9 +88,29 @@ export function SignInForm({ linkError }: { linkError: boolean }) {
         </p>
       )}
       <button className="btn primary" disabled={pending}>
-        {pending ? "Sending…" : "Email me a sign-in link"}
+        {pending ? "Signing in…" : "Sign in"}
       </button>
-      <p className="muted small">No password needed. New here? The same link creates your account.</p>
+    </form>
+  );
+}
+
+function SendCodeForm({ onSent, ...props }: EmailProps & { onSent: (email: string) => void }) {
+  const [state, action, pending] = useActionState<SignInState, FormData>(sendSignInLink, {});
+  useEffect(() => {
+    if (state.sent) onSent(state.sent);
+  }, [state.sent, onSent]);
+  return (
+    <form action={action} className="auth-stack">
+      <EmailField {...props} />
+      {state.error && (
+        <p className="auth-err" role="alert">
+          {state.error}
+        </p>
+      )}
+      <button className="btn primary" disabled={pending}>
+        {pending ? "Sending…" : "Email me a code"}
+      </button>
+      <p className="muted small">New here? The code creates your account. After that you can set a password.</p>
     </form>
   );
 }

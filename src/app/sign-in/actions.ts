@@ -45,3 +45,25 @@ export async function verifyCode(_prev: CodeState, form: FormData): Promise<Code
   if (error) return { error: "That code didn't work. It may have expired or already been used. Send a new one." };
   redirect("/account");
 }
+
+export interface PasswordState {
+  error?: string;
+}
+
+export async function signInWithPassword(_prev: PasswordState, form: FormData): Promise<PasswordState> {
+  const email = String(form.get("email") ?? "").trim().toLowerCase();
+  const password = String(form.get("password") ?? "");
+  if (!email || !password) return { error: "Enter your email and password." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) {
+    return {
+      error:
+        error.status === 429
+          ? "Too many tries. Wait a few minutes and try again."
+          : "Wrong email or password. First time here, or no password yet? Use “Email me a code” below.",
+    };
+  }
+  redirect("/account");
+}
