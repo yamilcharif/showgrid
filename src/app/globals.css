@@ -597,7 +597,7 @@ a.co:hover { text-decoration-color: currentColor; }
 .logo-mark { flex: none; color: var(--hero-ink); }
 @media (max-width: 640px) {
   .brand { gap: 7px; }
-  .logo-mark { width: 21px; height: 21px; }
+  .logo-mark { width: 23px; height: 23px; }
 }
 
 /* terms of use */
