@@ -11,7 +11,7 @@ export interface Listings {
 
 /**
  * Public listings from Supabase (real companies, their synced gear and bookings, and crew),
- * shaped like the sample data so search treats them the same.
+ * shaped for client-side search.
  */
 export async function getListings(): Promise<Listings> {
   "use cache";
@@ -23,10 +23,10 @@ export async function getListings(): Promise<Listings> {
   });
   const today = new Date().toISOString().slice(0, 10);
   const [co, it, bk, te] = await Promise.all([
-    supabase.from("companies").select("id, owner_id, name, city_label, currency").limit(1000),
+    supabase.from("companies").select("id, slug, owner_id, name, city_label, currency").limit(1000),
     supabase
       .from("items")
-      .select("id, company_id, source, name, category, spec, tags, quantity_owned, day_rate, public_price, updated_at")
+      .select("id, company_id, source, name, category, spec, tags, quantity_owned, day_rate, public_price, image_url, photo_url, custom_category, updated_at")
       .eq("listed", true)
       .gt("quantity_owned", 0)
       .limit(20000),
@@ -54,12 +54,12 @@ export async function getListings(): Promise<Listings> {
   return {
     companies: (co.data ?? []).map((c) => ({
       id: c.id,
+      slug: c.slug,
       profileId: c.owner_id,
       name: c.name,
       city: c.city_label,
       off: [0, 0],
       src: sync.get(c.id)?.src ?? "manual",
-      syncMin: 0,
       syncedAt: sync.get(c.id)?.at ?? null,
       cur: c.currency,
     })),
@@ -69,7 +69,8 @@ export async function getListings(): Promise<Listings> {
         id: i.id,
         co: i.company_id,
         name: i.name,
-        cat: i.category as Category,
+        // the owner's own category and photo win over what the sync brought in
+        cat: (i.custom_category ?? i.category) as Category,
         tags: i.tags ?? "",
         qty: Math.max(0, i.quantity_owned - bookedToday),
         total: i.quantity_owned,
@@ -77,6 +78,7 @@ export async function getListings(): Promise<Listings> {
         spec: i.spec ?? "",
         listed: true,
         pub: i.public_price && i.day_rate != null,
+        image: i.photo_url ?? i.image_url,
         bookings: bookings.get(i.id) ?? {},
       };
     }),
@@ -94,4 +96,24 @@ export async function getListings(): Promise<Listings> {
       cur: t.currency,
     })),
   };
+}
+
+export interface CompanyPage {
+  id: string;
+  slug: string;
+  name: string;
+  city: string;
+  about: string | null;
+}
+
+/** A company's public page header, by slug. */
+export async function getCompanyPage(slug: string): Promise<CompanyPage | null> {
+  "use cache";
+  cacheTag("listings");
+  cacheLife("minutes");
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, {
+    auth: { persistSession: false },
+  });
+  const { data } = await supabase.from("companies").select("id, slug, name, city_label, about").eq("slug", slug).maybeSingle();
+  return data && { id: data.id, slug: data.slug, name: data.name, city: data.city_label, about: data.about };
 }

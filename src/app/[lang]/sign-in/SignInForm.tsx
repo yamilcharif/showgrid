@@ -1,6 +1,8 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { useT } from "@/components/I18n";
+import { fmt } from "@/lib/i18n/config";
 import {
   sendSignInLink,
   signInWithPassword,
@@ -11,6 +13,7 @@ import {
 } from "./actions";
 
 export function SignInForm({ linkError }: { linkError: boolean }) {
+  const t = useT();
   const [mode, setMode] = useState<"password" | "code">("password");
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState("");
@@ -21,7 +24,7 @@ export function SignInForm({ linkError }: { linkError: boolean }) {
     <div className="auth-form">
       {linkError && (
         <p className="auth-err" role="alert">
-          That sign-in link didn&apos;t work. It may have expired or already been used. Send a new code below.
+          {t.signIn.linkError}
         </p>
       )}
       {mode === "password" ? (
@@ -32,16 +35,16 @@ export function SignInForm({ linkError }: { linkError: boolean }) {
       <div className="auth-switch">
         {mode === "password" ? (
           <>
-            <span className="muted">First time here, or forgot your password?</span>
+            <span className="muted">{t.signIn.firstTime}</span>
             <button type="button" className="link" onClick={() => setMode("code")}>
-              Email me a code
+              {t.signIn.emailCode}
             </button>
           </>
         ) : (
           <>
-            <span className="muted">Already set a password?</span>
+            <span className="muted">{t.signIn.havePassword}</span>
             <button type="button" className="link" onClick={() => setMode("password")}>
-              Sign in with password
+              {t.signIn.withPassword}
             </button>
           </>
         )}
@@ -56,9 +59,10 @@ interface EmailProps {
 }
 
 function EmailField({ email, setEmail }: EmailProps) {
+  const t = useT();
   return (
     <div className="field">
-      <label htmlFor="email">Work email</label>
+      <label htmlFor="email">{t.signIn.email}</label>
       <input
         id="email"
         name="email"
@@ -74,12 +78,13 @@ function EmailField({ email, setEmail }: EmailProps) {
 }
 
 function PasswordForm(props: EmailProps) {
+  const t = useT();
   const [state, action, pending] = useActionState<PasswordState, FormData>(signInWithPassword, {});
   return (
     <form action={action} className="auth-stack">
       <EmailField {...props} />
       <div className="field">
-        <label htmlFor="password">Password</label>
+        <label htmlFor="password">{t.signIn.password}</label>
         <input id="password" name="password" type="password" autoComplete="current-password" required />
       </div>
       {state.error && (
@@ -88,13 +93,14 @@ function PasswordForm(props: EmailProps) {
         </p>
       )}
       <button className="btn primary" disabled={pending}>
-        {pending ? "Signing in…" : "Sign in"}
+        {pending ? t.signIn.signingIn : t.signIn.signIn}
       </button>
     </form>
   );
 }
 
 function SendCodeForm({ onSent, ...props }: EmailProps & { onSent: (email: string) => void }) {
+  const t = useT();
   const [state, action, pending] = useActionState<SignInState, FormData>(sendSignInLink, {});
   useEffect(() => {
     if (state.sent) onSent(state.sent);
@@ -108,28 +114,29 @@ function SendCodeForm({ onSent, ...props }: EmailProps & { onSent: (email: strin
         </p>
       )}
       <button className="btn primary" disabled={pending}>
-        {pending ? "Sending…" : "Email me a code"}
+        {pending ? t.signIn.sending : t.signIn.emailCode}
       </button>
-      <p className="muted small">New here? The code creates your account. After that you can set a password.</p>
+      <p className="muted small">{t.signIn.newHere}</p>
     </form>
   );
 }
 
 function CodeForm({ email }: { email: string }) {
+  const t = useT();
   const [state, action, pending] = useActionState<CodeState, FormData>(verifyCode, {});
   return (
     <form action={action} className="auth-form" aria-labelledby="check-email">
       <div role="status">
         <h2 id="check-email" className="auth-h2">
-          Check your email
+          {t.signIn.checkEmail}
         </h2>
         <p>
-          We sent a sign-in code to <b>{email}</b>. Type it here, or click the link in the email.
+          {fmt(t.signIn.codeSent, { email })}
         </p>
       </div>
       <input type="hidden" name="email" value={email} />
       <div className="field">
-        <label htmlFor="code">Code</label>
+        <label htmlFor="code">{t.signIn.code}</label>
         <input
           id="code"
           name="code"
@@ -148,9 +155,9 @@ function CodeForm({ email }: { email: string }) {
         </p>
       )}
       <button className="btn primary" disabled={pending}>
-        {pending ? "Checking…" : "Sign in"}
+        {pending ? t.signIn.checking : t.signIn.signIn}
       </button>
-      <p className="muted small">The code works once and expires in an hour. Nothing there? Check spam, or reload this page to send another.</p>
+      <p className="muted small">{t.signIn.codeNote}</p>
     </form>
   );
 }

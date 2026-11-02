@@ -3,11 +3,14 @@
 import { useCallback } from "react";
 import { freeFor, parseQuery } from "@/lib/search";
 import { useApp } from "./AppState";
+import { fmt } from "@/lib/i18n/config";
+import { useT } from "./I18n";
 import { useListings } from "./Listings";
 
 export function useGearList() {
   const { q, dates, setCart, setCartOpen, notify } = useApp();
   const { itemById } = useListings();
+  const t = useT();
 
   const add = useCallback(
     (id: string) => {
@@ -21,9 +24,9 @@ export function useGearList() {
           ? c.map((l) => (l.id === id ? { ...l, qty: Math.min(cap, l.qty + qty) } : l))
           : [...c, { id, qty }];
       });
-      notify(`Added ${qty}× ${it.name} to your gear list.`, { label: "View list", run: () => setCartOpen(true) });
+      notify(fmt(t.list.added, { qty, name: it.name }), { label: t.list.viewList, run: () => setCartOpen(true) });
     },
-    [q, dates, setCart, setCartOpen, notify, itemById],
+    [q, dates, setCart, setCartOpen, notify, itemById, t],
   );
 
   const step = useCallback(

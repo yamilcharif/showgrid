@@ -3,18 +3,25 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { getAccount, type Account } from "@/lib/auth";
 import { money } from "@/lib/search";
+import { fmt } from "@/lib/i18n/config";
+import type { Dict } from "@/lib/i18n/en";
+import { getDictionary } from "@/lib/i18n/server";
 import { signOut } from "./actions";
 import { PasswordCard } from "./PasswordCard";
 import { ProfileSetup } from "./ProfileSetup";
+import { PublicPageCard } from "./PublicPageCard";
 import { RentmanCard } from "./RentmanCard";
 import { createClient } from "@/lib/supabase/server";
 
-export const metadata: Metadata = { title: "Your account · ShowGrid" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getDictionary()).account.metaTitle };
+}
 
-export default function AccountPage() {
+export default async function AccountPage() {
+  const t = await getDictionary();
   return (
     <main className="wrap auth-page">
-      <Suspense fallback={<p className="muted">Loading your account…</p>}>
+      <Suspense fallback={<p className="muted">{t.account.loading}</p>}>
         <AccountContent />
       </Suspense>
     </main>
@@ -22,57 +29,58 @@ export default function AccountPage() {
 }
 
 async function AccountContent() {
-  const acc = await getAccount();
+  const [acc, t] = await Promise.all([getAccount(), getDictionary()]);
   if (!acc) redirect("/sign-in");
   if (!acc.profile) {
     return (
       <>
-        <h1>Set up your profile</h1>
+        <h1>{t.account.setupTitle}</h1>
         <ProfileSetup email={acc.email} />
       </>
     );
   }
-  return <Summary acc={acc} />;
+  return <Summary acc={acc} t={t.account} />;
 }
 
-function Summary({ acc }: { acc: Account }) {
+function Summary({ acc, t }: { acc: Account; t: Dict["account"] }) {
   const { company, tech } = acc;
   return (
     <>
-      <p className="eyebrow muted">{acc.profile!.kind === "company" ? "Rental company" : "Crew"}</p>
+      <p className="eyebrow muted">{acc.profile!.kind === "company" ? t.company : t.crew}</p>
       <h1>{acc.profile!.display_name}</h1>
       <dl className="auth-dl">
-        <dt>Email</dt>
+        <dt>{t.email}</dt>
         <dd>{acc.email}</dd>
         {company && (
           <>
-            <dt>City</dt>
+            <dt>{t.city}</dt>
             <dd>{company.city_label}</dd>
-            <dt>Currency</dt>
+            <dt>{t.currency}</dt>
             <dd>{company.currency}</dd>
-            <dt>Status</dt>
-            <dd>{company.verified_at ? "Verified" : "Not verified yet"}</dd>
+            <dt>{t.status}</dt>
+            <dd>{company.verified_at ? t.verified : t.notVerified}</dd>
           </>
         )}
         {tech && (
           <>
-            <dt>Role</dt>
+            <dt>{t.role}</dt>
             <dd>{tech.role}</dd>
-            <dt>City</dt>
+            <dt>{t.city}</dt>
             <dd>{tech.city_label}</dd>
             {tech.skills.length > 0 && (
               <>
-                <dt>Skills</dt>
+                <dt>{t.skills}</dt>
                 <dd>{tech.skills.join(", ")}</dd>
               </>
             )}
-            <dt>Experience</dt>
-            <dd>{tech.years_experience} years</dd>
-            <dt>Day rate</dt>
-            <dd>{tech.day_rate ? money(tech.day_rate, tech.currency) : "On request"}</dd>
+            <dt>{t.experience}</dt>
+            <dd>{fmt(t.years, { n: tech.years_experience })}</dd>
+            <dt>{t.dayRate}</dt>
+            <dd>{tech.day_rate ? money(tech.day_rate, tech.currency) : t.onRequest}</dd>
           </>
         )}
       </dl>
+      {company && <PublicPageCard slug={company.slug} about={company.about} />}
       {company && (
         <Suspense fallback={null}>
           <Inventory />
@@ -80,7 +88,7 @@ function Summary({ acc }: { acc: Account }) {
       )}
       <PasswordCard hasPassword={acc.hasPassword} />
       <form action={signOut}>
-        <button className="btn">Sign out</button>
+        <button className="btn">{t.signOut}</button>
       </form>
     </>
   );

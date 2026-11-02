@@ -1,14 +1,16 @@
 import Link from "next/link";
 import { getAccount } from "@/lib/auth";
+import { fmt } from "@/lib/i18n/config";
+import { getDictionary } from "@/lib/i18n/server";
 import { getConversations } from "@/lib/inbox";
 
 /** Header links: "Sign in", or Messages (with unread count) and the signed-in person's name. Reads the session, so render it inside Suspense. */
 export async function AccountLink() {
-  const acc = await getAccount();
+  const [acc, t] = await Promise.all([getAccount(), getDictionary()]);
   if (!acc) {
     return (
       <Link className="btn ghost-dark" href="/sign-in">
-        Sign in
+        {t.header.signIn}
       </Link>
     );
   }
@@ -16,8 +18,8 @@ export async function AccountLink() {
   return (
     <>
       {acc.profile && (
-        <Link className="btn ghost-dark" href="/messages" aria-label={`Messages${unread ? `, ${unread} unread` : ""}`}>
-          <span className="hide-sm">Messages</span>
+        <Link className="btn ghost-dark" href="/messages" aria-label={unread ? fmt(t.header.messagesUnread, { n: unread }) : t.header.messages}>
+          <span className="hide-sm">{t.header.messages}</span>
           <span className="show-sm" aria-hidden="true">
             ✉
           </span>
@@ -25,7 +27,7 @@ export async function AccountLink() {
         </Link>
       )}
       <Link className="btn ghost-dark acct" href="/account">
-        {acc.profile?.display_name ?? "Finish profile"}
+        {acc.profile?.display_name ?? t.header.finishProfile}
       </Link>
     </>
   );

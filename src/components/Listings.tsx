@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import type { Listings } from "@/lib/listings";
-import { COMPANIES, ITEMS, TECHS } from "@/lib/sample-data";
 import type { Company, Item, Tech } from "@/lib/types";
 
 interface AllListings {
@@ -15,12 +14,10 @@ interface AllListings {
 
 const Ctx = createContext<AllListings | null>(null);
 
-/** Real listings from Supabase first, then the sample data. */
+/** Listings from Supabase, shared with every client component. */
 export function ListingsProvider({ real, children }: { real: Listings; children: ReactNode }) {
   const value = useMemo(() => {
-    const companies = [...real.companies, ...COMPANIES];
-    const items = [...real.items, ...ITEMS];
-    const techs = [...real.techs, ...TECHS];
+    const { companies, items, techs } = real;
     const itemMap = new Map(items.map((i) => [i.id, i]));
     const coMap = new Map(companies.map((c) => [c.id, c]));
     return { companies, items, techs, itemById: (id: string) => itemMap.get(id), companyById: (id: string) => coMap.get(id) };

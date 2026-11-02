@@ -10,7 +10,7 @@ export interface Account {
   /** set once they've chosen a password, so later sign-ins don't need a code */
   hasPassword: boolean;
   profile: { kind: AccountKind; display_name: string } | null;
-  company: { name: string; city_label: string; currency: string; verified_at: string | null } | null;
+  company: { name: string; slug: string; about: string | null; city_label: string; currency: string; verified_at: string | null } | null;
   tech: { name: string; role: string; skills: string[]; years_experience: number; day_rate: number | null; city_label: string; currency: string } | null;
 }
 
@@ -23,7 +23,7 @@ export const getAccount = cache(async (): Promise<Account | null> => {
   const id = claims.sub;
   const [profile, company, tech] = await Promise.all([
     supabase.from("profiles").select("kind, display_name").eq("id", id).maybeSingle(),
-    supabase.from("companies").select("name, city_label, currency, verified_at").eq("owner_id", id).maybeSingle(),
+    supabase.from("companies").select("name, slug, about, city_label, currency, verified_at").eq("owner_id", id).maybeSingle(),
     supabase.from("techs").select("name, role, skills, years_experience, day_rate, city_label, currency").eq("owner_id", id).maybeSingle(),
   ]);
   return {
@@ -32,3 +32,12 @@ export const getAccount = cache(async (): Promise<Account | null> => {
     hasPassword: Boolean(claims.user_metadata?.has_password),
     profile: profile.data, company: company.data, tech: tech.data };
 });
+
+/** Where to send someone right after signing in: home if their profile is set up, otherwise profile setup. */
+export async function landingPath(supabase: Awaited<ReturnType<typeof createClient>>) {
+  const { data } = await supabase.auth.getClaims();
+  const id = data?.claims?.sub;
+  if (!id) return "/sign-in";
+  const { data: profile } = await supabase.from("profiles").select("id").eq("id", id).maybeSingle();
+  return profile ? "/" : "/account";
+}

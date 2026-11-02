@@ -79,13 +79,20 @@ export async function syncRentman(connectionId: string): Promise<SyncResult> {
     const { data: token } = await db.rpc("inventory_token", { p_connection: connectionId });
     if (!token) throw new RentmanError("No Rentman token saved.");
 
-    const [equipment, folders] = await Promise.all([
+    const [equipment, folders, files] = await Promise.all([
       // current_quantity is only returned when asked for by name
       get(token, "/equipment", {
-        fields: "id,name,displayname,folder,code,price,type,rental_sales,in_archive,is_physical,shop_description_short,tags,current_quantity",
+        fields: "id,name,displayname,folder,code,price,type,rental_sales,in_archive,is_physical,shop_description_short,tags,current_quantity,image",
       }),
       get(token, "/folders"),
+      // photos: only public files have a URL anyone can open
+      get(token, "/files", { fields: "id,url,public,image" }),
     ]);
+    const photo = new Map<number, string>();
+    for (const f of files) {
+      const isPublic = f.public === true || String(f.public).toLowerCase() === "true";
+      if (isPublic && f.image && typeof f.url === "string" && f.url.startsWith("https://")) photo.set(num(f.id), f.url);
+    }
     const folderName = new Map<number, string>();
     for (const f of folders) folderName.set(num(f.id), String(f.name ?? f.displayname ?? ""));
     const folderPath = (id: number) => {
@@ -120,6 +127,7 @@ export async function syncRentman(connectionId: string): Promise<SyncResult> {
         tags: [folder, e.code, e.tags].filter(Boolean).join(" ").slice(0, 500) || null,
         quantity_owned: Math.max(0, Math.round(num(e.current_quantity ?? e.current_quantity_excl_cases))),
         day_rate: num(e.price) || null,
+        image_url: photo.get(refId(e.image)) ?? null,
         updated_at: new Date().toISOString(),
       };
     });

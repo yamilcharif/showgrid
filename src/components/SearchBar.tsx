@@ -3,16 +3,16 @@
 import { useMemo, useState } from "react";
 import { RADII, isoIn, statsFor, unitFor } from "@/lib/search";
 import { useListings } from "./Listings";
+import { useT } from "./I18n";
 import { useApp } from "./AppState";
 import { LocationBox } from "./LocationBox";
 import { SearchIcon } from "./icons";
-
-const CHIPS = ["8 moving heads", "Need a FOH engineer", "LED wall", "Chain motors", "Hazer", "grandMA3", "Generator", "Rigger"];
 
 export function SearchBar() {
   const { place, setPlace, radiusIdx, setRadiusIdx, dates, setDates, setQ, ready } = useApp();
   const [text, setText] = useState("");
   const unit = unitFor(place);
+  const t = useT();
   const listings = useListings();
   const STATS = useMemo(() => statsFor(listings), [listings]);
 
@@ -37,8 +37,8 @@ export function SearchBar() {
             id="q"
             className="q-input"
             type="search"
-            placeholder="What's your problem?"
-            aria-label="What's your problem?"
+            placeholder={t.search.placeholder}
+            aria-label={t.search.placeholder}
             autoComplete="off"
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -47,7 +47,7 @@ export function SearchBar() {
         <LocationBox value={place} onChange={setPlace} />
         <div className="dates">
           <label className="dt" htmlFor="fromD">
-            <span>From</span>
+            <span>{t.search.from}</span>
             <input
               id="fromD"
               type="date"
@@ -60,7 +60,7 @@ export function SearchBar() {
           </label>
           <span className="dash" aria-hidden="true">→</span>
           <label className="dt" htmlFor="toD">
-            <span>To</span>
+            <span>{t.search.to}</span>
             <input
               id="toD"
               type="date"
@@ -74,29 +74,29 @@ export function SearchBar() {
         </div>
         <select
           id="radius"
-          aria-label="Distance"
+          aria-label={t.search.distance}
           disabled={place.country}
           value={place.country ? "country" : radiusIdx}
           onChange={(e) => setRadiusIdx(Number(e.target.value))}
         >
           {place.country ? (
-            <option value="country">Whole country</option>
+            <option value="country">{t.search.wholeCountry}</option>
           ) : (
             RADII[unit].map((r, i) => (
               <option key={i} value={i}>
-                {r === Infinity ? "Anywhere" : `${r} ${unit}`}
+                {r === Infinity ? t.search.anywhere : `${r} ${unit}`}
               </option>
             ))
           )}
         </select>
         <button className="btn go" type="submit">
-          Find it
+          {t.search.findIt}
         </button>
       </form>
 
       <div className="chips">
-        <span className="lbl">Try</span>
-        {CHIPS.map((c) => (
+        <span className="lbl">{t.search.try}</span>
+        {t.search.chips.map((c) => (
           <button
             key={c}
             type="button"
@@ -112,11 +112,11 @@ export function SearchBar() {
       </div>
 
       <div className="stats">
-        <div><strong className="num">{STATS.companies}</strong>rental houses</div>
-        <div><strong className="num">{STATS.units.toLocaleString("en-US")}</strong>units listed</div>
-        <div><strong className="num">{STATS.techs}</strong>techs &amp; engineers</div>
-        <div><strong className="num">{STATS.countries}</strong>countries</div>
-        <div><strong>Rentman · Flex</strong>live inventory sync</div>
+        <div><strong className="num">{STATS.companies}</strong>{STATS.companies === 1 ? t.search.statCompanies[0] : t.search.statCompanies[1]}</div>
+        <div><strong className="num">{STATS.units.toLocaleString("en-US")}</strong>{t.search.statUnits}</div>
+        <div><strong className="num">{STATS.techs}</strong>{STATS.techs === 1 ? t.search.statTechs[0] : t.search.statTechs[1]}</div>
+        <div><strong className="num">{STATS.countries}</strong>{STATS.countries === 1 ? t.search.statCountries[0] : t.search.statCountries[1]}</div>
+        <div><strong>Rentman · Flex</strong>{t.search.statSync}</div>
       </div>
     </>
   );

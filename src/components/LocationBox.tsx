@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { matchPlaces } from "@/lib/places";
 import type { Place } from "@/lib/types";
 import { PinIcon } from "./icons";
+import { useT } from "./I18n";
 
 interface Props {
   value: Place;
@@ -17,6 +18,7 @@ export function LocationBox({ value, onChange }: Props) {
   const [opts, setOpts] = useState<Place[]>([]);
   const [idx, setIdx] = useState(-1);
   const input = useRef<HTMLInputElement>(null);
+  const t = useT();
 
   const show = (q: string) => {
     const o = matchPlaces(q);
@@ -55,13 +57,13 @@ export function LocationBox({ value, onChange }: Props) {
         ref={input}
         id="loc"
         role="combobox"
-        aria-label="Where"
+        aria-label={t.search.where}
         aria-autocomplete="list"
         aria-expanded={open}
         aria-controls="locList"
         aria-activedescendant={open && idx >= 0 ? `lo${idx}` : undefined}
         autoComplete="off"
-        placeholder="City, country or place"
+        placeholder={t.search.wherePlaceholder}
         value={text}
         onFocus={() => {
           input.current?.select();
@@ -97,7 +99,7 @@ export function LocationBox({ value, onChange }: Props) {
             </li>
           ))
         ) : (
-          <li className="none">No match yet. Soon you&apos;ll be able to type any city, venue or address worldwide.</li>
+          <li className="none">{t.search.noPlace}</li>
         )}
       </ul>
     </div>

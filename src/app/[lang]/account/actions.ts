@@ -1,7 +1,9 @@
 "use server";
 
+import { actionDictionary } from "@/lib/i18n/server";
 import { updateTag } from "next/cache";
 import { redirect } from "next/navigation";
+import { getAccount } from "@/lib/auth";
 import { coords, curOf, PLACE_OPTS } from "@/lib/places";
 import { createClient } from "@/lib/supabase/server";
 
@@ -18,19 +20,19 @@ export async function createProfile(_prev: ProfileState, form: FormData): Promis
   if (!claims) redirect("/sign-in");
 
   const kind = form.get("kind");
-  if (kind !== "company" && kind !== "tech") return { error: "Choose rental company or crew." };
+  if (kind !== "company" && kind !== "tech") return { error: (await actionDictionary()).profile.errKind };
   const name = text(form, "name");
   if (!name) return { error: kind === "company" ? "Enter your company name." : "Enter your name." };
   // only cities from our list for now; any address once geocoding is added
   const city = text(form, "city");
-  if (!PLACE_OPTS.some((p) => p.label === city && !p.country)) return { error: "Pick your city from the list." };
+  if (!PLACE_OPTS.some((p) => p.label === city && !p.country)) return { error: (await actionDictionary()).profile.errCity };
   const [lat, lng] = coords(city);
   const place = { city_label: city, country_code: PLACE_OPTS.find((p) => p.label === city)!.cc, location: `SRID=4326;POINT(${lng} ${lat})`, currency: curOf(city) };
 
   const { error: profileError } = await supabase
     .from("profiles")
     .insert({ id: claims.sub, kind, display_name: name, email: String(claims.email ?? "") });
-  if (profileError) return { error: "We couldn't save your profile. Try again." };
+  if (profileError) return { error: (await actionDictionary()).profile.errSave };
 
   let detailError;
   if (kind === "company") {
@@ -53,7 +55,7 @@ export async function createProfile(_prev: ProfileState, form: FormData): Promis
   if (detailError) {
     // keep it all-or-nothing so the person can try again from a clean start
     await supabase.from("profiles").delete().eq("id", claims.sub);
-    return { error: "We couldn't save your profile. Try again." };
+    return { error: (await actionDictionary()).profile.errSave };
   }
   // new crew show up in search right away instead of after the cache expires
   updateTag("listings");
@@ -67,8 +69,8 @@ export interface PasswordState {
 
 export async function setPassword(_prev: PasswordState, form: FormData): Promise<PasswordState> {
   const password = String(form.get("password") ?? "");
-  if (password.length < 8) return { error: "Use at least 8 characters." };
-  if (password !== String(form.get("confirm") ?? "")) return { error: "The two passwords don't match." };
+  if (password.length < 8) return { error: (await actionDictionary()).password.errShort };
+  if (password !== String(form.get("confirm") ?? "")) return { error: (await actionDictionary()).password.errMatch };
 
   const supabase = await createClient();
   const { error } = await supabase.auth.updateUser({ password, data: { has_password: true } });
@@ -76,14 +78,31 @@ export async function setPassword(_prev: PasswordState, form: FormData): Promise
     return {
       error:
         error.code === "weak_password"
-          ? "That password is too easy to guess. Try a longer one."
+          ? (await actionDictionary()).password.errWeak
           : error.code === "same_password"
-            ? "That's already your password."
-            : "We couldn't save your password. Try again.",
+            ? (await actionDictionary()).password.errSame
+            : (await actionDictionary()).password.errSave,
     };
   }
   // fresh token, so the session (and the account page) sees has_password right away
   await supabase.auth.refreshSession();
+  return { saved: true };
+}
+
+export interface AboutState {
+  error?: string;
+  saved?: boolean;
+}
+
+/** The short description on the company's public page. */
+export async function saveAbout(_prev: AboutState, form: FormData): Promise<AboutState> {
+  const acc = await getAccount();
+  if (!acc?.company) return { error: (await actionDictionary()).publicPage.errOnlyCompanies };
+  const about = String(form.get("about") ?? "").trim().slice(0, 1000);
+  const supabase = await createClient();
+  const { error } = await supabase.from("companies").update({ about: about || null }).eq("owner_id", acc.id);
+  if (error) return { error: (await actionDictionary()).publicPage.errSave };
+  updateTag("listings");
   return { saved: true };
 }
 

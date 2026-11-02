@@ -1,4 +1,6 @@
 import { ccOf, coords } from "./places";
+import { fmt, plural } from "./i18n/config";
+import type { Dict } from "./i18n/en";
 import type { Category, Company, InventorySource, Item, LatLng, Place, Tech } from "./types";
 
 export const CAT_ABBR: Record<Category, string> = {
@@ -55,10 +57,10 @@ export function fmtDist(d: number, unit: Unit) {
   return `${Math.round(v).toLocaleString("en-US")} ${unit}`;
 }
 
-export function syncAgo(m: number) {
-  if (m < 60) return `${m} min ago`;
-  if (m < 1440) return `${Math.round(m / 60)} h ago`;
-  return "manual upload";
+export function syncAgo(m: number, t: Dict["time"]) {
+  if (m < 60) return fmt(t.minAgo, { n: m });
+  if (m < 1440) return fmt(t.hAgo, { n: Math.round(m / 60) });
+  return plural(Math.round(m / 1440), t.daysAgo);
 }
 
 export interface DateRange {
@@ -83,50 +85,42 @@ export function dayCount(r: DateRange) {
   return rangeDays(r).length;
 }
 
-export function rangeLabel({ from, to }: DateRange) {
+export function rangeLabel({ from, to }: DateRange, locale = "en") {
   const a = new Date(`${from}T12:00`);
   const b = new Date(`${to}T12:00`);
-  const m = (d: Date) => d.toLocaleDateString("en-US", { month: "short" });
+  const m = (d: Date) => d.toLocaleDateString(locale, { month: "short" }).replace(".", "");
   if (from === to) return `${m(a)} ${a.getDate()}`;
   return m(a) === m(b) ? `${m(a)} ${a.getDate()}–${b.getDate()}` : `${m(a)} ${a.getDate()} – ${m(b)} ${b.getDate()}`;
 }
 
 // ---------- availability ----------
-// Sample availability: extra bookings on some days, so free stock changes
-// with the dates searched. Production reads this from Rentman/Flex.
-
-function hash(s: string) {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
+// From the bookings synced from Rentman/Flex: free = owned minus the busiest day in the range.
 
 export function freeFor(it: Item, r: DateRange) {
-  if (it.bookings) {
-    const booked = Math.max(0, ...rangeDays(r).map((day) => it.bookings![day] ?? 0));
-    return Math.max(0, it.total - booked);
-  }
-  let m = it.total;
-  for (const day of rangeDays(r)) {
-    const h = hash(it.id + day);
-    const booked = h % 8 === 0 ? Math.round((it.total * ((h >>> 4) % 101)) / 100) : it.total - it.qty;
-    m = Math.min(m, Math.max(0, it.total - booked));
-  }
-  return m;
+  const booked = Math.max(0, ...rangeDays(r).map((day) => it.bookings?.[day] ?? 0));
+  return Math.max(0, it.total - booked);
 }
 
-export function techFree(t: Tech, r: DateRange) {
-  if (!t.avail) return false;
-  return !rangeDays(r).some((day) => hash(t.id + day) % 9 === 0);
+// crew busy days aren't tracked yet, so "available" on their profile is the answer
+export function techFree(t: Tech) {
+  return t.avail;
+}
+
+// cables, clamps, adapters and other small parts: searchable, but kept out of the featured feed
+const ACCESSORY =
+  /\b(cables?|cords?|adapt[eo]rs?|splitters?|connectors?|clamps?|safety|extensions?|jumpers?|taps?|kits?|cases?|racks?|bags?|plugs?|couplers?|straps?|slings?|shackles?|tape|nodes?|true1|socapex|edison|powercon|xlr|ethercon|hooks?|brackets?|stands?|accessor(y|ies))\b/i;
+
+export const isAccessory = (name: string) => ACCESSORY.test(name);
+
+/** Headline gear for the home page: no small parts, power or uncategorized items. */
+export function isFeatured(it: Item) {
+  return it.cat !== "Power" && it.cat !== "Other" && !isAccessory(it.name);
 }
 
 // ---------- query parsing ----------
 
 const STOP = new Set(
-  "i im i'm need needs a an the my our for some any short on of to with and or in at we are is looking look want got get have has who me us this that saturday sunday friday tonight tomorrow week weekend asap please help".split(
+  "i im i'm need needs a an the my our for some any short on of to with and or in at we are is looking look want got get have has who me us this that saturday sunday friday tonight tomorrow week weekend asap please help necesito busco un una unos unas el la los las de del para con y o en mi mis por favor urgente".split(
     " ",
   ),
 );
@@ -148,6 +142,18 @@ const SYN: Record<string, string[]> = {
   rigger: ["rigger", "rigging"], riggers: ["rigger"], electrician: ["electrician", "power"],
   crew: ["engineer", "tech", "rigger", "programmer", "manager", "operator", "electrician"],
   ma3: ["grandma3"], grandma: ["grandma3"], ma: ["grandma3"],
+  // Spanish → the English words gear is named with
+  luces: ["light", "lighting", "fixture"], luz: ["light", "lighting"], iluminacion: ["lighting", "light"],
+  cabeza: ["moving head"], cabezas: ["moving head"], movil: ["moving head"], moviles: ["moving head"], robotica: ["moving head"], roboticas: ["moving head"],
+  consola: ["console", "desk"], consolas: ["console", "desk"], mezcladora: ["mixer", "console"],
+  sonido: ["audio", "speaker", "pa"], bocina: ["speaker"], bocinas: ["speaker"], altavoz: ["speaker"], altavoces: ["speaker"], parlantes: ["speaker"],
+  microfono: ["microphone", "mic"], microfonos: ["microphone", "mic"], inalambrico: ["wireless"],
+  pantalla: ["led wall", "screen"], pantallas: ["led wall", "screen"], proyector: ["projector"],
+  motores: ["chain motor", "hoist"], polipasto: ["hoist", "chain motor"], cadena: ["chain"], truss: ["truss"],
+  humo: ["haze", "fog"], niebla: ["haze", "fog"], maquina: ["machine"],
+  generador: ["generator"], energia: ["power"], cable: ["cable"], cables: ["cable"],
+  escenario: ["stage", "staging", "deck"], tarima: ["deck", "riser"],
+  tecnico: ["tech", "engineer"], tecnicos: ["tech", "engineer"], ingeniero: ["engineer"], programador: ["programmer"],
 };
 
 const CREW_WORDS =
@@ -160,7 +166,8 @@ export interface ParsedQuery {
 }
 
 export function parseQuery(q: string): ParsedQuery {
-  const lower = q.toLowerCase();
+  // "móviles" → "moviles", so Spanish words match the synonym list
+  const lower = q.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const m = lower.match(/\b(\d{1,4})\s*(x|×|pcs|units)?\b/);
   const need = m ? parseInt(m[1], 10) : 0;
   const words = lower
@@ -197,7 +204,7 @@ export interface SearchInput {
   place: Place;
   radiusIdx: number;
   dates: DateRange;
-  /** everything searchable: real listings and sample data */
+  /** everything searchable */
   listings: { companies: Company[]; items: Item[]; techs: Tech[] };
 }
 
@@ -229,7 +236,7 @@ export function runSearch({ q, place, radiusIdx, dates, listings }: SearchInput)
     if (!inRange(d, ccOf(t.city))) continue;
     const sc = score(`${t.name} ${t.role} ${t.skills.join(" ")}`.toLowerCase(), P.terms);
     if (sc <= 0) continue;
-    crew.push({ t, d, sc, free: techFree(t, dates) });
+    crew.push({ t, d, sc, free: techFree(t) });
   }
 
   // free on the chosen dates first (enough to cover the quantity asked for, when there is one),

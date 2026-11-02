@@ -26,18 +26,18 @@ export interface Place {
 
 export interface Company {
   id: string;
+  /** public page: show-grid.com/c/<slug> */
+  slug: string;
   name: string;
   city: string;
   /** small offset from the city centre so companies don't stack */
   off: LatLng;
   src: InventorySource;
-  /** minutes since last inventory sync (sample data) */
-  syncMin: number;
   /** last inventory sync, for real companies */
   syncedAt?: string | null;
   cur: string;
-  /** set for real members, who can be messaged; absent on sample companies */
-  profileId?: string;
+  /** the owner's profile, for messages */
+  profileId: string;
 }
 
 export interface Item {
@@ -56,8 +56,10 @@ export interface Item {
   listed: boolean;
   /** show the day rate publicly; when false, "Price on request" */
   pub: boolean;
-  /** units booked per day (yyyy-mm-dd), from the linked software; absent on sample items */
-  bookings?: Record<string, number>;
+  /** photo from the linked software */
+  image: string | null;
+  /** units booked per day (yyyy-mm-dd), from the linked software */
+  bookings: Record<string, number>;
 }
 
 export interface Tech {
@@ -71,8 +73,8 @@ export interface Tech {
   skills: string[];
   avail: boolean;
   cur: string;
-  /** set for real members, who can be messaged; absent on sample crew */
-  profileId?: string;
+  /** the crew member's profile, for messages */
+  profileId: string;
 }
 
 export interface CartLine {

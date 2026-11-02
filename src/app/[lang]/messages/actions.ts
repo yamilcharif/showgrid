@@ -1,5 +1,6 @@
 "use server";
 
+import { actionDictionary } from "@/lib/i18n/server";
 import { redirect } from "next/navigation";
 import { getAccount } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -26,23 +27,24 @@ export interface Message {
   sender_id: string;
   body: string | null;
   created_at: string;
+  request_id: string | null;
 }
 
 export async function sendMessage(conversationId: string, body: string): Promise<{ message?: Message; error?: string }> {
   const text = body.trim();
   if (!text) return {};
-  if (text.length > 4000) return { error: "Messages can be up to 4,000 characters." };
+  if (text.length > 4000) return { error: (await actionDictionary()).messages.errLong };
   const acc = await getAccount();
-  if (!acc) return { error: "You're signed out. Sign in again to send." };
+  if (!acc) return { error: (await actionDictionary()).messages.errSignedOut };
 
   const supabase = await createClient();
   // RLS checks the sender is a member of this conversation
   const { data, error } = await supabase
     .from("messages")
     .insert({ conversation_id: conversationId, sender_id: acc.id, body: text })
-    .select("id, sender_id, body, created_at")
+    .select("id, sender_id, body, created_at, request_id")
     .single();
-  if (error) return { error: "Message not sent. Try again." };
+  if (error) return { error: (await actionDictionary()).messages.errSend };
   return { message: data };
 }
 

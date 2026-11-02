@@ -2,6 +2,8 @@
 
 import { useActionState, useState } from "react";
 import { LocationBox } from "@/components/LocationBox";
+import { useT } from "@/components/I18n";
+import { fmt } from "@/lib/i18n/config";
 import { curOf, DEFAULT_PLACE } from "@/lib/places";
 import { createProfile, type ProfileState } from "./actions";
 
@@ -9,62 +11,63 @@ export function ProfileSetup({ email }: { email: string }) {
   const [state, action, pending] = useActionState<ProfileState, FormData>(createProfile, {});
   const [kind, setKind] = useState<"company" | "tech">("company");
   const [place, setPlace] = useState(DEFAULT_PLACE);
+  const t = useT().profile;
 
   return (
     <form action={action} className="auth-form">
       <p className="muted">
-        Signed in as <b>{email}</b>. One last step: tell people who you are.
+        {fmt(t.signedInAs, { email })}
       </p>
       <fieldset className="choice">
-        <legend>I am</legend>
+        <legend>{t.iAm}</legend>
         <label>
           <input type="radio" name="kind" value="company" checked={kind === "company"} onChange={() => setKind("company")} />
           <span>
-            <b>A rental company</b>
-            <small>List your gear from Rentman or Flex</small>
+            <b>{t.companyTitle}</b>
+            <small>{t.companyText}</small>
           </span>
         </label>
         <label>
           <input type="radio" name="kind" value="tech" checked={kind === "tech"} onChange={() => setKind("tech")} />
           <span>
-            <b>Crew</b>
-            <small>Tech, engineer, rigger, programmer…</small>
+            <b>{t.crewTitle}</b>
+            <small>{t.crewText}</small>
           </span>
         </label>
       </fieldset>
 
       <div className="field">
-        <label htmlFor="name">{kind === "company" ? "Company name" : "Your name"}</label>
+        <label htmlFor="name">{kind === "company" ? t.companyName : t.yourName}</label>
         <input id="name" name="name" required maxLength={120} autoComplete={kind === "company" ? "organization" : "name"} />
       </div>
 
       <div className="field">
-        <label htmlFor="loc">City</label>
+        <label htmlFor="loc">{t.city}</label>
         <div className="field-loc">
           <LocationBox value={place} onChange={setPlace} />
         </div>
         <input type="hidden" name="city" value={place.country ? "" : place.label} />
-        {place.country && <small className="auth-err">Pick a city, not a whole country.</small>}
+        {place.country && <small className="auth-err">{t.pickCity}</small>}
       </div>
 
       {kind === "tech" && (
         <>
           <div className="field">
-            <label htmlFor="role">Role</label>
-            <input id="role" name="role" placeholder="e.g. FOH engineer, lighting programmer" maxLength={80} />
+            <label htmlFor="role">{t.role}</label>
+            <input id="role" name="role" placeholder={t.rolePlaceholder} maxLength={80} />
           </div>
           <div className="field">
-            <label htmlFor="skills">Skills</label>
-            <input id="skills" name="skills" placeholder="grandMA3, DiGiCo, rigging (separate with commas)" />
+            <label htmlFor="skills">{t.skills}</label>
+            <input id="skills" name="skills" placeholder={t.skillsPlaceholder} />
           </div>
           <div className="two">
             <div className="field">
-              <label htmlFor="years">Years of experience</label>
+              <label htmlFor="years">{t.years}</label>
               <input id="years" name="years" type="number" min={0} max={60} inputMode="numeric" />
             </div>
             <div className="field">
-              <label htmlFor="rate">Day rate ({curOf(place.label)})</label>
-              <input id="rate" name="rate" type="number" min={0} step="any" inputMode="decimal" placeholder="Optional" />
+              <label htmlFor="rate">{fmt(t.dayRate, { cur: curOf(place.label) })}</label>
+              <input id="rate" name="rate" type="number" min={0} step="any" inputMode="decimal" placeholder={t.optional} />
             </div>
           </div>
         </>
@@ -76,7 +79,7 @@ export function ProfileSetup({ email }: { email: string }) {
         </p>
       )}
       <button className="btn primary" disabled={pending}>
-        {pending ? "Saving…" : "Create profile"}
+        {pending ? t.saving : t.create}
       </button>
     </form>
   );
