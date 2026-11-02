@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Archivo, JetBrains_Mono } from "next/font/google";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -33,8 +33,22 @@ export function generateStaticParams() {
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getDictionary();
-  return { metadataBase: new URL("https://show-grid.com"), title: "ShowGrid", description: t.meta.description };
+  return {
+    metadataBase: new URL("https://show-grid.com"),
+    title: "ShowGrid",
+    description: t.meta.description,
+    icons: {
+      icon: [
+        { url: "/icon.svg", type: "image/svg+xml" },
+        { url: "/favicon.ico", sizes: "48x48" },
+      ],
+      apple: "/apple-touch-icon.png",
+    },
+    manifest: "/manifest.webmanifest",
+  };
 }
+
+export const viewport: Viewport = { themeColor: "#0a0a0b" };
 
 export default async function RootLayout({ children }: LayoutProps<"/[lang]">) {
   const [locale, t, listings] = await Promise.all([getLocale(), getDictionary(), getListings()]);

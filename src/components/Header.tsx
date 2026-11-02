@@ -6,6 +6,7 @@ import { useApp } from "./AppState";
 import { fmt } from "@/lib/i18n/config";
 import { useT } from "./I18n";
 import { ListIcon } from "./icons";
+import { LogoMark } from "./Logo";
 
 export function Header({ account }: { account: ReactNode }) {
   const { cart, setCartOpen } = useApp();
@@ -15,6 +16,7 @@ export function Header({ account }: { account: ReactNode }) {
     <header className="top">
       <div className="wrap">
         <Link className="brand" href="/" aria-label={t.header.home}>
+          <LogoMark />
           <span className="wordmark">
             SHOW<span>GRID</span>
           </span>

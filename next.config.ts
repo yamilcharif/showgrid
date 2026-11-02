@@ -4,6 +4,8 @@ const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
+  // the round "N" developer button only appears in local development; hide it so the preview looks like the live site
+  devIndicators: false,
   images: {
     // gear photos synced from Rentman
     remotePatterns: [
