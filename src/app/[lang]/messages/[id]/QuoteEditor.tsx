@@ -38,11 +38,11 @@ export function QuoteEditor({ req, latest, factor, onClose }: Props) {
     const ids = req.rental_request_lines.map((l) => l.item_id);
     createClient()
       .from("items")
-      .select("id, day_rate")
+      .select("id, day_rate, custom_day_rate")
       .in("id", ids)
       .then(({ data }) => {
         if (!data?.length) return;
-        const rate = new Map(data.map((d) => [d.id, Number(d.day_rate ?? 0)]));
+        const rate = new Map(data.map((d) => [d.id, Number(d.custom_day_rate ?? d.day_rate ?? 0)]));
         setLines((list) => list.map((l, i) => (l.rate ? l : { ...l, rate: rate.get(req.rental_request_lines[i]?.item_id) ?? 0 })));
       });
   }, [latest, req]);

@@ -257,6 +257,7 @@ function GearCard({ it, cur, inList, onAdd, onOpenList, owner }: CardProps) {
       </div>
       <div className="gbody">
         <h3>{it.name}</h3>
+        {owner && it.edited && <span className="edited-tag">✎ {t.addItem.edited}</span>}
         {it.spec && <p className="muted small">{it.spec}</p>}
         <div className="gfoot">
           <span className="num">×{it.total}</span>

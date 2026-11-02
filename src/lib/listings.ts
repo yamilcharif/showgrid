@@ -27,9 +27,8 @@ export async function getListings(): Promise<Listings> {
     supabase.from("companies").select("id, slug, owner_id, name, city_label, currency, logo_url, price_rule").limit(1000),
     supabase
       .from("items")
-      .select("id, company_id, source, name, category, spec, tags, quantity_owned, day_rate, public_price, image_url, photo_url, custom_category, custom_name, custom_spec, updated_at")
+      .select("id, company_id, source, name, category, spec, tags, quantity_owned, day_rate, public_price, image_url, photo_url, custom_category, custom_name, custom_spec, custom_day_rate, custom_quantity, updated_at")
       .eq("listed", true)
-      .gt("quantity_owned", 0)
       .limit(20000),
     supabase.from("item_bookings").select("item_id, day, quantity_booked").gte("day", today).limit(100000),
     supabase
@@ -66,8 +65,12 @@ export async function getListings(): Promise<Listings> {
       syncedAt: sync.get(c.id)?.at ?? null,
       cur: c.currency,
     })),
-    items: (it.data ?? []).map((i) => {
+    items: (it.data ?? []).flatMap((i) => {
       const bookedToday = bookings.get(i.id)?.[today] ?? 0;
+      // the owner's own price and quantity win over the synced ones
+      const total = i.custom_quantity ?? i.quantity_owned;
+      const rate = i.custom_day_rate ?? i.day_rate;
+      if (total <= 0) return [];
       return {
         id: i.id,
         co: i.company_id,
@@ -75,14 +78,17 @@ export async function getListings(): Promise<Listings> {
         // the owner's own category and photo win over what the sync brought in
         cat: (i.custom_category ?? i.category) as Category,
         tags: i.tags ?? "",
-        qty: Math.max(0, i.quantity_owned - bookedToday),
-        total: i.quantity_owned,
-        rate: Number(i.day_rate ?? 0),
+        qty: Math.max(0, total - bookedToday),
+        total,
+        rate: i.public_price ? Number(rate ?? 0) : 0,
         spec: i.custom_spec ?? i.spec ?? "",
         listed: true,
-        pub: i.public_price && i.day_rate != null,
+        pub: i.public_price && rate != null,
         image: i.photo_url ?? i.image_url,
         manual: i.source === "manual",
+        edited:
+          i.source !== "manual" &&
+          [i.custom_name, i.custom_spec, i.custom_category, i.custom_day_rate, i.custom_quantity].some((v) => v != null),
         bookings: bookings.get(i.id) ?? {},
       };
     }),

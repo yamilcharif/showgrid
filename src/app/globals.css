@@ -588,3 +588,5 @@ a.co:hover { text-decoration-color: currentColor; }
   .top .wordmark { font-size: 17px; }
   .btn.acct { max-width: 86px; }
 }
+.edited-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); font-size: 11.5px; font-weight: 600; vertical-align: middle; white-space: nowrap; }
+.gbody .edited-tag { margin-left: 0; justify-self: start; }

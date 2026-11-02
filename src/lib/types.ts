@@ -65,6 +65,8 @@ export interface Item {
   image: string | null;
   /** added by hand on ShowGrid, so the owner can delete it (synced items are hidden instead) */
   manual: boolean;
+  /** the owner changed synced values (title, description, category, price or quantity) */
+  edited: boolean;
   /** units booked per day (yyyy-mm-dd), from the linked software */
   bookings: Record<string, number>;
 }

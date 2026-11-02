@@ -197,23 +197,31 @@ export async function updateItemDetails(id: string, input: NewItem): Promise<{ e
 
   const supabase = await createClient();
   // RLS: only the owner's own items
-  const { data: item } = await supabase.from("items").select("source, name, spec, category, image_url").eq("id", id).single();
+  const { data: item } = await supabase
+    .from("items")
+    .select("source, name, spec, category, image_url, day_rate, quantity_owned")
+    .eq("id", id)
+    .single();
   if (!item) return { error: t.errSave };
   // a Rentman photo stays where it is; anything else is the owner's photo
   const photo_url = input.photoUrl && input.photoUrl === item.image_url ? null : input.photoUrl;
 
+  const quantity = Math.round(Number(input.quantity));
+  if (!(quantity >= 1 && quantity <= 100000)) return { error: t.errQty };
+  const price = input.price == null || String(input.price) === "" ? null : Math.round(Number(input.price) * 100) / 100;
+  if (price != null && !(price >= 0)) return { error: t.errPrice };
+
   let patch: Record<string, unknown>;
   if (item.source === "manual") {
-    const quantity = Math.round(Number(input.quantity));
-    if (!(quantity >= 1 && quantity <= 100000)) return { error: t.errQty };
-    const price = input.price == null || String(input.price) === "" ? null : Math.round(Number(input.price) * 100) / 100;
-    if (price != null && !(price >= 0)) return { error: t.errPrice };
     patch = { name, spec: description, category, quantity_owned: quantity, day_rate: price, public_price: price != null, photo_url };
   } else {
     patch = {
       custom_name: name === item.name ? null : name,
       custom_spec: description === (item.spec ?? null) ? null : description,
       custom_category: category === item.category ? null : category,
+      // an empty price, or the synced values themselves, go back to following Rentman
+      custom_day_rate: price == null || price === Number(item.day_rate) ? null : price,
+      custom_quantity: quantity === item.quantity_owned ? null : quantity,
       photo_url,
     };
   }

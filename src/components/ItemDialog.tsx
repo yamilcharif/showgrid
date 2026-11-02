@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { createItem, importImage, searchImages, updateItemDetails, type FoundImage } from "@/app/[lang]/account/gear/actions";
 import { guessCategory } from "@/lib/categories";
 import { fmt } from "@/lib/i18n/config";
-import { CAT_ABBR } from "@/lib/search";
+import { CAT_ABBR, money } from "@/lib/search";
 import { createClient } from "@/lib/supabase/browser";
 import type { Category } from "@/lib/types";
 import { useApp } from "./AppState";
@@ -24,6 +24,8 @@ export interface EditableItem {
   photo: string | null;
   /** added by hand: price and quantity are editable here; synced ones come from Rentman */
   manual: boolean;
+  /** synced items: what Rentman itself says, to show next to the owner's edits */
+  synced?: { quantity: number; price: number | null };
 }
 
 /**
@@ -243,13 +245,22 @@ export function ItemDialog({ companyId, item, onClose }: { companyId: string; it
             </div>
             <div className="field">
               <label htmlFor="ai-qty">{t.quantity}</label>
-              <input id="ai-qty" type="number" min={1} required inputMode="numeric" disabled={synced} value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+              <input id="ai-qty" type="number" min={1} required inputMode="numeric" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
             </div>
           </div>
           <div className="field">
             <label htmlFor="ai-price">{t.price}</label>
-            <input id="ai-price" type="number" min={0} step="any" inputMode="decimal" disabled={synced} placeholder={t.pricePlaceholder} value={price} onChange={(e) => setPrice(e.target.value)} />
-            {synced && <small className="muted">{t.fromRentman}</small>}
+            <input id="ai-price" type="number" min={0} step="any" inputMode="decimal" placeholder={synced ? t.pricePlaceholderSynced : t.pricePlaceholder} value={price} onChange={(e) => setPrice(e.target.value)} />
+            {synced && (
+              <small className="muted">
+                {t.fromRentman}
+                {item!.synced &&
+                  ` ${fmt(t.rentmanValues, {
+                    qty: item!.synced.quantity,
+                    rate: item!.synced.price != null ? `${money(item!.synced.price)}${T.results.perDay}` : t.rentmanNoPrice,
+                  })}`}
+              </small>
+            )}
           </div>
           {error && (
             <p className="auth-err" role="alert">

@@ -21,7 +21,9 @@ export interface OwnItem {
   category: Category;
   custom_category: Category | null;
   quantity_owned: number;
+  custom_quantity: number | null;
   day_rate: number | null;
+  custom_day_rate: number | null;
   listed: boolean;
   public_price: boolean;
   image_url: string | null;
@@ -193,8 +195,9 @@ export function GearManager({
                 name: i.custom_name ?? i.name,
                 description: i.custom_spec ?? i.spec ?? "",
                 category: catOf(i),
-                quantity: i.quantity_owned,
-                price: i.day_rate != null ? Number(i.day_rate) : null,
+                quantity: i.custom_quantity ?? i.quantity_owned,
+                price: (i.custom_day_rate ?? i.day_rate) != null ? Number(i.custom_day_rate ?? i.day_rate) : null,
+                synced: i.source === "manual" ? undefined : { quantity: i.quantity_owned, price: i.day_rate != null ? Number(i.day_rate) : null },
                 photo: i.photo_url ?? i.image_url,
                 manual: i.source === "manual",
               })
@@ -224,6 +227,11 @@ function GearRow({ i, companyId, cat, onSave, onError, onEdit }: RowProps) {
   const file = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const photo = i.photo_url ?? i.image_url;
+  // the owner's own values win; synced items they changed get an "Edited by you" tag
+  const qty = i.custom_quantity ?? i.quantity_owned;
+  const rate = i.custom_day_rate ?? i.day_rate;
+  const edited =
+    i.source !== "manual" && [i.custom_name, i.custom_spec, i.custom_category, i.custom_day_rate, i.custom_quantity].some((v) => v != null);
   const T = useT();
   const t = T.gear;
 
@@ -280,12 +288,18 @@ function GearRow({ i, companyId, cat, onSave, onError, onEdit }: RowProps) {
         }}
       />
       <div className="gm-main">
-        <b>{i.custom_name ?? i.name}</b>
+        <b>
+          {i.custom_name ?? i.name}
+          {edited && <span className="edited-tag">✎ {T.addItem.edited}</span>}
+        </b>
         <span className="muted small num">
-          ×{i.quantity_owned}
-          {i.day_rate
-            ? ` · ${money(Number(i.day_rate))}${T.results.perDay}`
-            : t.noPrice}
+          ×{qty}
+          {rate != null ? ` · ${money(Number(rate))}${T.results.perDay}` : t.noPrice}
+          {edited &&
+            ` · ${fmt(T.addItem.rentmanValues, {
+              qty: i.quantity_owned,
+              rate: i.day_rate != null ? `${money(Number(i.day_rate))}${T.results.perDay}` : T.addItem.rentmanNoPrice,
+            })}`}
           {i.photo_url && (
             <>
               {" · "}
