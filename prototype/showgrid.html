@@ -1,0 +1,1292 @@
+<title>ShowGrid</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..800&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: blacked-out stage hero with soft overhead beams and one search; below, a filter rail + results list, and a two-pane inbox. Monochrome; a tiny red tally light marks "live / available". */
+:root{
+  --bg:#0A0A0B; --surface:#141416; --surface-2:#1C1C1F; --ink:#F2F2F3; --muted:#8E8E96; --line:#2A2A2F;
+  --accent:#FFFFFF; --accent-ink:#0A0A0B; --accent-soft:#232327;
+  --hero-bg:#000000; --hero-ink:#F5F5F6; --hero-muted:#9A9AA2; --hero-line:#2C2C31; --beam:255,255,255;
+  --tally:#FF3B3B; --ok:#8FD9AE; --ok-soft:#16261D; --warn:#E9B07A; --warn-soft:#2B2017;
+  --bubble-me:#F2F2F3; --bubble-me-ink:#0A0A0B; --bubble:#232327;
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-body:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:8px; color-scheme:dark;
+}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){
+  --bg:#F3F3F4; --surface:#FFFFFF; --surface-2:#EEEEF0; --ink:#0B0B0C; --muted:#5F5F67; --line:#DADADE;
+  --accent:#0B0B0C; --accent-ink:#FFFFFF; --accent-soft:#E6E6E9;
+  --ok:#1D7A4B; --ok-soft:#E1F2E8; --warn:#9A5512; --warn-soft:#F7EADB;
+  --bubble-me:#0B0B0C; --bubble-me-ink:#FFFFFF; --bubble:#EEEEF0; color-scheme:light}}
+:root[data-theme="light"]{
+  --bg:#F3F3F4; --surface:#FFFFFF; --surface-2:#EEEEF0; --ink:#0B0B0C; --muted:#5F5F67; --line:#DADADE;
+  --accent:#0B0B0C; --accent-ink:#FFFFFF; --accent-soft:#E6E6E9;
+  --ok:#1D7A4B; --ok-soft:#E1F2E8; --warn:#9A5512; --warn-soft:#F7EADB;
+  --bubble-me:#0B0B0C; --bubble-me-ink:#FFFFFF; --bubble:#EEEEF0; color-scheme:light}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;font-variation-settings:"wdth" 100}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--hero-bg)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.mono{font-family:var(--f-mono);font-size:12.5px}
+.num{font-variant-numeric:tabular-nums}
+.cond{font-stretch:75%;font-variation-settings:"wdth" 75}
+.wide{font-stretch:125%;font-variation-settings:"wdth" 125}
+
+/* top bar */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--hero-bg);color:var(--hero-ink);border-bottom:1px solid var(--hero-line)}
+.top .wrap{display:flex;align-items:center;gap:16px;padding-block:12px}
+.brand{display:flex;align-items:baseline;gap:12px;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+.wordmark{font-weight:800;font-size:22px;letter-spacing:.06em;line-height:1;font-variation-settings:"wdth" 125}
+.wordmark span{font-weight:300;color:var(--hero-muted)}
+.tagline{font-size:12px;text-transform:uppercase;letter-spacing:.18em;color:var(--hero-muted)}
+.top nav{margin-left:auto;display:flex;gap:8px;align-items:center}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:var(--r);border:1px solid var(--line);background:var(--surface);padding:8px 14px;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.primary:hover{opacity:.88}
+.btn.ghost-dark{background:transparent;color:var(--hero-ink);border-color:var(--hero-line)}
+.btn.ghost-dark:hover{border-color:var(--hero-muted)}
+.btn.light{background:var(--hero-ink);color:var(--hero-bg);border-color:var(--hero-ink)}
+.btn.sm{padding:5px 10px;font-size:13px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.badge{min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--tally);color:#fff;font-size:11px;font-weight:700;display:inline-grid;place-items:center}
+.avatar{width:30px;height:30px;border-radius:50%;background:var(--hero-ink);color:var(--hero-bg);display:grid;place-items:center;font-weight:700;font-size:12px;letter-spacing:.04em;flex:none}
+
+/* hero: black box, overhead beams */
+.hero{background:var(--hero-bg);color:var(--hero-ink);position:relative;z-index:2;isolation:isolate}
+.hero::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+  background:
+    conic-gradient(from 168deg at 18% -10%,transparent 0deg,rgba(var(--beam),.10) 10deg,transparent 24deg),
+    conic-gradient(from 176deg at 52% -12%,transparent 0deg,rgba(var(--beam),.07) 8deg,transparent 20deg),
+    conic-gradient(from 186deg at 84% -10%,transparent 0deg,rgba(var(--beam),.09) 10deg,transparent 22deg),
+    radial-gradient(60% 40% at 50% 115%,rgba(var(--beam),.08),transparent 70%)}
+.hero .wrap{padding-block:52px 56px}
+.eyebrow{text-transform:uppercase;letter-spacing:.2em;font-size:12px;color:var(--hero-muted);font-weight:600;display:flex;align-items:center;gap:8px}
+.tally{width:8px;height:8px;border-radius:50%;background:var(--tally);box-shadow:0 0 10px var(--tally);display:inline-block;flex:none}
+.hero h1{font-weight:800;font-size:clamp(36px,6.2vw,68px);line-height:.98;margin:14px 0 14px;text-wrap:balance;letter-spacing:-.01em;font-variation-settings:"wdth" 112;max-width:16ch}
+.hero h1 span{font-weight:300;color:var(--hero-muted)}
+.hero p.lede{color:var(--hero-muted);max-width:58ch;margin:0 0 28px;font-size:17px}
+.search{display:grid;grid-template-columns:1fr auto auto auto auto;background:#FFFFFF;color:#0B0B0C;border-radius:12px;padding:6px;box-shadow:0 0 0 1px rgba(255,255,255,.08),0 20px 60px rgba(0,0,0,.6)}
+.search label.q{display:flex;align-items:center;gap:10px;padding:0 12px;min-width:0}
+.search svg{flex:none;color:#6B6B73}
+.search input#q{border:0;outline:0;background:transparent;font-size:20px;font-weight:500;padding:12px 0;width:100%;min-width:0;color:#0B0B0C}
+.search input#q::placeholder{color:#7A7A82;font-weight:600;font-size:21px;font-variation-settings:"wdth" 112}
+.search select{border:0;border-left:1px solid #E1E1E5;background:transparent;padding:0 12px;font-weight:600;color:#0B0B0C;cursor:pointer;min-width:0;color-scheme:light}
+.search .btn{font-size:16px;padding:12px 22px;margin-left:6px;background:#0B0B0C;color:#fff;border-color:#0B0B0C}
+.loc{position:relative;display:flex;align-items:center;gap:6px;border-left:1px solid #E1E1E5;padding:0 10px;min-width:0}
+.loc input{border:0;outline:0;background:transparent;font-weight:600;width:190px;min-width:0;color:#0B0B0C;padding:12px 0;text-overflow:ellipsis}
+.loc input::placeholder{color:#7A7A82;font-weight:500}
+.loclist{position:absolute;top:calc(100% + 12px);left:0;width:min(360px,calc(100vw - 32px));background:#fff;color:#0B0B0C;border-radius:10px;box-shadow:0 20px 50px rgba(0,0,0,.45);list-style:none;margin:0;padding:6px;z-index:30;max-height:320px;overflow:auto}
+.loclist li{padding:8px 10px;border-radius:6px;cursor:pointer;display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.loclist li[aria-selected=true],.loclist li[data-i]:hover{background:#EFEFF1}
+.loclist small{color:#6B6B73;font-size:12px;white-space:nowrap}
+.loclist li.none{cursor:default;color:#6B6B73;display:block}
+.dates{display:flex;align-items:center;gap:8px;border-left:1px solid #E1E1E5;padding:0 12px}
+.dt{display:grid;cursor:pointer}
+.dt span{font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:#6B6B73;font-weight:600}
+.dt input{border:0;outline:0;background:transparent;font-weight:600;color:#0B0B0C;padding:0;color-scheme:light;min-width:0;font-size:14px}
+.dates .dash{color:#9A9AA2}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;align-items:center}
+.chips span.lbl{text-transform:uppercase;letter-spacing:.16em;font-size:11.5px;color:var(--hero-muted);margin-right:4px}
+.chip{border:1px solid var(--hero-line);background:rgba(255,255,255,.03);color:var(--hero-ink);border-radius:999px;padding:5px 12px;font-size:13.5px;cursor:pointer}
+.chip:hover{border-color:var(--hero-ink)}
+.stats{display:flex;gap:32px;flex-wrap:wrap;margin-top:32px;color:var(--hero-muted);font-size:13px;border-top:1px solid var(--hero-line);padding-top:18px}
+.stats strong{display:block;font-size:24px;color:var(--hero-ink);font-weight:700;line-height:1.15;font-variation-settings:"wdth" 112}
+
+/* demo banner */
+.demo{background:var(--surface-2);color:var(--muted);font-size:13px;border-bottom:1px solid var(--line)}
+.demo .wrap{padding-block:7px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.demo b{text-transform:uppercase;letter-spacing:.14em;font-size:11.5px;color:var(--ink)}
+
+/* results */
+.main{padding-block:28px 60px}
+.layout{display:grid;grid-template-columns:220px 1fr;gap:32px;align-items:start}
+.rail{position:sticky;top:calc(env(safe-area-inset-top,0px) + 76px);display:grid;gap:22px}
+.rail h3,.sec-h{text-transform:uppercase;letter-spacing:.16em;font-size:11.5px;color:var(--muted);margin:0 0 8px;font-weight:600}
+.rail .opt{display:flex;align-items:center;gap:8px;padding:3px 0;cursor:pointer;font-size:14.5px}
+.rail .opt .ct{margin-left:auto;color:var(--muted);font-size:12px}
+.rail input[type=checkbox]{accent-color:var(--ink);width:16px;height:16px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px;flex-wrap:wrap}
+.tab{background:none;border:0;border-bottom:2px solid transparent;padding:8px 14px;font-size:15px;font-weight:600;color:var(--muted);cursor:pointer;margin-bottom:-1px}
+.tab[aria-selected=true]{color:var(--ink);border-bottom-color:var(--ink)}
+.tab .n{font-family:var(--f-mono);font-size:12px;margin-left:5px}
+.summary{color:var(--muted);margin:0 0 14px;font-size:14px}
+.summary strong{color:var(--ink)}
+.list{display:grid;gap:8px}
+.group-h{display:flex;align-items:baseline;gap:10px;margin:20px 0 6px}
+.group-h:first-child{margin-top:0}
+.group-h h2{font-size:20px;margin:0;font-weight:700;font-variation-settings:"wdth" 112}
+.group-h span{color:var(--muted);font-size:13px}
+
+.row{display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px}
+.row:hover{border-color:var(--muted)}
+.row .cat{width:52px;height:52px;border-radius:var(--r);background:var(--surface-2);display:grid;place-items:center;font-family:var(--f-mono);font-weight:500;font-size:12px;color:var(--muted);letter-spacing:.06em}
+.row .cat.crew{border-radius:50%;background:var(--ink);color:var(--bg);font-family:var(--f-body);font-weight:700;font-size:15px;position:relative}
+.row .cat.crew .tally{position:absolute;right:1px;bottom:3px;border:2px solid var(--surface);width:12px;height:12px;box-shadow:none}
+.row .body{min-width:0}
+.row .name{font-weight:700;font-size:16.5px;line-height:1.25}
+.row .spec{color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
+.row .who{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin-top:6px;font-size:13.5px}
+.row .who .co{font-weight:600}
+.row .who .dist{color:var(--muted)}
+.row .side{display:grid;justify-items:end;gap:6px;text-align:right}
+.row .rate{font-size:19px;font-weight:700;line-height:1;font-variation-settings:"wdth" 112}
+.row .rate small{font-size:12px;color:var(--muted);font-weight:500;font-variation-settings:"wdth" 100}
+.row .btns{display:flex;gap:6px}
+.avail{font-size:13px;color:var(--muted)}
+.avail b{color:var(--ink)}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;border:1px solid var(--line);white-space:nowrap;color:var(--muted)}
+.pill i{width:6px;height:6px;border-radius:50%;display:inline-block;background:currentColor}
+.pill.ok{color:var(--ok);background:var(--ok-soft);border-color:transparent}
+.pill.warn{color:var(--warn);background:var(--warn-soft);border-color:transparent}
+.pill.live{color:var(--ink)} .pill.live i{background:var(--tally)}
+.pill.you{color:var(--accent-ink);background:var(--accent);border-color:transparent}
+.tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.tag{font-size:12px;padding:1px 7px;border-radius:4px;background:var(--surface-2);color:var(--muted)}
+.empty{background:var(--surface);border:1px dashed var(--line);border-radius:var(--r);padding:28px;text-align:center;color:var(--muted)}
+.empty h3{font-size:20px;color:var(--ink);margin:0 0 6px}
+.icon-btn svg{display:block}
+
+.how{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:44px}
+.how div{border-top:1px solid var(--ink);padding-top:12px}
+.how h4{font-size:17px;margin:0 0 4px;font-variation-settings:"wdth" 112}
+.how p{margin:0;color:var(--muted);font-size:14px}
+
+/* profile */
+.dash-head{display:flex;gap:16px;align-items:center;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+.dash-head .avatar{width:56px;height:56px;font-size:20px;background:var(--ink);color:var(--bg)}
+.dash-head h1{font-size:28px;margin:0;line-height:1.1;font-variation-settings:"wdth" 112}
+.dash-head .meta{color:var(--muted);font-size:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:4px}
+.dash-head .acts{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.dash-grid{display:grid;grid-template-columns:1fr 320px;gap:20px;margin-top:20px;align-items:start}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;min-width:0}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;text-transform:uppercase;letter-spacing:.12em;font-size:11px;color:var(--muted);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td.r,th.r{text-align:right}
+.switch{position:relative;display:inline-block;width:36px;height:20px;flex:none}
+.switch input{opacity:0;width:0;height:0}
+.switch span{position:absolute;inset:0;background:var(--line);border-radius:999px;cursor:pointer;transition:background .15s}
+.switch span::before{content:"";position:absolute;width:14px;height:14px;left:3px;top:3px;background:var(--surface);border-radius:50%;transition:transform .15s}
+.switch input:checked + span{background:var(--ink)}
+.switch input:checked + span::before{transform:translateX(16px)}
+.switch input:focus-visible + span{outline:2px solid var(--ink);outline-offset:2px}
+.mini-convo{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer;background:none;border-left:0;border-right:0;border-top:0;width:100%;text-align:left}
+.mini-convo:last-of-type{border-bottom:0}
+
+/* inbox */
+.inbox{display:grid;grid-template-columns:320px 1fr;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);height:min(72vh,680px);min-height:440px;overflow:hidden}
+.clist{border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0}
+.clist header{padding:16px;border-bottom:1px solid var(--line)}
+.clist header h1{font-size:22px;margin:0;font-variation-settings:"wdth" 112}
+.clist .items{overflow:auto;flex:1}
+.citem{display:flex;gap:10px;padding:12px 16px;border:0;border-bottom:1px solid var(--line);background:none;width:100%;text-align:left;cursor:pointer;align-items:flex-start}
+.citem:hover{background:var(--surface-2)}
+.citem[aria-current=true]{background:var(--accent-soft)}
+.citem .avatar,.thread .avatar,.mini-convo .avatar{background:var(--ink);color:var(--bg)}
+.citem .c{min-width:0;flex:1}
+.citem .top-line{display:flex;gap:8px;align-items:baseline}
+.citem .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.citem .tm{margin-left:auto;color:var(--muted);font-size:12px;flex:none}
+.citem .ctx{color:var(--muted);font-size:12.5px}
+.citem .pv{color:var(--muted);font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.citem.unread .pv{color:var(--ink);font-weight:600}
+.thread{display:flex;flex-direction:column;min-width:0;min-height:0}
+.thread header{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.thread header .t{min-width:0}
+.thread header b{display:block}
+.thread header span{color:var(--muted);font-size:13px}
+.thread .back{display:none}
+.msgs{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:8px}
+.day{align-self:center;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.12em;margin:6px 0}
+.bub{max-width:min(78%,520px);padding:9px 13px;border-radius:16px;background:var(--bubble);color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere;align-self:flex-start;border-bottom-left-radius:4px}
+.bub.me{align-self:flex-end;background:var(--bubble-me);color:var(--bubble-me-ink);border-bottom-left-radius:16px;border-bottom-right-radius:4px}
+.bub .tm{display:block;font-size:11px;opacity:.6;margin-top:2px}
+.rcard{align-self:flex-start;max-width:min(88%,420px);border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--surface-2);display:grid;gap:4px}
+.rcard.me{align-self:flex-end}
+.rcard .lbl{text-transform:uppercase;letter-spacing:.14em;font-size:11px;color:var(--muted);font-weight:600}
+.rcard b{font-size:16px}
+.rcard .acts{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.typing{align-self:flex-start;background:var(--bubble);border-radius:16px;padding:10px 14px;display:flex;gap:4px}
+.typing i{width:6px;height:6px;border-radius:50%;background:var(--muted);animation:blink 1.2s infinite}
+.typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+.composer{display:flex;gap:8px;padding:12px;border-top:1px solid var(--line);align-items:flex-end}
+.composer textarea{flex:1;resize:none;border:1px solid var(--line);border-radius:20px;padding:9px 14px;background:var(--surface-2);max-height:120px;min-height:40px;line-height:1.4}
+.composer .btn{border-radius:20px}
+.thread-empty{flex:1;display:grid;place-items:center;color:var(--muted);text-align:center;padding:24px}
+
+/* gear list drawer */
+.badge.alt{background:var(--hero-ink);color:var(--hero-bg)}
+.drawer-scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:40}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(460px,100%);background:var(--surface);color:var(--ink);border-left:1px solid var(--line);z-index:41;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);padding-right:env(safe-area-inset-right,0px);box-shadow:-20px 0 60px rgba(0,0,0,.35)}
+.drawer header{display:flex;align-items:baseline;gap:10px;padding:16px 18px;border-bottom:1px solid var(--line)}
+.drawer header h2{font-size:21px;margin:0;font-variation-settings:"wdth" 112}
+.drawer header .x{margin-left:auto;background:none;border:0;font-size:22px;cursor:pointer;color:var(--muted);line-height:1;align-self:center}
+.drawer .db{flex:1;overflow:auto;padding:16px 18px;display:grid;gap:14px;align-content:start}
+.drawer footer{border-top:1px solid var(--line);padding:14px 18px;display:grid;gap:12px}
+.cgroup{border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.cgroup h3{margin:0;padding:10px 12px;background:var(--surface-2);font-size:14.5px;display:flex;gap:4px 8px;align-items:baseline;flex-wrap:wrap}
+.cgroup h3 span{color:var(--muted);font-weight:500;font-size:12.5px}
+.cline{display:grid;grid-template-columns:1fr auto;gap:6px 12px;padding:10px 12px;border-top:1px solid var(--line)}
+.cl-name{font-weight:600;min-width:0}
+.cl-total{text-align:right;font-weight:700;white-space:nowrap}
+.cl-calc{color:var(--muted);font-size:12.5px;font-weight:400}
+.cl-ctrl{display:flex;gap:10px;align-items:center}
+.stepper{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.stepper button{border:0;background:var(--surface-2);width:30px;height:26px;cursor:pointer}
+.stepper button:disabled{opacity:.35;cursor:not-allowed}
+.stepper span{min-width:32px;text-align:center;line-height:26px;font-size:13px}
+.link{background:none;border:0;color:var(--muted);font-size:12.5px;text-decoration:underline;cursor:pointer;padding:0}
+.csub{display:flex;justify-content:space-between;padding:8px 12px;border-top:1px solid var(--line);font-size:13.5px;color:var(--muted)}
+.grand{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.grand b{font-size:26px;font-variation-settings:"wdth" 112}
+.disclose{font-size:12.5px;line-height:1.45;color:var(--muted);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;display:flex;gap:8px;background:var(--surface-2)}
+.rlines{list-style:none;margin:4px 0 2px;padding:0;display:grid;gap:2px;font-size:13.5px}
+.rlines li{display:flex;justify-content:space-between;gap:12px}
+.toast button{background:none;border:0;color:inherit;font-weight:700;text-decoration:underline;margin-left:10px;cursor:pointer;padding:0}
+
+/* modal */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:50;display:grid;place-items:center;padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.modal{background:var(--surface);color:var(--ink);border-radius:12px;width:min(560px,100%);max-height:100%;overflow:auto;border:1px solid var(--line);box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.modal header{display:flex;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid var(--line)}
+.modal header h2{font-size:21px;margin:0;font-variation-settings:"wdth" 112}
+.modal header .x{margin-left:auto;background:none;border:0;font-size:22px;cursor:pointer;color:var(--muted);line-height:1}
+.modal .mb{padding:18px;display:grid;gap:14px}
+.modal footer{padding:14px 18px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.field{display:grid;gap:5px}
+.field label{font-weight:600;font-size:13.5px}
+.field .hint{color:var(--muted);font-size:12.5px}
+.field input,.field select,.field textarea{border:1px solid var(--line);border-radius:var(--r);padding:9px 11px;background:var(--surface-2);width:100%}
+.field textarea{min-height:80px;resize:vertical}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.choice{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.choice button{text-align:left;border:1px solid var(--line);border-radius:var(--r);padding:14px;background:var(--surface-2);cursor:pointer;display:grid;gap:4px}
+.choice button[aria-pressed=true]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.choice button b{font-size:16px}
+.choice button span{color:var(--muted);font-size:13px}
+.connectors{display:grid;gap:8px}
+.conn{display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:var(--r);padding:12px;background:var(--surface-2)}
+.conn .logo{width:38px;height:38px;border-radius:8px;display:grid;place-items:center;font-family:var(--f-mono);font-weight:500;background:var(--ink);color:var(--bg);font-size:12px;flex:none}
+.conn div.t{min-width:0}
+.conn div.t b{display:block}
+.conn div.t span{color:var(--muted);font-size:13px}
+.conn .btn{margin-left:auto}
+.log{font-family:var(--f-mono);font-size:12.5px;background:#000;color:#E8E8EA;border-radius:var(--r);padding:12px;display:grid;gap:3px;min-height:120px}
+.log .okk{color:#8FD9AE}
+.note{font-size:12.5px;color:var(--muted);background:var(--surface-2);border-radius:var(--r);padding:8px 10px}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;z-index:60;box-shadow:0 10px 30px rgba(0,0,0,.35);font-size:14px;max-width:calc(100% - 32px)}
+
+footer.site{border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+footer.site .wrap{padding-block:20px;display:flex;gap:12px;flex-wrap:wrap;justify-content:space-between}
+
+@media (max-width:1000px){
+  .search{grid-template-columns:1fr auto auto;row-gap:6px}
+  .search label.q{grid-column:1/-1;border-bottom:1px solid #E1E1E5}
+  .loc{border-left:0;grid-column:1/-1;border-bottom:1px solid #E1E1E5}
+  .loc input{width:100%}
+  .dates{border-left:0;padding-left:12px}
+}
+@media (max-width:860px){
+  .layout{grid-template-columns:1fr}
+  .rail{position:static;grid-template-columns:repeat(2,1fr);gap:14px}
+  .dash-grid{grid-template-columns:1fr}
+}
+@media (max-width:760px){
+  .inbox{grid-template-columns:1fr}
+  .inbox.has-active .clist{display:none}
+  .inbox:not(.has-active) .thread{display:none}
+  .clist{border-right:0}
+  .thread .back{display:inline-flex}
+}
+@media (max-width:640px){
+  .tagline{display:none}
+  .search{grid-template-columns:1fr 1fr}
+  .loc,.dates{grid-column:1/-1}
+  .dates{border-left:0;border-top:1px solid #E1E1E5;padding:8px 12px 2px}
+  .dates .dt{flex:1}
+  .search select#radius{border-left:0;padding:10px 8px}
+  .search .btn{margin-left:0}
+  .row{grid-template-columns:auto 1fr}
+  .row .side{grid-column:1/-1;grid-template-columns:1fr auto;justify-items:start;align-items:center;text-align:left;border-top:1px solid var(--line);padding-top:10px}
+  .row .side .btns{justify-self:end;grid-row:1/3;grid-column:2}
+  .row .cat{width:44px;height:44px}
+  .how{grid-template-columns:1fr}
+  .two,.choice{grid-template-columns:1fr}
+  .top nav .hide-sm{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <button class="brand" id="homeBtn" aria-label="ShowGrid home">
+      <span class="wordmark">SHOW<span>GRID</span></span>
+      <span class="tagline">One problem at a time</span>
+    </button>
+    <nav id="nav"></nav>
+  </div>
+</header>
+
+<div class="demo"><div class="wrap"><b>Prototype</b><span>Companies, crew, inventory and conversations are sample data. Sync, requests and replies are simulated on this page.</span></div></div>
+
+<main id="viewSearch">
+  <section class="hero">
+    <div class="wrap">
+      <div class="eyebrow"><span class="tally"></span>B2B rentals &amp; crew for live events · worldwide</div>
+      <h1>Short on gear or crew? <span>Someone nearby has it.</span></h1>
+      <p class="lede">Rental houses list live inventory straight from Rentman or Flex. Techs and engineers list their skills. Search once, see who has it near your show, and message them right here.</p>
+      <form class="search" id="searchForm" role="search">
+        <label class="q" for="q">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="q" type="search" placeholder="What's your problem?" autocomplete="off" aria-label="What's your problem?">
+        </label>
+        <div class="loc">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+          <input id="loc" role="combobox" aria-label="Where" aria-autocomplete="list" aria-expanded="false" aria-controls="locList" autocomplete="off" placeholder="City, country or place">
+          <ul id="locList" class="loclist" role="listbox" hidden></ul>
+        </div>
+        <div class="dates">
+          <label class="dt" for="fromD"><span>From</span><input id="fromD" type="date" required></label>
+          <span class="dash" aria-hidden="true">→</span>
+          <label class="dt" for="toD"><span>To</span><input id="toD" type="date" required></label>
+        </div>
+        <select id="radius" aria-label="Distance"></select>
+        <button class="btn" type="submit">Find it</button>
+      </form>
+      <div class="chips" id="chips"><span class="lbl">Try</span></div>
+      <div class="stats" id="stats"></div>
+    </div>
+  </section>
+
+  <section class="main">
+    <div class="wrap">
+      <div class="layout">
+        <aside class="rail" id="rail" aria-label="Filters"></aside>
+        <div style="min-width:0">
+          <div class="tabs" role="tablist" id="tabs"></div>
+          <p class="summary" id="summary"></p>
+          <div class="list" id="results"></div>
+          <div class="how">
+            <div><h4>Rental houses</h4><p>Connect Rentman or Flex once. Your rentable stock and availability show up here and stay in sync. Hide anything you don't want listed.</p></div>
+            <div><h4>Techs &amp; engineers</h4><p>Create a crew profile with your role, the gear you know, day rate and home base. Companies near you find you when they're short-handed.</p></div>
+            <div><h4>Everyone</h4><p>Type the problem the way you'd say it on a call. Add gear to one list across companies, see an estimated total, then send it and confirm the final price by message.</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<main id="viewProfile" hidden>
+  <section class="main"><div class="wrap" id="profileWrap"></div></section>
+</main>
+
+<main id="viewMessages" hidden>
+  <section class="main"><div class="wrap" id="messagesWrap"></div></section>
+</main>
+
+<footer class="site"><div class="wrap"><span><b class="wide" style="letter-spacing:.06em">SHOWGRID</b> · One problem at a time</span><span class="mono">show-grid.com</span><span>Prototype · sample data</span></div></footer>
+
+<div id="drawerRoot"></div>
+<div id="modalRoot"></div>
+<div id="toastRoot"></div>
+
+<script>
+(function(){
+"use strict";
+
+// ---------- sample data ----------
+// country code: [name, lat, lng, currency, other names people type]
+const COUNTRIES = {
+  US:["United States",39.8,-98.6,"USD","usa us america estados unidos eeuu"],CA:["Canada",56.1,-106.3,"CAD",""],MX:["Mexico",23.6,-102.5,"MXN","méxico"],
+  PR:["Puerto Rico",18.2,-66.5,"USD",""],DO:["Dominican Republic",18.7,-70.2,"DOP","republica dominicana rd"],PA:["Panama",8.5,-80.8,"USD","panamá"],
+  CO:["Colombia",4.6,-74.3,"COP",""],PE:["Peru",-9.2,-75,"PEN","perú"],CL:["Chile",-35.7,-71.5,"CLP",""],AR:["Argentina",-38.4,-63.6,"ARS",""],
+  BR:["Brazil",-14.2,-51.9,"BRL","brasil"],GB:["United Kingdom",54,-2,"GBP","uk england britain great britain scotland wales"],IE:["Ireland",53.4,-8.2,"EUR","eire"],
+  FR:["France",46.2,2.2,"EUR","francia"],NL:["Netherlands",52.1,5.3,"EUR","holland holanda"],BE:["Belgium",50.5,4.5,"EUR","belgica"],
+  DE:["Germany",51.2,10.4,"EUR","deutschland alemania"],ES:["Spain",40.4,-3.7,"EUR","españa"],PT:["Portugal",39.4,-8.2,"EUR",""],
+  IT:["Italy",41.9,12.6,"EUR","italia"],CH:["Switzerland",46.8,8.2,"CHF","suiza schweiz"],AT:["Austria",47.5,14.6,"EUR","österreich"],
+  CZ:["Czechia",49.8,15.5,"CZK","czech republic"],PL:["Poland",51.9,19.1,"PLN","polska"],SE:["Sweden",60.1,18.6,"SEK","sverige"],
+  DK:["Denmark",56.3,9.5,"DKK","danmark"],NO:["Norway",60.5,8.5,"NOK","norge"],GR:["Greece",39.1,21.8,"EUR",""],TR:["Türkiye",39,35.2,"TRY","turkey turquia"],
+  AE:["United Arab Emirates",23.4,53.8,"AED","uae emirates"],SA:["Saudi Arabia",23.9,45.1,"SAR","ksa"],QA:["Qatar",25.4,51.2,"QAR",""],
+  IL:["Israel",31,34.9,"ILS",""],EG:["Egypt",26.8,30.8,"EGP",""],NG:["Nigeria",9.1,8.7,"NGN",""],ZA:["South Africa",-30.6,22.9,"ZAR","sa"],
+  KE:["Kenya",-.02,37.9,"KES",""],MA:["Morocco",31.8,-7.1,"MAD","marruecos"],IN:["India",20.6,79,"INR",""],SG:["Singapore",1.35,103.8,"SGD",""],
+  TH:["Thailand",15.9,101,"THB",""],HK:["Hong Kong",22.3,114.2,"HKD",""],CN:["China",35.9,104.2,"CNY",""],JP:["Japan",36.2,138.3,"JPY","japon"],
+  KR:["South Korea",35.9,127.8,"KRW","korea"],PH:["Philippines",12.9,121.8,"PHP","filipinas"],ID:["Indonesia",-.8,113.9,"IDR",""],
+  AU:["Australia",-25.3,133.8,"AUD",""],NZ:["New Zealand",-40.9,174.9,"NZD",""]
+};
+// [label, lat, lng, country code, other names]
+const PLACES = [
+  ["Miami, FL",25.7617,-80.1918,"US","south beach brickell"],["Fort Lauderdale, FL",26.1224,-80.1373,"US",""],["Orlando, FL",28.5383,-81.3792,"US",""],
+  ["Tampa, FL",27.9506,-82.4572,"US",""],["Atlanta, GA",33.749,-84.388,"US",""],["Nashville, TN",36.1627,-86.7816,"US",""],
+  ["New York, NY",40.7128,-74.006,"US","nyc manhattan brooklyn"],["Chicago, IL",41.8781,-87.6298,"US",""],["Dallas, TX",32.7767,-96.797,"US",""],
+  ["Austin, TX",30.2672,-97.7431,"US",""],["Houston, TX",29.7604,-95.3698,"US",""],["New Orleans, LA",29.9511,-90.0715,"US","nola"],
+  ["Denver, CO",39.7392,-104.9903,"US",""],["Washington, DC",38.9072,-77.0369,"US",""],["Las Vegas, NV",36.1699,-115.1398,"US","vegas"],
+  ["Los Angeles, CA",34.0522,-118.2437,"US","la hollywood"],["San Francisco, CA",37.7749,-122.4194,"US","sf bay area"],
+  ["Toronto, Canada",43.6532,-79.3832,"CA",""],["Montreal, Canada",45.5019,-73.5674,"CA","montréal"],["Vancouver, Canada",49.2827,-123.1207,"CA",""],
+  ["Mexico City, Mexico",19.4326,-99.1332,"MX","cdmx ciudad de mexico df"],["Guadalajara, Mexico",20.6597,-103.3496,"MX",""],
+  ["Monterrey, Mexico",25.6866,-100.3161,"MX",""],["Cancún, Mexico",21.1619,-86.8515,"MX","riviera maya"],
+  ["San Juan, Puerto Rico",18.4655,-66.1057,"PR",""],["Santo Domingo, Dominican Republic",18.4861,-69.9312,"DO",""],
+  ["Panama City, Panama",8.9824,-79.5199,"PA","ciudad de panama"],["Bogotá, Colombia",4.711,-74.0721,"CO",""],["Medellín, Colombia",6.2442,-75.5812,"CO",""],
+  ["Lima, Peru",-12.0464,-77.0428,"PE",""],["Santiago, Chile",-33.4489,-70.6693,"CL",""],["Buenos Aires, Argentina",-34.6037,-58.3816,"AR","bsas"],
+  ["São Paulo, Brazil",-23.5505,-46.6333,"BR","sp"],["Rio de Janeiro, Brazil",-22.9068,-43.1729,"BR","rio"],
+  ["London, UK",51.5074,-.1278,"GB",""],["Manchester, UK",53.4808,-2.2426,"GB",""],["Dublin, Ireland",53.3498,-6.2603,"IE",""],
+  ["Paris, France",48.8566,2.3522,"FR",""],["Amsterdam, Netherlands",52.3676,4.9041,"NL",""],["Brussels, Belgium",50.8503,4.3517,"BE","bruxelles"],
+  ["Berlin, Germany",52.52,13.405,"DE",""],["Munich, Germany",48.1351,11.582,"DE","münchen"],["Cologne, Germany",50.9375,6.9603,"DE","köln"],
+  ["Madrid, Spain",40.4168,-3.7038,"ES",""],["Barcelona, Spain",41.3874,2.1686,"ES",""],["Ibiza, Spain",38.9067,1.4206,"ES","eivissa"],
+  ["Lisbon, Portugal",38.7223,-9.1393,"PT","lisboa"],["Milan, Italy",45.4642,9.19,"IT","milano"],["Rome, Italy",41.9028,12.4964,"IT","roma"],
+  ["Zurich, Switzerland",47.3769,8.5417,"CH","zürich"],["Vienna, Austria",48.2082,16.3738,"AT","wien"],["Prague, Czechia",50.0755,14.4378,"CZ","praha"],
+  ["Warsaw, Poland",52.2297,21.0122,"PL","warszawa"],["Stockholm, Sweden",59.3293,18.0686,"SE",""],["Copenhagen, Denmark",55.6761,12.5683,"DK","københavn"],
+  ["Oslo, Norway",59.9139,10.7522,"NO",""],["Athens, Greece",37.9838,23.7275,"GR",""],["Istanbul, Türkiye",41.0082,28.9784,"TR",""],
+  ["Dubai, UAE",25.2048,55.2708,"AE",""],["Abu Dhabi, UAE",24.4539,54.3773,"AE",""],["Riyadh, Saudi Arabia",24.7136,46.6753,"SA",""],
+  ["Doha, Qatar",25.2854,51.531,"QA",""],["Tel Aviv, Israel",32.0853,34.7818,"IL",""],["Cairo, Egypt",30.0444,31.2357,"EG",""],
+  ["Lagos, Nigeria",6.5244,3.3792,"NG",""],["Johannesburg, South Africa",-26.2041,28.0473,"ZA","joburg"],["Cape Town, South Africa",-33.9249,18.4241,"ZA",""],
+  ["Nairobi, Kenya",-1.2921,36.8219,"KE",""],["Marrakesh, Morocco",31.6295,-7.9811,"MA","marrakech"],["Mumbai, India",19.076,72.8777,"IN","bombay"],
+  ["Delhi, India",28.7041,77.1025,"IN","new delhi"],["Singapore",1.3521,103.8198,"SG",""],["Bangkok, Thailand",13.7563,100.5018,"TH",""],
+  ["Hong Kong",22.3193,114.1694,"HK",""],["Shanghai, China",31.2304,121.4737,"CN",""],["Tokyo, Japan",35.6762,139.6503,"JP",""],
+  ["Seoul, South Korea",37.5665,126.978,"KR",""],["Manila, Philippines",14.5995,120.9842,"PH",""],["Jakarta, Indonesia",-6.2088,106.8456,"ID",""],
+  ["Sydney, Australia",-33.8688,151.2093,"AU",""],["Melbourne, Australia",-37.8136,144.9631,"AU",""],["Auckland, New Zealand",-36.8485,174.7633,"NZ",""]
+];
+const CITIES = {}; PLACES.forEach(p=>CITIES[p[0]]={ll:[p[1],p[2]],cc:p[3]});
+const fold = s=>String(s).normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
+const PLACE_OPTS = PLACES.map(p=>({label:p[0],sub:COUNTRIES[p[3]][0],ll:[p[1],p[2]],cc:p[3],country:false,hay:fold(p[0]+" "+COUNTRIES[p[3]][0]+" "+p[4])}))
+  .concat(Object.entries(COUNTRIES).map(([cc,c])=>({label:c[0],sub:"Whole country",ll:[c[1],c[2]],cc,country:true,hay:fold(c[0]+" "+c[4]+" "+cc)})));
+function ccOf(city){return CITIES[city]?CITIES[city].cc:"US"}
+function curOf(city){const c=COUNTRIES[ccOf(city)];return c?c[3]:"USD"}
+const COMPANIES = [
+  {id:"c1",name:"Beacon Stage Rentals",city:"Miami, FL",off:[.04,-.08],src:"rentman",sync:4},
+  {id:"c2",name:"Tidewater Audio",city:"Fort Lauderdale, FL",off:[.02,-.05],src:"flex",sync:11},
+  {id:"c3",name:"Lumen Works FL",city:"Orlando, FL",off:[-.03,.02],src:"rentman",sync:2},
+  {id:"c4",name:"Gulfside Production Supply",city:"Tampa, FL",off:[.01,.03],src:"flex",sync:25},
+  {id:"c5",name:"Peachtree Event Tech",city:"Atlanta, GA",off:[.05,-.02],src:"rentman",sync:7},
+  {id:"c6",name:"Music Row Backline",city:"Nashville, TN",off:[0,0],src:"flex",sync:40},
+  {id:"c7",name:"Desert Rig Co.",city:"Las Vegas, NV",off:[.03,.04],src:"rentman",sync:3},
+  {id:"c8",name:"Harbor Video Systems",city:"New York, NY",off:[.05,.02],src:"flex",sync:16},
+  {id:"c9",name:"Pacific Pixel LED",city:"Los Angeles, CA",off:[-.02,.05],src:"rentman",sync:9},
+  {id:"c10",name:"Lone Star Power & Distro",city:"Dallas, TX",off:[.04,.03],src:"manual",sync:1440},
+  {id:"c11",name:"Thameside Production Hire",city:"London, UK",off:[.03,-.08],src:"rentman",sync:6},
+  {id:"c12",name:"Spreeline Veranstaltungstechnik",city:"Berlin, Germany",off:[-.02,.05],src:"rentman",sync:12},
+  {id:"c13",name:"Escenario Norte",city:"Madrid, Spain",off:[.05,-.02],src:"flex",sync:20},
+  {id:"c14",name:"Foro Producciones",city:"Mexico City, Mexico",off:[.03,.02],src:"flex",sync:8},
+  {id:"c15",name:"Palco Técnica",city:"São Paulo, Brazil",off:[-.03,.02],src:"manual",sync:1440},
+  {id:"c16",name:"Gulf Stage Solutions",city:"Dubai, UAE",off:[.05,-.06],src:"rentman",sync:5},
+  {id:"c17",name:"Harbourside AV",city:"Sydney, Australia",off:[.02,-.04],src:"flex",sync:14},
+  {id:"c18",name:"Northlight Rentals",city:"Toronto, Canada",off:[.04,.02],src:"rentman",sync:3},
+  {id:"c19",name:"Caribe Live Rentals",city:"San Juan, Puerto Rico",off:[.01,.02],src:"flex",sync:30},
+  {id:"c20",name:"Andes Audio",city:"Bogotá, Colombia",off:[.02,.03],src:"manual",sync:1440}
+];
+// [company, name, category, tags, available, owned, day rate, spec]
+const ITEMS_RAW = [
+  ["c1","Robe MegaPointe","Lighting","moving head spot beam wash fixture lights",12,16,95,"470 W · 22 kg · 6-way road cases"],
+  ["c1","Martin MAC Aura XB","Lighting","moving head wash led fixture lights",18,24,70,"Zoom 11–58° · 6.7 kg"],
+  ["c1","grandMA3 light","Lighting","console desk control programmer ma3",1,2,450,"With 2× command wing case"],
+  ["c1","Hazebase Base Hazer Pro","Effects","hazer haze fog atmosphere",4,4,60,"DMX · water-based fluid"],
+  ["c1","CM Lodestar 1 ton","Rigging","chain motor hoist rigging",16,20,55,"D8+ · 16 fpm · 60 ft chain"],
+  ["c1","12\" box truss 10 ft","Rigging","truss box rigging",40,60,18,"Tomcat · silver"],
+  ["c1","Shure Axient Digital AD4Q","Audio","wireless mic microphone rf receiver",2,3,320,"4-ch · G57 band"],
+  ["c2","L-Acoustics K2","Audio","line array speaker pa sound system",24,24,210,"Per cabinet · LA12X amps available"],
+  ["c2","L-Acoustics KS28","Audio","subwoofer sub speaker pa low end",12,16,140,"2× 18\" · cardioid ready"],
+  ["c2","DiGiCo SD12","Audio","console desk mixer foh monitor",2,2,550,"72 ch · with SD-Rack"],
+  ["c2","Yamaha CL5","Audio","console desk mixer foh",1,2,380,"With Rio3224-D2"],
+  ["c2","d&b audiotechnik M4","Audio","monitor wedge speaker",16,20,65,"15\" coaxial wedge"],
+  ["c2","Shure ULXD4Q","Audio","wireless mic microphone rf receiver",3,4,180,"4-ch · H50 band"],
+  ["c3","Chauvet Maverick Force S Profile","Lighting","moving head profile spot fixture lights",8,12,85,"350 W · framing shutters"],
+  ["c3","Robe Spiider","Lighting","moving head wash led fixture lights",14,20,80,"Flower effect · 18 kg"],
+  ["c3","ETC Source Four 26°","Lighting","ellipsoidal leko conventional lights",36,48,12,"750 W HPL"],
+  ["c3","grandMA3 compact XT","Lighting","console desk control programmer ma3",1,1,380,"Flight case"],
+  ["c3","MDG theONE","Effects","hazer haze fog atmosphere",2,2,95,"Fog & haze combo"],
+  ["c3","ETC Sensor3 dimmer rack 48×2.4 kW","Power","dimmer rack power",2,3,220,"Touring rack · 400 A"],
+  ["c4","ROE Black Pearl BP2V2","Video","led wall video screen panel",120,144,45,"2.84 mm · 500×500 mm panels"],
+  ["c4","Brompton Tessera SX40","Video","led processor video",2,3,250,"4K · with XD units"],
+  ["c4","Barco UDX-4K32","Video","projector projection",1,2,1400,"31,000 lm · 4K UHD"],
+  ["c4","CM Lodestar 1/2 ton","Rigging","chain motor hoist rigging",10,12,45,"D8 · 32 fpm"],
+  ["c4","Motion Labs 8-ch motor controller","Rigging","motor control rigging",2,2,90,"With pickle"],
+  ["c4","Stage deck 4×8 platform","Staging","staging deck riser platform stage",40,64,28,"Adjustable legs 16–40\""],
+  ["c5","Robe MegaPointe","Lighting","moving head spot beam wash fixture lights",20,24,95,"470 W · 22 kg"],
+  ["c5","Martin MAC Ultra Performance","Lighting","moving head profile spot fixture lights",8,8,140,"1,150 W LED · CMY"],
+  ["c5","L-Acoustics Kara II","Audio","line array speaker pa sound system",16,24,150,"Per cabinet"],
+  ["c5","Avolites Arena","Lighting","console desk control",1,1,300,"Titan v16"],
+  ["c5","Disguise vx 2","Video","media server video playback",1,1,950,"With 4× 4K outputs"],
+  ["c5","Generator 100 kW","Power","generator power genset",1,2,650,"Towable · tier 4"],
+  ["c6","Fender Twin Reverb '65 reissue","Backline","guitar amp amplifier backline",4,6,85,"2× 12\""],
+  ["c6","Ampeg SVT-CL + 8×10","Backline","bass amp amplifier backline rig",3,4,140,"Head + cab"],
+  ["c6","DW Collector's 5-pc kit","Backline","drums drum kit backline",2,3,175,"Hardware & throne incl."],
+  ["c6","Nord Stage 4 88","Backline","keyboard keys piano backline",2,2,150,"With stand & pedals"],
+  ["c6","Shure SM58 kit (10)","Audio","mic microphone wired vocal",6,8,40,"10 mics · case"],
+  ["c7","CM Lodestar 1 ton","Rigging","chain motor hoist rigging",32,40,55,"D8+ · 100 ft chain"],
+  ["c7","20.5\" box truss 10 ft","Rigging","truss box rigging",60,80,26,"Tyler GT"],
+  ["c7","Claypaky Sharpy Plus","Lighting","moving head beam fixture lights",24,32,65,"330 W"],
+  ["c8","Blackmagic URSA Broadcast G2","Video","camera broadcast imag",4,6,450,"With B4 lens"],
+  ["c8","Ross Carbonite Ultra","Video","switcher vision mixer video",1,2,600,"2 M/E"],
+  ["c8","Panasonic PT-RZ21K","Video","projector projection",2,2,800,"20,000 lm laser"],
+  ["c9","ROE Carbon CB5","Video","led wall video screen panel outdoor",200,240,38,"5.77 mm · outdoor rated"],
+  ["c9","Brompton Tessera S8","Video","led processor video",3,4,180,"With 2× XD"],
+  ["c10","Distro 400 A","Power","power distro distribution cam lock",4,6,180,"Cam-lok · 5-wire"],
+  ["c10","Generator 200 kW","Power","generator power genset",2,3,980,"Whisperwatt · fuel extra"],
+  ["c10","Socapex 19-pin 100 ft","Power","cable power soca multicable",40,60,15,"6-circuit"],
+  // day rates below are in each company's local currency
+  ["c11","Robe MegaPointe","Lighting","moving head spot beam wash fixture lights",16,24,75,"470 W · 22 kg"],
+  ["c11","L-Acoustics K2","Audio","line array speaker pa sound system",24,36,170,"Per cabinet · LA12X"],
+  ["c11","grandMA3 full-size","Lighting","console desk control programmer ma3",1,2,420,"With onPC backup"],
+  ["c11","CM Lodestar 1 ton","Rigging","chain motor hoist rigging",20,30,40,"D8+ · 20 m chain"],
+  ["c12","Robe Forte","Lighting","moving head profile spot fixture lights",12,16,140,"1,000 W LED · 37 kg"],
+  ["c12","d&b audiotechnik KSL8","Audio","line array speaker pa sound system",16,24,160,"Per cabinet · D80"],
+  ["c12","DiGiCo Quantum 338","Audio","console desk mixer foh monitor",1,2,650,"With SD-Rack"],
+  ["c12","Hazebase Base Hazer Pro","Effects","hazer haze fog atmosphere",4,6,50,"DMX"],
+  ["c13","Martin MAC Aura XB","Lighting","moving head wash led fixture lights",24,32,60,"Zoom 11–58°"],
+  ["c13","Claypaky Sharpy","Lighting","moving head beam fixture lights",30,40,45,"190 W"],
+  ["c13","Yamaha CL5","Audio","console desk mixer foh",1,1,320,"With Rio3224-D2"],
+  ["c13","ROE Black Pearl BP2V2","Video","led wall video screen panel",80,96,38,"2.84 mm · 500×500 mm"],
+  ["c14","Robe Spiider","Lighting","moving head wash led fixture lights",20,24,1400,"Flower effect"],
+  ["c14","L-Acoustics K1","Audio","line array speaker pa sound system",16,24,4200,"Per cabinet"],
+  ["c14","grandMA3 light","Lighting","console desk control programmer ma3",1,2,7500,"Flight case"],
+  ["c14","Generator 150 kW","Power","generator power genset",2,3,12000,"Silent · fuel extra"],
+  ["c15","Chauvet Maverick MK3 Spot","Lighting","moving head spot fixture lights",12,12,450,"820 W LED"],
+  ["c15","Shure Axient Digital AD4Q","Audio","wireless mic microphone rf receiver",2,2,1500,"4-ch"],
+  ["c16","Robe MegaPointe","Lighting","moving head spot beam wash fixture lights",24,36,380,"470 W"],
+  ["c16","ROE Black Pearl BP2V2","Video","led wall video screen panel",160,200,170,"2.84 mm"],
+  ["c16","Generator 500 kVA","Power","generator power genset",2,4,4500,"Synchronised pair available"],
+  ["c16","Disguise vx 4","Video","media server video playback",1,2,4000,"4× 4K outputs"],
+  ["c17","L-Acoustics K2","Audio","line array speaker pa sound system",24,24,320,"Per cabinet"],
+  ["c17","Martin MAC Ultra Performance","Lighting","moving head profile spot fixture lights",12,12,240,"1,150 W LED"],
+  ["c17","CM Lodestar 1 ton","Rigging","chain motor hoist rigging",16,24,90,"D8+"],
+  ["c18","Robe Esprite","Lighting","moving head profile spot fixture lights",16,20,120,"LED profile"],
+  ["c18","DiGiCo SD5","Audio","console desk mixer foh",1,1,900,"With 2× SD-Rack"],
+  ["c18","20.5\" box truss 10 ft","Rigging","truss box rigging",40,60,35,"Tyler GT"],
+  ["c19","Chauvet Rogue R2 Wash","Lighting","moving head wash led fixture lights",16,20,45,"19× 15 W RGBW"],
+  ["c19","QSC KLA12","Audio","line array speaker pa sound system",12,12,75,"Powered"],
+  ["c19","Stage deck 4×8 platform","Staging","staging deck riser platform stage",30,40,30,"Weatherproof"],
+  ["c20","Martin MAC Aura","Lighting","moving head wash led fixture lights",16,16,250000,"Zoom 11–58°"],
+  ["c20","Yamaha QL5","Audio","console desk mixer foh",1,1,1400000,"With Rio1608"]
+];
+const TECHS = [
+  {id:"t1",name:"Marisol Vega",role:"FOH Engineer",city:"Miami, FL",off:[.02,-.03],rate:650,yrs:14,skills:["DiGiCo","L-Acoustics","Smaart","Yamaha CL"],avail:true},
+  {id:"t2",name:"Dre Thompson",role:"Lighting Programmer",city:"Orlando, FL",off:[.01,.01],rate:700,yrs:11,skills:["grandMA3","Hog 4","Timecode"],avail:true},
+  {id:"t3",name:"Kenji Albright",role:"Video Engineer / LED Tech",city:"Miami, FL",off:[-.03,-.02],rate:750,yrs:9,skills:["Brompton","ROE","Disguise","Resolume"],avail:true},
+  {id:"t4",name:"Sam Okafor",role:"Head Rigger",city:"Tampa, FL",off:[.02,.02],rate:600,yrs:16,skills:["ETCP Arena","Chain motors","Truss","Kinesys"],avail:false},
+  {id:"t5",name:"Luis Ferreira",role:"A2 / RF Coordinator",city:"Fort Lauderdale, FL",off:[0,0],rate:500,yrs:8,skills:["Shure Axient","Wireless Workbench","IEMs"],avail:true},
+  {id:"t6",name:"Jordan Blake",role:"Production Electrician",city:"Orlando, FL",off:[-.02,.03],rate:520,yrs:12,skills:["Power distro","Generators","Cam-lok","Dimmers"],avail:true},
+  {id:"t7",name:"Priya Raman",role:"Monitor Engineer",city:"Atlanta, GA",off:[.02,.01],rate:620,yrs:10,skills:["DiGiCo","IEMs","Avid S6L"],avail:true},
+  {id:"t8",name:"Marcus Reed",role:"Stage Manager",city:"Nashville, TN",off:[0,.02],rate:450,yrs:18,skills:["Changeovers","Backline","Load-in"],avail:true},
+  {id:"t9",name:"Ava Chen",role:"Media Server Operator",city:"Los Angeles, CA",off:[.01,-.02],rate:800,yrs:7,skills:["Disguise","Notch","Unreal"],avail:true},
+  {id:"t10",name:"Tom Kowalski",role:"Lighting Director",city:"New York, NY",off:[.01,.01],rate:850,yrs:20,skills:["grandMA3","Design","Previz","Vectorworks"],avail:true},
+  {id:"t11",name:"Oliver Hughes",role:"Systems Engineer",city:"London, UK",off:[.02,-.03],rate:450,yrs:12,skills:["L-Acoustics","Soundvision","Smaart"],avail:true},
+  {id:"t12",name:"Lena Vogt",role:"Lighting Programmer",city:"Berlin, Germany",off:[.01,.02],rate:550,yrs:9,skills:["grandMA3","Depence","Timecode"],avail:true},
+  {id:"t13",name:"Diego Ramírez",role:"FOH Engineer",city:"Mexico City, Mexico",off:[-.02,.01],rate:9000,yrs:15,skills:["DiGiCo","Yamaha","L-Acoustics"],avail:true},
+  {id:"t14",name:"Rania Haddad",role:"Video Engineer",city:"Dubai, UAE",off:[.03,-.02],rate:2200,yrs:8,skills:["Disguise","Brompton","Barco E2"],avail:true},
+  {id:"t15",name:"Chloe Martin",role:"Head Rigger",city:"Sydney, Australia",off:[.01,.03],rate:900,yrs:13,skills:["Chain motors","Truss","Working at heights"],avail:false},
+  {id:"t16",name:"Carlos Mendes",role:"LED Tech",city:"São Paulo, Brazil",off:[.02,.01],rate:1200,yrs:6,skills:["ROE","Novastar","Brompton"],avail:true}
+];
+const IMPORT_SAMPLE = [
+  ["Robe Esprite","Lighting","moving head profile spot fixture lights",10,12,90,"LED profile · 28 kg"],
+  ["Chauvet Rogue R2 Wash","Lighting","moving head wash led fixture lights",16,16,45,"19× 15 W RGBW"],
+  ["ChamSys MagicQ MQ250M","Lighting","console desk control",1,1,250,"With case"],
+  ["L-Acoustics X15 HiQ","Audio","monitor wedge speaker",8,8,70,"15\" coaxial"],
+  ["Allen & Heath dLive S5000","Audio","console desk mixer foh",1,1,420,"With DM64"],
+  ["CM Lodestar 1/2 ton","Rigging","chain motor hoist rigging",8,8,45,"D8 · 60 ft chain"],
+  ["Antari HZ-500","Effects","hazer haze fog atmosphere",3,3,40,"Oil-based"],
+  ["INFiLED AR3.9","Video","led wall video screen panel",48,48,32,"3.9 mm · 500×500 mm"]
+];
+
+// ---------- state ----------
+const CAT_ABBR = {Lighting:"LX",Audio:"SND",Video:"VID",Rigging:"RIG",Power:"PWR",Staging:"STG",Backline:"BKL",Effects:"FX"};
+const SRC_LABEL = {rentman:"Rentman",flex:"Flex",manual:"Spreadsheet"};
+let items = ITEMS_RAW.map((r,i)=>({id:"i"+i,co:r[0],name:r[1],cat:r[2],tags:r[3],qty:r[4],total:r[5],rate:r[6],spec:r[7],listed:true,pub:![21,29,45].includes(i)}));
+let companies = COMPANIES.map(c=>({...c,cur:curOf(c.city)}));
+let techs = TECHS.map(t=>({...t,cur:curOf(t.city)}));
+const S = {q:"",place:PLACE_OPTS.find(o=>o.label==="Miami, FL"),radiusIdx:3,tab:"all",cats:new Set(),srcs:new Set(),availOnly:false,user:null,view:"search",convos:[],active:null,typing:{},cart:[],cartOpen:false};
+const isoIn=n=>new Date(Date.now()+n*864e5).toISOString().slice(0,10);
+S.cartFrom=isoIn(7);S.cartTo=isoIn(9);
+
+const store = {
+  get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},
+  del(k){try{localStorage.removeItem(k)}catch(e){}}
+};
+
+// ---------- helpers ----------
+const $ = s=>document.querySelector(s);
+const esc = s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmtCache={};
+function money(n,cur){cur=cur||"USD";
+  if(!fmtCache[cur]){try{fmtCache[cur]=new Intl.NumberFormat("en-US",{style:"currency",currency:cur,minimumFractionDigits:0,maximumFractionDigits:0})}catch(e){fmtCache[cur]={format:v=>cur+" "+Math.round(v).toLocaleString("en-US")}}}
+  return fmtCache[cur].format(n)}
+const RADII={mi:[25,50,100,300,Infinity],km:[50,100,250,500,Infinity]};
+function unit(){return ["US","GB","PR"].includes(S.place.cc)?"mi":"km"}
+function fmtDist(d){return unit()==="km"?Math.round(d*1.609).toLocaleString("en-US")+" km":Math.round(d).toLocaleString("en-US")+" mi"}
+function inRange(d,cc){if(S.place.country)return cc===S.place.cc;const r=RADII[unit()][S.radiusIdx];return (unit()==="km"?d*1.609:d)<=r}
+// sample availability: each item has extra bookings on some days, so free stock changes with the dates searched
+function hash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
+function rangeDays(){const out=[],e=new Date(S.cartTo+"T12:00");for(let d=new Date(S.cartFrom+"T12:00"),i=0;d<=e&&i<62;i++,d=new Date(d.getTime()+864e5))out.push(d.toISOString().slice(0,10));return out.length?out:[S.cartFrom]}
+function freeFor(it){
+  if(String(it.id).startsWith("u"))return it.qty;
+  let m=it.total;
+  for(const day of rangeDays()){const h=hash(it.id+day),booked=h%8===0?Math.round(it.total*((h>>>4)%101)/100):it.total-it.qty;m=Math.min(m,Math.max(0,it.total-booked))}
+  return m;
+}
+function techFree(t){if(!t.avail)return false;if(t.id==="tU")return true;return !rangeDays().some(day=>hash(t.id+day)%9===0)}
+function rangeLabel(){
+  const a=new Date(S.cartFrom+"T12:00"),b=new Date(S.cartTo+"T12:00"),m=d=>d.toLocaleDateString("en-US",{month:"short"});
+  if(S.cartFrom===S.cartTo)return m(a)+" "+a.getDate();
+  return m(a)===m(b)?`${m(a)} ${a.getDate()}–${b.getDate()}`:`${m(a)} ${a.getDate()} – ${m(b)} ${b.getDate()}`;
+}
+function syncDates(){const f=$("#fromD"),t=$("#toD");f.value=S.cartFrom;t.value=S.cartTo;f.min=isoIn(0);t.min=S.cartFrom}
+
+// location type-ahead (the live site would use a geocoding service for any address)
+function matchPlaces(q){
+  q=fold(q.trim());
+  if(!q)return ["Miami, FL","New York, NY","Los Angeles, CA","London, UK","Mexico City, Mexico","Madrid, Spain","Dubai, UAE","São Paulo, Brazil"].map(l=>PLACE_OPTS.find(o=>o.label===l));
+  const out=[];
+  for(const o of PLACE_OPTS){const lab=fold(o.label);let s=0;
+    if(lab.startsWith(q))s=4;else if(lab.split(/[\s,]+/).some(w=>w.startsWith(q)))s=3;else if(o.hay.split(/\s+/).some(w=>w.startsWith(q)))s=2;else if(o.hay.includes(q))s=1;
+    if(s)out.push({o,s})}
+  return out.sort((a,b)=>b.s-a.s||(a.o.country-b.o.country)).slice(0,8).map(x=>x.o);
+}
+let locOpts=[],locIdx=-1;
+function openLoc(q){locOpts=matchPlaces(q);locIdx=locOpts.length?0:-1;drawLoc()}
+function drawLoc(){
+  const ul=$("#locList"),inp=$("#loc");ul.hidden=false;inp.setAttribute("aria-expanded","true");
+  ul.innerHTML=locOpts.length?locOpts.map((o,i)=>`<li role="option" id="lo${i}" data-i="${i}" aria-selected="${i===locIdx}"><span>${esc(o.label)}</span><small>${esc(o.sub)}</small></li>`).join("")
+    :`<li class="none">No match in this preview. On show-grid.com you'll be able to type any city, venue or address worldwide.</li>`;
+  if(locIdx>=0)inp.setAttribute("aria-activedescendant","lo"+locIdx);else inp.removeAttribute("aria-activedescendant");
+}
+function closeLoc(){$("#locList").hidden=true;$("#loc").setAttribute("aria-expanded","false")}
+function setPlace(o){S.place=o;$("#loc").value=o.label;closeLoc();renderRadius();render()}
+function renderRadius(){
+  const sel=$("#radius");
+  if(S.place.country){sel.innerHTML=`<option>Whole country</option>`;sel.disabled=true;return}
+  const u=unit();sel.disabled=false;
+  sel.innerHTML=RADII[u].map((r,i)=>`<option value="${i}" ${i===S.radiusIdx?"selected":""}>${r===Infinity?"Anywhere":r+" "+u}</option>`).join("");
+}
+function resolveCity(v){if(CITIES[v])return v;const m=matchPlaces(v||"").find(o=>!o.country);return m?m.label:"Miami, FL"}
+function coords(city,off){const c=(CITIES[city]&&CITIES[city].ll)||[0,0];return [c[0]+(off?off[0]:0),c[1]+(off?off[1]:0)]}
+function miles(a,b){const R=3958.8,t=x=>x*Math.PI/180;const dLat=t(b[0]-a[0]),dLng=t(b[1]-a[1]);
+  const h=Math.sin(dLat/2)**2+Math.cos(t(a[0]))*Math.cos(t(b[0]))*Math.sin(dLng/2)**2;return 2*R*Math.asin(Math.sqrt(h))}
+const coById = id=>companies.find(c=>c.id===id);
+function initials(n){return n.split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join("")}
+function syncAgo(m){if(m<60)return m+" min ago";if(m<1440)return Math.round(m/60)+" h ago";return "manual upload"}
+function ago(ts){const m=Math.round((Date.now()-ts)/6e4);if(m<1)return "now";if(m<60)return m+"m";if(m<1440)return Math.round(m/60)+"h";
+  return new Date(ts).toLocaleDateString("en-US",{month:"short",day:"numeric"})}
+function clock(ts){return new Date(ts).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}
+const ICON_LIST='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg>';
+function cartBtn(){const n=S.cart.length;return `<button class="btn ghost-dark" data-act="open-cart" aria-label="Gear list${n?", "+n+" items":""}">${ICON_LIST}<span class="hide-sm">Gear list</span>${n?`<span class="badge alt num">${n}</span>`:""}</button>`}
+const ICON_MSG='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 21l1.9-5.4A8 8 0 1 1 21 12z"/></svg>';
+
+// ---------- search ----------
+const STOP = new Set("i im i'm need needs a an the my our for some any short on of to with and or in at we are is looking look want got get have has who me us this that saturday sunday friday tonight tomorrow week weekend asap please help".split(" "));
+const SYN = {
+  light:["lights","lighting","fixture"],lights:["lighting","fixture"],lighting:["lights","fixture"],
+  mover:["moving head"],movers:["moving head"],moving:["moving head"],heads:["moving head"],head:["moving head"],
+  speaker:["speaker","pa","line array"],speakers:["speaker","pa","line array"],pa:["line array","speaker"],sound:["audio","speaker","pa"],audio:["sound","speaker"],
+  console:["desk","mixer"],desk:["console"],mixer:["console","desk"],board:["console","desk"],
+  led:["led wall","led"],wall:["led wall"],screen:["led wall","projector","screen"],video:["video"],projector:["projection"],
+  motor:["chain motor","hoist"],motors:["chain motor","hoist"],hoist:["chain motor"],rigging:["rigging","rigger","truss"],truss:["truss"],
+  haze:["hazer","haze"],hazer:["haze"],fog:["haze","fog"],smoke:["haze","fog"],
+  power:["power","generator","distro"],generator:["genset"],gen:["generator"],distro:["power distribution"],
+  mic:["microphone","wireless"],mics:["microphone","wireless"],wireless:["rf","wireless"],
+  camera:["camera"],cameras:["camera"],stage:["staging","deck","stage manager"],staging:["deck","riser"],
+  drums:["drum kit"],guitar:["guitar amp"],bass:["bass amp"],keys:["keyboard"],backline:["backline"],
+  engineer:["engineer"],engineers:["engineer"],foh:["foh"],monitors:["monitor"],tech:["tech","engineer"],techs:["tech","engineer"],
+  rigger:["rigger","rigging"],riggers:["rigger"],programmer:["programmer"],electrician:["electrician","power"],crew:["engineer","tech","rigger","programmer","manager","operator","electrician"],
+  ma3:["grandma3"],grandma:["grandma3"],ma:["grandma3"]
+};
+const CREW_WORDS = /\b(engineer|engineers|tech|techs|programmer|rigger|riggers|operator|electrician|manager|crew|director|coordinator|a2|hand|hands)\b/;
+
+function parseQuery(q){
+  const lower=q.toLowerCase();
+  const m=lower.match(/\b(\d{1,4})\s*(x|×|pcs|units)?\b/);
+  const need=m?parseInt(m[1],10):0;
+  const words=lower.replace(/[^a-z0-9&+.\- ]/g," ").split(/\s+/).filter(w=>w&&!STOP.has(w)&&!/^\d+$/.test(w)&&w!=="x");
+  const terms=words.map(w=>{const alts=[w];if(w.length>3&&w.endsWith("s"))alts.push(w.slice(0,-1));(SYN[w]||[]).forEach(s=>alts.push(s));return alts});
+  return {need,terms,crewy:CREW_WORDS.test(lower)};
+}
+function score(hay,terms){
+  if(!terms.length)return 1;
+  let s=0;
+  for(const alts of terms){let hit=0;for(const a of alts){if(hay.includes(a)){hit=Math.max(hit,a===alts[0]?3:2)}}s+=hit}
+  return s;
+}
+function run(){
+  const P=parseQuery(S.q), here=S.place.ll;
+  const gear=[],crew=[];
+  for(const it of items){
+    if(!it.listed)continue;
+    const co=coById(it.co); if(!co)continue;
+    const d=miles(here,coords(co.city,co.off));
+    if(!inRange(d,ccOf(co.city)))continue;
+    const sc=score((it.name+" "+it.cat+" "+it.tags+" "+it.spec).toLowerCase(),P.terms);
+    if(sc<=0)continue;
+    gear.push({it,co,d,sc,free:freeFor(it)});
+  }
+  for(const t of techs){
+    const d=miles(here,coords(t.city,t.off));
+    if(!inRange(d,ccOf(t.city)))continue;
+    const sc=score((t.name+" "+t.role+" "+t.skills.join(" ")).toLowerCase(),P.terms);
+    if(sc<=0)continue;
+    crew.push({t,d,sc,free:techFree(t)});
+  }
+  // free on the chosen dates first, then best match, then closest
+  const sorter=(a,b)=>((a.free?0:1)-(b.free?0:1))||(b.sc-a.sc)||(a.d-b.d);
+  gear.sort(sorter);crew.sort(sorter);
+  return {P,gear,crew};
+}
+
+// ---------- rendering ----------
+const unreadCount=()=>S.convos.reduce((a,c)=>a+(c.unread||0),0);
+function renderNav(){
+  const u=S.user, nav=$("#nav");
+  if(!u){
+    nav.innerHTML=`<button class="btn ghost-dark hide-sm" data-act="signup-tech">List yourself as crew</button>${cartBtn()}<button class="btn ghost-dark" data-act="signin">Sign in</button><button class="btn light" data-act="signup">Create profile</button>`;
+  }else{
+    const n=unreadCount();
+    nav.innerHTML=`<button class="btn ghost-dark hide-sm" data-act="go-search">Search</button>
+    ${cartBtn()}<button class="btn ghost-dark" data-act="go-messages" aria-label="Messages${n?", "+n+" unread":""}">${ICON_MSG}<span class="hide-sm">Messages</span>${n?`<span class="badge num">${n}</span>`:""}</button>
+    <button class="btn ghost-dark" data-act="go-profile" style="padding:4px 10px 4px 4px"><span class="avatar">${esc(initials(u.name))}</span><span class="hide-sm">${esc(u.name.split(" ")[0])}</span></button>`;
+  }
+}
+function renderStats(){
+  const n=items.filter(i=>i.listed).reduce((a,i)=>a+i.qty,0);
+  $("#stats").innerHTML=`<div><strong class="num">${companies.length}</strong>rental houses</div><div><strong class="num">${n.toLocaleString("en-US")}</strong>units available</div><div><strong class="num">${techs.length}</strong>techs &amp; engineers</div><div><strong class="num">${new Set(companies.map(c=>ccOf(c.city)).concat(techs.map(t=>ccOf(t.city)))).size}</strong>countries</div><div><strong>Rentman · Flex</strong>live inventory sync</div>`;
+}
+function renderRail(gear){
+  const cats={}; gear.forEach(g=>cats[g.it.cat]=(cats[g.it.cat]||0)+1);
+  $("#rail").innerHTML=`
+  <div><h3>Category</h3>${Object.keys(CAT_ABBR).map(c=>`<label class="opt"><input type="checkbox" data-cat="${c}" ${S.cats.has(c)?"checked":""}> ${c}<span class="ct num">${cats[c]||0}</span></label>`).join("")}</div>
+  <div><h3>Inventory source</h3>${["rentman","flex","manual"].map(s=>`<label class="opt"><input type="checkbox" data-src="${s}" ${S.srcs.has(s)?"checked":""}> ${SRC_LABEL[s]}</label>`).join("")}
+  <h3 style="margin-top:16px">Crew</h3><label class="opt"><input type="checkbox" id="availOnly" ${S.availOnly?"checked":""}> Free on my dates only</label></div>`;
+}
+function gearRow(g,need){
+  const {it,co,d,free}=g, mine=S.user&&S.user.coId===co.id;
+  const short=need&&free<need;
+  return `<article class="row">
+    <div class="cat" aria-hidden="true">${CAT_ABBR[it.cat]||"·"}</div>
+    <div class="body">
+      <div class="name">${esc(it.name)}</div>
+      <div class="spec mono">${esc(it.spec)}</div>
+      <div class="who"><span class="co">${esc(co.name)}</span>${mine?'<span class="pill you">You</span>':""}<span class="dist num">${esc(co.city)} · ${fmtDist(d)}</span><span class="pill${co.src==="manual"?"":" live"}"><i></i>${co.src==="manual"?"Spreadsheet":"Live from "+SRC_LABEL[co.src]+" · "+syncAgo(co.sync)}</span></div>
+    </div>
+    <div class="side">
+      ${it.pub?`<div class="rate num">${money(it.rate,co.cur)}<small> /day</small></div>`:`<div class="rate" style="font-size:15px">Price on request</div>`}
+      <div class="avail num">${free===0?`<span class="pill warn">Booked ${rangeLabel()}</span>`:short?`<span class="pill warn">${free} free ${rangeLabel()} · you need ${need}</span>`:need?`<span class="pill ok">${free} free ${rangeLabel()} · covers ${need}</span>`:`<b>${free}</b> of ${it.total} free ${rangeLabel()}`}</div>
+      <div class="btns">${mine?`<button class="btn sm" data-act="go-profile">Manage</button>`:`<button class="btn sm icon-btn" data-act="message-co" data-id="${co.id}" data-ctx="${esc(it.name)}" aria-label="Message ${esc(co.name)}" title="Message">${ICON_MSG}</button>${(()=>{const l=S.cart.find(x=>x.id===it.id);return l?`<button class="btn sm" data-act="open-cart">In list · ${l.qty}</button>`:`<button class="btn sm primary" data-act="add-cart" data-id="${it.id}">Add to list</button>`})()}`}</div>
+    </div>
+  </article>`;
+}
+function crewRow(c){
+  const {t,d}=c, mine=S.user&&S.user.techId===t.id, free=c.free!==undefined?c.free:techFree(t);
+  return `<article class="row">
+    <div class="cat crew" aria-hidden="true">${esc(initials(t.name))}${free?'<span class="tally"></span>':""}</div>
+    <div class="body">
+      <div class="name">${esc(t.name)} <span style="font-weight:500;color:var(--muted)">· ${esc(t.role)}</span></div>
+      <div class="who"><span class="dist num">${esc(t.city)} · ${fmtDist(d)}</span><span class="num" style="color:var(--muted)">${t.yrs} yrs</span>${free?`<span class="pill live"><i></i>Free ${rangeLabel()}</span>`:`<span class="pill">Booked ${rangeLabel()}</span>`}${mine?'<span class="pill you">You</span>':""}</div>
+      <div class="tags">${t.skills.map(s=>`<span class="tag">${esc(s)}</span>`).join("")}</div>
+    </div>
+    <div class="side">
+      <div class="rate num">${money(t.rate,t.cur)}<small> /day</small></div>
+      <div class="btns">${mine?`<button class="btn sm" data-act="go-profile">Edit profile</button>`:`<button class="btn sm" data-act="book" data-id="${t.id}">Book</button><button class="btn sm primary" data-act="message-tech" data-id="${t.id}">${ICON_MSG}Message</button>`}</div>
+    </div>
+  </article>`;
+}
+function render(){
+  renderNav();renderStats();
+  const {P,gear:g0,crew:c0}=run();
+  renderRail(g0);
+  const gear=g0.filter(g=>(!S.cats.size||S.cats.has(g.it.cat))&&(!S.srcs.size||S.srcs.has(g.co.src)));
+  const crew=c0.filter(c=>!S.availOnly||c.free);
+  const tab=S.tab;
+  $("#tabs").innerHTML=[["all","All",gear.length+crew.length],["gear","Gear",gear.length],["crew","Crew",crew.length]]
+    .map(([k,l,n])=>`<button class="tab" role="tab" aria-selected="${tab===k}" data-tab="${k}">${l}<span class="n num">${n}</span></button>`).join("");
+  const r=RADII[unit()][S.radiusIdx];
+  const radiusTxt=(S.place.country?"in "+S.place.label:r===Infinity?"anywhere":`within ${r} ${unit()} of ${S.place.label}`)+", free "+rangeLabel();
+  $("#summary").innerHTML=S.q
+    ?`Results for <strong>“${esc(S.q)}”</strong> ${esc(radiusTxt)}${P.need?` · looking for <strong>${P.need}</strong> units`:""}. Free on your dates first, then closest.`
+    :`Everything listed ${esc(radiusTxt)}. Type your problem above to narrow it down.`;
+  const showGear=tab!=="crew", showCrew=tab!=="gear";
+  const crewFirst=tab==="all"&&P.crewy&&crew.length;
+  const gearBlock=()=>showGear&&gear.length?`<div class="group-h"><h2>Gear</h2><span class="num">${gear.length} listing${gear.length>1?"s":""}</span></div>`+gear.slice(0,tab==="all"?12:60).map(x=>gearRow(x,P.need)).join("")+(tab==="all"&&gear.length>12?`<button class="btn" data-tab="gear">Show all ${gear.length} gear listings</button>`:""):"";
+  const crewBlock=()=>showCrew&&crew.length?`<div class="group-h"><h2>Crew</h2><span class="num">${crew.length} profile${crew.length>1?"s":""}</span></div>`+crew.slice(0,tab==="all"?6:60).map(crewRow).join("")+(tab==="all"&&crew.length>6?`<button class="btn" data-tab="crew">Show all ${crew.length} crew</button>`:""):"";
+  let html=crewFirst?crewBlock()+gearBlock():gearBlock()+crewBlock();
+  if(!html)html=`<div class="empty"><h3>Nobody nearby has that yet</h3><p>Try a wider distance, fewer words, or a category like “lighting”, “rigging” or “LED wall”.</p><button class="btn" data-act="widen">Search anywhere</button></div>`;
+  $("#results").innerHTML=html;
+}
+
+// ---------- profile ----------
+function miniConvos(){
+  if(!S.convos.length)return `<p style="color:var(--muted);margin:0">No messages yet. When someone messages you or answers a request, it shows up here.</p>`;
+  return S.convos.slice(0,3).map(c=>{const last=c.msgs[c.msgs.length-1];return `<button class="mini-convo" data-act="open-convo" data-id="${c.id}"><span class="avatar">${esc(initials(c.name))}</span><span style="min-width:0;flex:1"><b style="display:block">${esc(c.name)}</b><span style="color:var(--muted);font-size:13px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(preview(last))}</span></span>${c.unread?`<span class="badge num">${c.unread}</span>`:""}</button>`}).join("")
+    +`<button class="btn" style="width:100%;margin-top:10px" data-act="go-messages">Open messages</button>`;
+}
+function renderProfile(){
+  renderNav();
+  const u=S.user, w=$("#profileWrap");
+  if(!u){showView("search");return}
+  if(u.type==="company"){
+    const co=coById(u.coId), mine=items.filter(i=>i.co===u.coId), listed=mine.filter(i=>i.listed);
+    w.innerHTML=`
+    <div class="dash-head">
+      <span class="avatar">${esc(initials(u.name))}</span>
+      <div><h1>${esc(u.name)}</h1><div class="meta"><span>Rental company · ${esc(co.city)}</span>${co.src?`<span class="pill live"><i></i>${co.src==="manual"?"Spreadsheet upload":"Connected to "+SRC_LABEL[co.src]}</span>`:'<span class="pill warn">No inventory connected</span>'}<span class="mono">${esc(u.email)}</span></div></div>
+      <div class="acts">${co.src?`<button class="btn" data-act="resync">Sync now</button>`:`<button class="btn primary" data-act="connect">Connect inventory</button>`}<button class="btn" data-act="go-search">See it in search</button><button class="btn" data-act="signout">Sign out</button></div>
+    </div>
+    <div class="dash-grid">
+      <div class="panel">
+        <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px"><h3 class="sec-h" style="margin:0">Your listings</h3><span class="num" style="color:var(--muted);font-size:13px">${listed.length} of ${mine.length} shown on ShowGrid${co.src?" · last sync "+syncAgo(co.sync):""}</span></div>
+        ${mine.length?`<div class="tbl-wrap"><table><thead><tr><th>Item</th><th>Cat</th><th class="r">Avail / owned</th><th class="r">Day rate</th><th class="r">Public price</th><th class="r">Listed</th></tr></thead><tbody>
+        ${mine.map(i=>`<tr><td><b>${esc(i.name)}</b><div class="mono" style="color:var(--muted)">${esc(i.spec)}</div></td><td class="mono">${CAT_ABBR[i.cat]}</td><td class="r num">${i.qty} / ${i.total}</td><td class="r num">${money(i.rate,co.cur)}</td><td class="r"><label class="switch"><input type="checkbox" id="pub-${i.id}" data-pub="${i.id}" ${i.pub?"checked":""} aria-label="Show the day rate for ${esc(i.name)} publicly"><span></span></label></td><td class="r"><label class="switch"><input type="checkbox" id="lst-${i.id}" data-listed="${i.id}" ${i.listed?"checked":""} aria-label="Show ${esc(i.name)} on ShowGrid"><span></span></label></td></tr>`).join("")}
+        </tbody></table></div>
+        <p class="note" style="margin:12px 0 0">Quantities, availability and day rates come from ${co.src==="manual"?"your spreadsheet":SRC_LABEL[co.src]}. The Public price and Listed switches only affect ShowGrid. With Public price off, the item shows “Price on request” and is left out of gear list estimates.</p>`
+        :`<div class="empty"><h3>No inventory yet</h3><p>Connect Rentman or Flex, or upload a spreadsheet, and your rentable stock shows up here.</p><button class="btn primary" data-act="connect">Connect inventory</button></div>`}
+      </div>
+      <div class="panel"><h3 class="sec-h">Messages</h3>${miniConvos()}</div>
+    </div>`;
+  }else{
+    const t=techs.find(x=>x.id===u.techId);
+    w.innerHTML=`
+    <div class="dash-head">
+      <span class="avatar">${esc(initials(u.name))}</span>
+      <div><h1>${esc(t.name)}</h1><div class="meta"><span>${esc(t.role)} · ${esc(t.city)}</span><span class="mono">${esc(u.email)}</span></div></div>
+      <div class="acts"><button class="btn" data-act="go-search">See it in search</button><button class="btn" data-act="signout">Sign out</button></div>
+    </div>
+    <div class="dash-grid">
+      <div style="display:grid;gap:20px;min-width:0">
+        <div class="panel"><h3 class="sec-h">How companies see you</h3><div class="list">${crewRow({t,d:0}).replace(/<button[^>]*>Edit profile<\/button>/,"")}</div></div>
+        <div class="panel"><h3 class="sec-h">Messages</h3>${miniConvos()}</div>
+      </div>
+      <div class="panel" style="display:grid;gap:14px">
+        <h3 class="sec-h" style="margin:0">Availability &amp; rate</h3>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer"><span class="switch"><input type="checkbox" id="techAvail" ${t.avail?"checked":""}><span></span></span> Available for work</label>
+        <div class="field"><label for="techRate">Day rate (${esc(t.cur)})</label><input id="techRate" type="number" min="0" step="25" value="${t.rate}"></div>
+        <div class="field"><label for="techSkills">Skills</label><input id="techSkills" value="${esc(t.skills.join(", "))}"><span class="hint">Comma separated. Companies search these words.</span></div>
+        <button class="btn primary" data-act="save-tech">Save changes</button>
+      </div>
+    </div>`;
+  }
+}
+
+// ---------- messages ----------
+function preview(m){if(!m)return "";if(m.card)return (m.me?"You sent a request: ":"Request: ")+m.card.what;return (m.me?"You: ":"")+m.text}
+function convoFor(key,name,sub){
+  let c=S.convos.find(x=>x.key===key);
+  if(!c){c={id:"cv"+Date.now()+Math.random().toString(36).slice(2,6),key,name,sub,msgs:[],unread:0};S.convos.unshift(c)}
+  return c;
+}
+function bump(c){S.convos=[c,...S.convos.filter(x=>x!==c)]}
+function post(c,msg){msg.ts=msg.ts||Date.now();c.msgs.push(msg);bump(c);persist()}
+function fakeReply(c,text,delay){
+  setTimeout(()=>{S.typing[c.id]=true;refreshMessages()},900);
+  setTimeout(()=>{delete S.typing[c.id];post(c,{me:false,text});if(!(S.view==="messages"&&S.active===c.id))c.unread=(c.unread||0)+1;persist();refreshMessages();
+    if(!(S.view==="messages"&&S.active===c.id))toast("New message from "+esc(c.name))},delay||3200);
+}
+function refreshMessages(){if(S.view==="messages")renderMessages();else renderNav();if(S.view==="profile")renderProfile()}
+function renderMessages(){
+  renderNav();
+  const w=$("#messagesWrap");
+  if(!S.user){showView("search");return}
+  const draftEl=$("#composer"), draft=draftEl?draftEl.value:"", hadFocus=draftEl&&document.activeElement===draftEl;
+  const c=S.convos.find(x=>x.id===S.active);
+  const list=S.convos.length?S.convos.map(x=>{const last=x.msgs[x.msgs.length-1];return `<button class="citem${x.unread?" unread":""}" aria-current="${x.id===S.active}" data-act="open-convo" data-id="${x.id}">
+      <span class="avatar">${esc(initials(x.name))}</span>
+      <span class="c"><span class="top-line"><span class="nm">${esc(x.name)}</span><span class="tm num">${last?ago(last.ts):""}</span></span>
+      <span class="ctx" style="display:block">${esc(x.sub)}</span>
+      <span class="pv" style="display:block">${S.typing[x.id]?"typing…":esc(preview(last))}</span></span>
+      ${x.unread?`<span class="badge num">${x.unread}</span>`:""}</button>`}).join("")
+    :`<div class="thread-empty" style="padding:28px 16px">No conversations yet. Search for gear or crew and tap Message.</div>`;
+  let thread;
+  if(c){
+    let lastDay="";
+    const body=c.msgs.map(m=>{
+      const day=new Date(m.ts).toDateString();let sep="";
+      if(day!==lastDay){lastDay=day;sep=`<div class="day">${day===new Date().toDateString()?"Today":new Date(m.ts).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div>`}
+      if(m.card)return sep+`<div class="rcard${m.me?" me":""}"><span class="lbl">${m.card.kind==="crew"?"Booking request":m.card.kind==="list"?"Gear list request":"Rental request"}</span><b>${esc(m.card.what)}</b>
+        ${m.card.lines?`<ul class="rlines">${m.card.lines.map(l=>`<li><span>${l.qty}× ${esc(l.name)}</span><span class="num" style="color:var(--muted)">${l.rate!=null?money(l.rate,l.cur)+"/day":"on request"}</span></li>`).join("")}</ul>`:""}
+        <span class="num" style="color:var(--muted);font-size:13.5px">${esc(m.card.when)}${m.card.total?" · est. "+esc(m.card.total):""}</span>
+        ${m.card.kind==="list"?'<span style="color:var(--muted);font-size:12px">Estimate from synced rates. Final price to be confirmed by the company.</span>':""}
+        <span><span class="pill ${m.card.status==="Confirmed"?"ok":m.card.status==="Declined"?"warn":""}"><i></i>${esc(m.card.status)}</span></span>
+        ${!m.me&&m.card.status==="Pending"?`<span class="acts"><button class="btn sm primary" data-act="card-accept" data-ts="${m.ts}">Confirm</button><button class="btn sm" data-act="card-decline" data-ts="${m.ts}">Decline</button></span>`:""}</div>`;
+      return sep+`<div class="bub${m.me?" me":""}">${esc(m.text)}<span class="tm">${clock(m.ts)}</span></div>`;
+    }).join("");
+    thread=`<header><button class="btn sm back" data-act="close-convo" aria-label="Back to conversations">‹</button><span class="avatar">${esc(initials(c.name))}</span><span class="t"><b>${esc(c.name)}</b><span>${esc(c.sub)}${c.example?" · example conversation":""}</span></span></header>
+      <div class="msgs" id="msgs">${body}${S.typing[c.id]?'<div class="typing" aria-label="typing"><i></i><i></i><i></i></div>':""}</div>
+      <form class="composer" id="composerForm"><textarea id="composer" rows="1" placeholder="Message ${esc(c.name)}" aria-label="Message"></textarea><button class="btn primary" type="submit">Send</button></form>`;
+  }else{
+    thread=`<div class="thread-empty"><div>${ICON_MSG.replace('width="16" height="16"','width="36" height="36"')}<p>Pick a conversation to read it.</p></div></div>`;
+  }
+  w.innerHTML=`<div class="inbox${c?" has-active":""}"><aside class="clist"><header><h1>Messages</h1></header><div class="items">${list}</div></aside><section class="thread">${thread}</section></div>`;
+  const msgs=$("#msgs"); if(msgs)msgs.scrollTop=msgs.scrollHeight;
+  const comp=$("#composer"); if(comp){comp.value=draft;if(hadFocus)comp.focus()}
+}
+function openConvo(id){
+  S.active=id;const c=S.convos.find(x=>x.id===id);if(c)c.unread=0;persist();
+  if(S.view!=="messages")showView("messages");else renderMessages();
+  const comp=$("#composer");if(comp)comp.focus();
+}
+function seedConvos(){
+  const now=Date.now(),H=36e5;
+  if(S.user.type==="company"){
+    const a={id:"cvA",key:"co:c5",name:"Peachtree Event Tech",sub:"Rental company · Atlanta, GA",unread:2,example:true,msgs:[
+      {me:false,ts:now-26*H,card:{kind:"gear",what:"8× Robe Esprite",when:"Nov 14 → Nov 16",total:"$2,160",status:"Pending"}},
+      {me:false,ts:now-26*H+6e4,text:"Hey! Corporate gala at the convention center, we're short on profiles. Can pick up Thursday morning."}]};
+    const b={id:"cvB",key:"co:c4",name:"Gulfside Production Supply",sub:"Rental company · Tampa, FL",unread:0,example:true,msgs:[
+      {me:false,ts:now-50*H,text:"Do you have a spare desk for Nov 21? Festival B-stage, just need a backup."},
+      {me:true,ts:now-49*H,text:"We have a ChamSys MQ250M free that day. Want me to hold it?"},
+      {me:false,ts:now-48*H,text:"Yes please, I'll send the request through ShowGrid."}]};
+    S.convos=[a,b];
+  }else{
+    S.convos=[{id:"cvA",key:"co:c1",name:"Beacon Stage Rentals",sub:"Rental company · Miami, FL",unread:1,example:true,msgs:[
+      {me:false,ts:now-5*H,card:{kind:"crew",what:"1 day · "+(S.user.role||"Tech"),when:"Nov 22 · call 7:00 AM",total:"",status:"Pending"}},
+      {me:false,ts:now-5*H+6e4,text:"Hi! Saw your profile. We have a corporate show in Brickell on the 22nd. Are you free?"}]}];
+  }
+}
+
+// ---------- views ----------
+function showView(v){
+  S.view=v;
+  $("#viewSearch").hidden=v!=="search";
+  $("#viewProfile").hidden=v!=="profile";
+  $("#viewMessages").hidden=v!=="messages";
+  if(v==="profile")renderProfile();else if(v==="messages")renderMessages();else render();
+  window.scrollTo(0,0);
+}
+
+// ---------- modals ----------
+function openModal(html,onMount){
+  $("#modalRoot").innerHTML=`<div class="scrim" id="scrim"><div class="modal" role="dialog" aria-modal="true">${html}</div></div>`;
+  const first=$("#modalRoot").querySelector("input,select,textarea,button:not(.x)");
+  if(first)first.focus();
+  if(onMount)onMount($("#modalRoot .modal"));
+}
+function closeModal(){$("#modalRoot").innerHTML=""}
+let toastT;
+function toast(msg){clearTimeout(toastT);$("#toastRoot").innerHTML=`<div class="toast" role="status">${msg}</div>`;toastT=setTimeout(()=>$("#toastRoot").innerHTML="",4200)}
+function citySelect(id,val){return `<input id="${id}" list="cityList" value="${esc(val)}" autocomplete="off" placeholder="Start typing a city"><datalist id="cityList">${PLACES.map(p=>`<option value="${esc(p[0])}">${esc(COUNTRIES[p[3]][0])}</option>`).join("")}</datalist>`}
+
+function signInModal(reason){
+  openModal(`<header><h2>Sign in</h2><button class="x" data-act="close" aria-label="Close">×</button></header>
+  <form id="signinForm"><div class="mb">
+    ${reason?`<p class="note" style="margin:0">${esc(reason)}</p>`:""}
+    <div class="field"><label for="siEmail">Work email</label><input id="siEmail" type="email" required placeholder="you@company.com"><span class="hint">We'll email you a sign-in link. No password to remember.</span></div>
+  </div><footer><button type="button" class="btn" data-act="signup">Create a profile instead</button><button class="btn primary" type="submit">Email me a link</button></footer></form>`);
+}
+
+let ob={};
+function signUpModal(type){ob={type:type||"company",step:1,name:"",email:"",city:S.place.country?"":S.place.label,role:"",skills:"",rate:600,src:null};drawSignup()}
+function drawSignup(){
+  const st=ob.step, isCo=ob.type==="company";
+  let body="",foot="";
+  if(st===1){
+    body=`<div class="choice">
+      <button type="button" aria-pressed="${isCo}" data-type="company"><b>Rental company</b><span>List your gear from Rentman, Flex or a spreadsheet. Rent from others.</span></button>
+      <button type="button" aria-pressed="${!isCo}" data-type="tech"><b>Tech or engineer</b><span>Offer your skills and day rate to companies near you.</span></button>
+    </div>
+    <div class="field"><label for="obName">${isCo?"Company name":"Your name"}</label><input id="obName" required value="${esc(ob.name)}" placeholder="${isCo?"e.g. Night Shift Production":"e.g. Alex Rivera"}"></div>
+    <div class="two"><div class="field"><label for="obEmail">Work email</label><input id="obEmail" type="email" required value="${esc(ob.email)}" placeholder="you@company.com"></div>
+    <div class="field"><label for="obCity">Home base</label>${citySelect("obCity",ob.city)}</div></div>
+    ${isCo?"":`<div class="two"><div class="field"><label for="obRole">Role</label><input id="obRole" required value="${esc(ob.role)}" placeholder="e.g. FOH Engineer"></div>
+    <div class="field"><label for="obRate">Day rate (local currency)</label><input id="obRate" type="number" min="0" step="25" value="${ob.rate}"></div></div>
+    <div class="field"><label for="obSkills">Skills &amp; gear you know</label><input id="obSkills" value="${esc(ob.skills)}" placeholder="DiGiCo, grandMA3, Brompton, ETCP…"><span class="hint">Comma separated. These are the words people search.</span></div>`}`;
+    foot=`<button type="button" class="btn" data-act="close">Cancel</button><button class="btn primary" type="submit">${isCo?"Next: connect inventory":"Create crew profile"}</button>`;
+  }else if(st===2){
+    body=`<p style="margin:0;color:var(--muted)">Pick where your inventory lives. ShowGrid reads rentable items and availability only. It never changes anything in your system.</p>
+    <div class="connectors">
+      <div class="conn"><span class="logo">RM</span><div class="t"><b>Rentman</b><span>Uses a read-only API token from Rentman → Configuration → Integrations</span></div><button type="button" class="btn sm primary" data-src="rentman">Connect</button></div>
+      <div class="conn"><span class="logo">FX</span><div class="t"><b>Flex Rental Solutions</b><span>Uses your Flex site URL and an API key from an admin user</span></div><button type="button" class="btn sm primary" data-src="flex">Connect</button></div>
+      <div class="conn"><span class="logo">CSV</span><div class="t"><b>Spreadsheet</b><span>Upload a CSV with item, category, quantity and day rate</span></div><button type="button" class="btn sm" data-src="manual">Upload</button></div>
+    </div>
+    <p class="note" style="margin:0">In this prototype, Connect imports a sample inventory so you can see the flow. No token or file is asked for.</p>`;
+    foot=`<button type="button" class="btn" data-act="skip-connect">Skip for now</button>`;
+  }else{
+    body=`<div class="log" id="syncLog" aria-live="polite"></div>`;
+    foot=`<button class="btn primary" type="submit" id="obDone" disabled>Go to my profile</button>`;
+  }
+  openModal(`<header><h2>${st===1?"Create your profile":st===2?"Connect your inventory":"Importing inventory"}</h2><button class="x" type="button" data-act="close" aria-label="Close">×</button></header>
+    <form id="signupForm"><div class="mb">${body}</div><footer>${foot}</footer></form>`,()=>{if(st===3)runSyncLog()});
+}
+function runSyncLog(){
+  const src=SRC_LABEL[ob.src], log=$("#syncLog");
+  const lines=ob.src==="manual"
+    ?["Reading showgrid-inventory.csv …","Found 8 rows with quantity and rate","Matching categories …"]
+    :[`Connecting to ${src} …`,`Authorized (read-only)`,`Reading equipment list … 214 items`,`38 items marked rentable`,`Checking availability for the next 90 days …`];
+  let i=0;
+  const step=()=>{
+    if(!$("#syncLog"))return;
+    if(i<lines.length){log.insertAdjacentHTML("beforeend",`<div>› ${esc(lines[i++])}</div>`);setTimeout(step,450)}
+    else{log.insertAdjacentHTML("beforeend",`<div class="okk">✓ ${IMPORT_SAMPLE.length} items listed on ShowGrid. You can hide any of them.</div>`);
+      finishCompany(ob.src);$("#obDone").disabled=false;$("#obDone").focus()}
+  };
+  step();
+}
+function finishCompany(src){
+  const id="cU", fresh=!S.user;
+  ob.city=resolveCity(ob.city);
+  companies=companies.filter(c=>c.id!==id);
+  items=items.filter(i=>i.co!==id);
+  companies.push({id,name:ob.name,city:ob.city,off:[.01,.01],src:src||null,sync:0,cur:curOf(ob.city)});
+  if(src)IMPORT_SAMPLE.forEach((r,k)=>items.push({id:"u"+k,co:id,name:r[0],cat:r[1],tags:r[2],qty:r[3],total:r[4],rate:r[5],spec:r[6],listed:true,pub:true}));
+  S.user={type:"company",name:ob.name,email:ob.email,coId:id};
+  if(fresh)seedConvos();
+  persist();
+}
+function finishTech(){
+  const id="tU";
+  ob.city=resolveCity(ob.city);
+  techs=techs.filter(t=>t.id!==id);
+  techs.push({id,name:ob.name,role:ob.role||"Technician",city:ob.city,off:[.01,.01],cur:curOf(ob.city),rate:+ob.rate||0,yrs:0,skills:ob.skills.split(",").map(s=>s.trim()).filter(Boolean),avail:true});
+  S.user={type:"tech",name:ob.name,email:ob.email,techId:id,role:ob.role||"Technician"};
+  seedConvos();
+  persist();
+}
+function persist(){
+  if(!S.user){store.del("sg_user");return}
+  const extra=S.user.type==="company"
+    ?{co:coById(S.user.coId),items:items.filter(i=>i.co===S.user.coId)}
+    :{tech:techs.find(t=>t.id===S.user.techId)};
+  store.set("sg_user",{user:S.user,convos:S.convos,...extra});
+}
+function restore(){
+  const d=store.get("sg_user"); if(!d||!d.user)return;
+  if(d.co){if(!d.co.cur)d.co.cur=curOf(d.co.city);companies.push(d.co);(d.items||[]).forEach(i=>{if(i.pub===undefined)i.pub=true;items.push(i)})}
+  if(d.tech){if(!d.tech.cur)d.tech.cur=curOf(d.tech.city);techs.push(d.tech)}
+  S.user=d.user;S.convos=d.convos||[];
+}
+
+function requestModal(kind,id){
+  if(!S.user){signInModal(kind==="gear"?"Sign in or create a profile to send rental requests. Only verified companies can request gear.":"Sign in or create a profile to book crew.");return}
+  let title,who,what,extra="",key,sub,rate,cur;
+  if(kind==="gear"){
+    const it=items.find(i=>i.id===id),co=coById(it.co);
+    const need=parseQuery(S.q).need||Math.min(it.qty,4);
+    title="Request "+it.name;who=co.name;what=it.name;key="co:"+co.id;sub="Rental company · "+co.city;rate=it.rate;cur=co.cur;
+    extra=`<div class="field"><label for="rqQty">Quantity</label><input id="rqQty" type="number" min="1" max="${it.qty}" value="${Math.min(need,it.qty)}"><span class="hint num">${it.qty} available · ${money(it.rate,co.cur)}/day each</span></div>`;
+  }else{
+    const t=techs.find(x=>x.id===id);title="Book "+t.name;who=t.name;what=t.role;key="t:"+t.id;sub=t.role+" · "+t.city;rate=t.rate;cur=t.cur;
+  }
+  const today=new Date(),d1=new Date(today.getTime()+7*864e5),d2=new Date(today.getTime()+9*864e5),iso=d=>d.toISOString().slice(0,10);
+  openModal(`<header><h2>${esc(title)}</h2><button class="x" type="button" data-act="close" aria-label="Close">×</button></header>
+  <form id="reqForm" data-who="${esc(who)}" data-what="${esc(what)}" data-kind="${kind}" data-key="${esc(key)}" data-sub="${esc(sub)}" data-rate="${rate}" data-cur="${cur}"><div class="mb">
+    <p style="margin:0;color:var(--muted)">To <b style="color:var(--ink)">${esc(who)}</b> from <b style="color:var(--ink)">${esc(S.user.name)}</b>. It opens a conversation you can keep talking in.</p>
+    <div class="two"><div class="field"><label for="rqFrom">${kind==="gear"?"Pickup / ship":"Start"}</label><input id="rqFrom" type="date" value="${S.cartFrom}" required></div>
+    <div class="field"><label for="rqTo">${kind==="gear"?"Return":"End"}</label><input id="rqTo" type="date" value="${S.cartTo}" required></div></div>
+    ${extra}
+    <div class="field"><label for="rqMsg">Message</label><textarea id="rqMsg" placeholder="Venue, load-in time, anything they should know">${esc(S.q?("Problem: "+S.q+". "):"")}</textarea></div>
+  </div><footer><button type="button" class="btn" data-act="close">Cancel</button><button class="btn primary" type="submit">Send request</button></footer></form>`);
+}
+function startMessage(key,name,sub,opener){
+  if(!S.user){signInModal("Sign in or create a profile to message companies and crew.");return}
+  const c=convoFor(key,name,sub);
+  openConvo(c.id);
+  const comp=$("#composer");if(comp&&!c.msgs.length&&opener){comp.value=opener;comp.focus()}
+}
+
+// ---------- gear list ----------
+function saveCart(){store.set("sg_cart",{cart:S.cart,from:S.cartFrom,to:S.cartTo})}
+function cartLines(){
+  return S.cart.map(l=>{const it=items.find(i=>i.id===l.id);if(!it||!it.listed)return null;const co=coById(it.co);if(!co)return null;
+    return {it,co,qty:Math.max(1,Math.min(l.qty,it.total)),free:freeFor(it)}}).filter(Boolean);
+}
+function cartDays(){const d=Math.round((new Date(S.cartTo)-new Date(S.cartFrom))/864e5)+1;return isFinite(d)&&d>0?d:1}
+function addToCart(id){
+  const it=items.find(i=>i.id===id);if(!it)return;
+  const cap=Math.max(freeFor(it),1),qty=Math.max(1,Math.min(parseQuery(S.q).need||1,cap));
+  const ex=S.cart.find(l=>l.id===id);if(ex)ex.qty=Math.min(cap,ex.qty+qty);else S.cart.push({id,qty});
+  saveCart();if(S.view==="search")render();else renderNav();
+  toast(`Added ${qty}× ${esc(it.name)} to your gear list.<button type="button" data-act="open-cart">View list</button>`);
+}
+function renderCart(){
+  const root=$("#drawerRoot");
+  renderNav();
+  if(!S.cartOpen){root.innerHTML="";return}
+  const lines=cartLines(),days=cartDays(),here=S.place.ll,dl=days+" day"+(days>1?"s":"");
+  const groups=[];lines.forEach(l=>{let g=groups.find(x=>x.co===l.co);if(!g){g={co:l.co,lines:[]};groups.push(g)}g.lines.push(l)});
+  const grand={};let onReq=0;
+  const body=groups.map(g=>{
+    let sub=0,req=0;
+    const ls=g.lines.map(l=>{
+      const priced=l.it.pub,tot=l.it.rate*l.qty*days;if(priced)sub+=tot;else req++;
+      return `<div class="cline"><div class="cl-name">${esc(l.it.name)}<div class="cl-calc num">${priced?`${money(l.it.rate,l.co.cur)}/day × ${l.qty} × ${dl}`:"Price shared by message"}</div></div>
+      <div class="cl-total num">${priced?money(tot,l.co.cur):"On request"}</div>
+      <div class="cl-ctrl" style="grid-column:1/-1">${l.qty>l.free?`<span class="pill warn">${l.free?"Only "+l.free:"None"} free ${rangeLabel()}</span>`:`<span class="cl-calc num">${l.free} free ${rangeLabel()}</span>`}<span style="flex:1"></span>
+      <span class="stepper"><button type="button" data-act="cart-dec" data-id="${l.it.id}" aria-label="One fewer" ${l.qty<=1?"disabled":""}>−</button><span class="num">${l.qty}</span><button type="button" data-act="cart-inc" data-id="${l.it.id}" aria-label="One more" ${l.qty>=Math.max(l.free,1)?"disabled":""}>+</button></span>
+      <button type="button" class="link" data-act="cart-rm" data-id="${l.it.id}">Remove</button></div></div>`}).join("");
+    grand[g.co.cur]=(grand[g.co.cur]||0)+sub;onReq+=req;
+    return `<section class="cgroup"><h3>${esc(g.co.name)} <span class="num">${esc(g.co.city)} · ${fmtDist(miles(here,coords(g.co.city,g.co.off)))} · rates from ${g.co.src==="manual"?"spreadsheet":SRC_LABEL[g.co.src]}</span></h3>${ls}
+      <div class="csub"><span>Subtotal${req?` · ${req} on request`:""}</span><b class="num" style="color:var(--ink)">${money(sub,g.co.cur)}</b></div></section>`;
+  }).join("");
+  root.innerHTML=`<div class="drawer-scrim" data-act="close-cart"></div><aside class="drawer" role="dialog" aria-modal="true" aria-label="Gear list">
+  <header><h2>Gear list</h2><span class="num" style="color:var(--muted);font-size:13px">${lines.length} item${lines.length===1?"":"s"}${groups.length>1?" · "+groups.length+" companies":""}</span><button class="x" type="button" data-act="close-cart" aria-label="Close">×</button></header>
+  <div class="db">
+    <div class="two"><div class="field"><label for="cartFrom">Pickup</label><input id="cartFrom" type="date" value="${S.cartFrom}"></div><div class="field"><label for="cartTo">Return</label><input id="cartTo" type="date" value="${S.cartTo}"></div></div>
+    ${lines.length?body:`<div class="empty"><h3>Your list is empty</h3><p>Search for gear and tap Add to list. You can mix items from different companies and get one estimate.</p></div>`}
+  </div>
+  ${lines.length?`<footer>
+    <div class="grand"><span>Estimated total · <span class="num">${dl}</span>${onReq?`<br><span class="num" style="color:var(--muted);font-size:13px">+ ${onReq} item${onReq>1?"s":""} priced on request</span>`:""}${Object.keys(grand).length>1?`<br><span style="color:var(--muted);font-size:13px">In each company's own currency</span>`:""}</span><b class="num" style="text-align:right">${Object.entries(grand).map(([c,v])=>money(v,c)).join(" + ")}</b></div>
+    <div class="disclose" role="note"><span aria-hidden="true">ⓘ</span><span><b style="color:var(--ink)">This is an estimate, not a quote.</b> Prices are calculated automatically from each company's rental software and may be out of date or wrong. They don't include delivery, labor, tax or package deals. Availability is checked for your dates but isn't held until the company confirms. Please message each company to confirm the final price.</span></div>
+    <button class="btn primary" type="button" data-act="cart-send">Send list to ${groups.length} compan${groups.length>1?"ies":"y"}</button>
+  </footer>`:""}
+  </aside>`;
+}
+function sendCart(){
+  if(!S.user){S.cartOpen=false;renderCart();signInModal("Sign in or create a profile to send your gear list. Each company gets its part of the list as a message.");return}
+  const lines=cartLines(),days=cartDays(),fmt=s=>new Date(s+"T12:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
+  const byCo={};lines.forEach(l=>(byCo[l.co.id]=byCo[l.co.id]||[]).push(l));
+  let first=null,k=0;
+  Object.values(byCo).forEach(ls=>{
+    const co=ls[0].co,c=convoFor("co:"+co.id,co.name,"Rental company · "+co.city);
+    const sub=ls.reduce((a,l)=>a+(l.it.pub?l.it.rate*l.qty*days:0),0),req=ls.filter(l=>!l.it.pub).length;
+    post(c,{me:true,card:{kind:"list",what:ls.length+" item"+(ls.length>1?"s":""),lines:ls.map(l=>({name:l.it.name,qty:l.qty,rate:l.it.pub?l.it.rate:null,cur:co.cur})),
+      when:fmt(S.cartFrom)+" → "+fmt(S.cartTo)+" · "+days+" day"+(days>1?"s":""),total:money(sub,co.cur)+(req?" + "+req+" on request":""),status:"Pending"}});
+    post(c,{me:true,text:"Hi! I sent you a gear list through ShowGrid. Can you confirm availability and the final price?"});
+    fakeReply(c,pick(LIST_REPLIES),3200+k++*1800);
+    if(!first)first=c;
+  });
+  S.cart=[];saveCart();S.cartOpen=false;renderCart();
+  openConvo(first.id);
+  toast(`List sent to ${k} compan${k>1?"ies":"y"}. Replies show up in Messages.`);
+}
+
+// ---------- events ----------
+document.addEventListener("click",e=>{
+  const el=e.target.closest("[data-act],[data-tab],[data-type],[data-src],#scrim");
+  if(!el)return;
+  if(el.id==="scrim"){if(e.target===el)closeModal();return}
+  if(el.dataset.tab){S.tab=el.dataset.tab;render();return}
+  if(el.dataset.type){ob.type=el.dataset.type;captureStep1();drawSignup();return}
+  if(el.dataset.src&&el.closest(".conn")){ob.src=el.dataset.src;ob.step=3;drawSignup();return}
+  const a=el.dataset.act;
+  if(a==="close")closeModal();
+  else if(a==="signin")signInModal();
+  else if(a==="signup")signUpModal("company");
+  else if(a==="signup-tech")signUpModal("tech");
+  else if(a==="go-profile")showView("profile");
+  else if(a==="go-search")showView("search");
+  else if(a==="go-messages"){if(window.innerWidth<=760)S.active=null;showView("messages")}
+  else if(a==="open-convo")openConvo(el.dataset.id);
+  else if(a==="close-convo"){S.active=null;renderMessages()}
+  else if(a==="request")requestModal("gear",el.dataset.id);
+  else if(a==="book")requestModal("crew",el.dataset.id);
+  else if(a==="add-cart")addToCart(el.dataset.id);
+  else if(a==="open-cart"){S.cartOpen=true;$("#toastRoot").innerHTML="";renderCart();const x=$(".drawer .x");if(x)x.focus()}
+  else if(a==="close-cart"){S.cartOpen=false;renderCart()}
+  else if(a==="cart-inc"||a==="cart-dec"){const l=S.cart.find(x=>x.id===el.dataset.id),it=items.find(i=>i.id===el.dataset.id);
+    if(l&&it)l.qty=Math.max(1,a==="cart-inc"?Math.min(Math.max(freeFor(it),1),l.qty+1):l.qty-1);saveCart();renderCart();if(S.view==="search")render()}
+  else if(a==="cart-rm"){S.cart=S.cart.filter(x=>x.id!==el.dataset.id);saveCart();renderCart();if(S.view==="search")render()}
+  else if(a==="cart-send")sendCart();
+  else if(a==="message-co"){const co=coById(el.dataset.id);startMessage("co:"+co.id,co.name,"Rental company · "+co.city,`Hi! Is your ${el.dataset.ctx} available `)}
+  else if(a==="message-tech"){const t=techs.find(x=>x.id===el.dataset.id);startMessage("t:"+t.id,t.name,t.role+" · "+t.city,`Hi ${t.name.split(" ")[0]}, are you free `)}
+  else if(a==="card-accept"||a==="card-decline"){
+    const c=S.convos.find(x=>x.id===S.active),m=c&&c.msgs.find(x=>String(x.ts)===el.dataset.ts);
+    if(m){m.card.status=a==="card-accept"?"Confirmed":"Declined";post(c,{me:true,text:a==="card-accept"?"Confirmed. See you at pickup.":"Sorry, we can't cover those dates."});renderMessages()}}
+  else if(a==="widen"){S.place={...S.place,country:false};S.radiusIdx=4;renderRadius();render()}
+  else if(a==="skip-connect"){finishCompany(null);closeModal();showView("profile");toast("Profile created. Connect your inventory whenever you're ready.")}
+  else if(a==="connect"){const co=coById(S.user.coId);ob={type:"company",step:2,name:S.user.name,email:S.user.email,city:co.city};drawSignup()}
+  else if(a==="resync"){const co=coById(S.user.coId);co.sync=0;persist();renderProfile();toast("Synced with "+SRC_LABEL[co.src]+". Availability is up to date.")}
+  else if(a==="signout"){
+    if(S.user.type==="company"){items=items.filter(i=>i.co!==S.user.coId);companies=companies.filter(c=>c.id!==S.user.coId)}
+    else techs=techs.filter(t=>t.id!==S.user.techId);
+    S.user=null;S.convos=[];S.active=null;store.del("sg_user");showView("search");toast("Signed out. Your sample profile was removed from this browser.")}
+  else if(a==="save-tech"){
+    const t=techs.find(x=>x.id===S.user.techId);
+    t.rate=+$("#techRate").value||0;t.skills=$("#techSkills").value.split(",").map(s=>s.trim()).filter(Boolean);t.avail=$("#techAvail").checked;
+    persist();renderProfile();toast("Profile saved.")}
+});
+function captureStep1(){
+  const v=id=>{const x=document.getElementById(id);return x?x.value:null};
+  if(v("obName")!==null)ob.name=v("obName");
+  if(v("obEmail")!==null)ob.email=v("obEmail");
+  if(v("obCity")!==null)ob.city=v("obCity");
+  if(v("obRole")!==null)ob.role=v("obRole");
+  if(v("obSkills")!==null)ob.skills=v("obSkills");
+  if(v("obRate")!==null)ob.rate=v("obRate");
+}
+document.addEventListener("change",e=>{
+  const t=e.target;
+  if(t.dataset.cat){t.checked?S.cats.add(t.dataset.cat):S.cats.delete(t.dataset.cat);render()}
+  else if(t.dataset.src&&t.type==="checkbox"){t.checked?S.srcs.add(t.dataset.src):S.srcs.delete(t.dataset.src);render()}
+  else if(t.id==="availOnly"){S.availOnly=t.checked;render()}
+  else if(t.id==="radius"){S.radiusIdx=+t.value;render()}
+  else if(["cartFrom","cartTo","fromD","toD"].includes(t.id)){
+    // search bar and gear list share one date range
+    if(t.value){const k=(t.id==="cartFrom"||t.id==="fromD")?"cartFrom":"cartTo";S[k]=t.value;
+      if(S.cartTo<S.cartFrom){if(k==="cartFrom")S.cartTo=S.cartFrom;else S.cartFrom=S.cartTo}saveCart()}
+    syncDates();renderCart();if(S.view==="search")render()}
+  else if(t.dataset.pub){const it=items.find(i=>i.id===t.dataset.pub);it.pub=t.checked;persist();renderProfile();toast(esc(it.name)+(it.pub?" now shows its day rate.":" now shows “Price on request”."))}
+  else if(t.dataset.listed){const it=items.find(i=>i.id===t.dataset.listed);it.listed=t.checked;persist();renderProfile();toast(esc(it.name)+(it.listed?" is listed on ShowGrid.":" is hidden from search."))}
+});
+const GEAR_REPLIES=["Got it. Checking those dates now, I'll confirm within the hour.","Thanks! Those are free. Want us to prep them in cases for pickup?","We can do it. Do you need cables and clamps with them?"];
+const CHAT_REPLIES=["Thanks for reaching out. What dates are you looking at?","Hey! Yes, should work. What's the venue and call time?","Let me check my calendar and get back to you in a few minutes."];
+const LIST_REPLIES=["Thanks! Everything on your list is free those dates. Prices look right, I'll send a formal quote shortly.","Got your list. Most of it is available. Let me double-check one item and confirm the final price.","Received! We can do it. Want delivery or will you pick up?"];
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+document.addEventListener("submit",e=>{
+  e.preventDefault();
+  const f=e.target;
+  if(f.id==="searchForm"){S.q=$("#q").value.trim();S.tab="all";render();$("#tabs").scrollIntoView({behavior:"smooth",block:"start"})}
+  else if(f.id==="signinForm"){
+    const email=$("#siEmail").value.trim();
+    closeModal();signUpModal("company");ob.email=email;drawSignup();
+    toast("In the live site a sign-in link goes to "+esc(email)+". Here, finish creating a sample profile.")}
+  else if(f.id==="signupForm"){
+    if(ob.step===1){
+      captureStep1();
+      if(!ob.name.trim()||!ob.email.trim())return;
+      if(ob.type==="tech"){finishTech();closeModal();showView("profile");toast("Crew profile created. You have a new message.")}
+      else{ob.step=2;drawSignup()}
+    }else if(ob.step===3){closeModal();showView("profile");toast("Inventory connected. Your gear is live in search.")}
+  }
+  else if(f.id==="reqForm"){
+    const d=f.dataset, qtyEl=$("#rqQty"), qty=qtyEl?+qtyEl.value:1;
+    const from=$("#rqFrom").value,to=$("#rqTo").value;
+    const days=Math.max(1,Math.round((new Date(to)-new Date(from))/864e5)+1);
+    const fmt=s=>new Date(s+"T12:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
+    const c=convoFor(d.key,d.who,d.sub);
+    post(c,{me:true,card:{kind:d.kind,what:(d.kind==="gear"?qty+"× ":"")+d.what,when:fmt(from)+" → "+fmt(to)+" · "+days+" day"+(days>1?"s":""),total:money(qty*days*(+d.rate),d.cur),status:"Pending"}});
+    const msg=$("#rqMsg").value.trim(); if(msg)post(c,{me:true,text:msg});
+    closeModal();openConvo(c.id);fakeReply(c,pick(d.kind==="gear"?GEAR_REPLIES:CHAT_REPLIES));
+    toast("Request sent to "+esc(d.who)+".")}
+  else if(f.id==="composerForm"){
+    const t=$("#composer"),text=t.value.trim();if(!text)return;
+    const c=S.convos.find(x=>x.id===S.active);t.value="";
+    const first=!c.msgs.some(m=>m.me);
+    post(c,{me:true,text});renderMessages();$("#composer").focus();
+    if(first||Math.random()<.5)fakeReply(c,pick(CHAT_REPLIES));
+  }
+});
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"&&$("#modalRoot").innerHTML)closeModal();
+  else if(e.key==="Escape"&&S.cartOpen){S.cartOpen=false;renderCart()}
+  if(e.target.id==="composer"&&e.key==="Enter"&&!e.shiftKey){e.preventDefault();$("#composerForm").requestSubmit()}
+});
+$("#homeBtn").addEventListener("click",()=>showView("search"));
+
+// ---------- boot ----------
+const locIn=$("#loc");
+locIn.value=S.place.label;
+locIn.addEventListener("focus",()=>{locIn.select();openLoc("")});
+locIn.addEventListener("input",()=>openLoc(locIn.value));
+locIn.addEventListener("keydown",e=>{
+  const open=!$("#locList").hidden;
+  if(e.key==="ArrowDown"){e.preventDefault();if(!open)openLoc(locIn.value);else if(locOpts.length){locIdx=(locIdx+1)%locOpts.length;drawLoc()}}
+  else if(e.key==="ArrowUp"&&open){e.preventDefault();if(locOpts.length){locIdx=(locIdx-1+locOpts.length)%locOpts.length;drawLoc()}}
+  else if(e.key==="Enter"&&open){e.preventDefault();if(locIdx>=0)setPlace(locOpts[locIdx])}
+  else if(e.key==="Escape"&&open){closeLoc();locIn.value=S.place.label}
+});
+locIn.addEventListener("blur",()=>setTimeout(()=>{closeLoc();locIn.value=S.place.label},120));
+$("#locList").addEventListener("mousedown",e=>{e.preventDefault();const li=e.target.closest("li[data-i]");if(li)setPlace(locOpts[+li.dataset.i])});
+renderRadius();
+const CHIPS=["8 moving heads","Need a FOH engineer","LED wall","Chain motors","Hazer","grandMA3","Generator","Rigger"];
+$("#chips").insertAdjacentHTML("beforeend",CHIPS.map(c=>`<button type="button" class="chip" data-chip="${esc(c)}">${esc(c)}</button>`).join(""));
+$("#chips").addEventListener("click",e=>{const b=e.target.closest("[data-chip]");if(!b)return;$("#q").value=b.dataset.chip;S.q=b.dataset.chip;S.tab="all";render()});
+restore();
+const sc=store.get("sg_cart");
+if(sc){S.cart=(sc.cart||[]).filter(l=>items.some(i=>i.id===l.id));if(sc.from&&sc.from>=isoIn(0))S.cartFrom=sc.from;if(sc.to&&sc.to>=S.cartFrom)S.cartTo=sc.to;else S.cartTo=S.cartFrom}
+syncDates();
+render();
+})();
+</script>
