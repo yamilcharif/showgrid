@@ -36,7 +36,7 @@ const initials = (n: string) =>
 export function Results() {
   const listings = useListings();
   const { t, locale } = useI18n();
-  const { ready, q, place, radiusIdx, setRadiusIdx, setPlace, dates } = useApp();
+  const { ready, q, setQ, place, radiusIdx, setRadiusIdx, setPlace, dates } = useApp();
   const [tab, setTab] = useState<Tab>("all");
   const [cats, setCats] = useState<Set<Category>>(new Set());
   const [srcs, setSrcs] = useState<Set<InventorySource>>(new Set());
@@ -60,7 +60,7 @@ export function Results() {
   const catCount: Partial<Record<Category, number>> = {};
   res.gear.forEach((g) => (catCount[g.it.cat] = (catCount[g.it.cat] ?? 0) + 1));
   // no search and no category picked: show headline gear (movers, consoles, LED…), most valuable first
-  const featured = !q && !cats.size;
+  const featured = !q.trim() && !cats.size;
   const matched = res.gear.filter((g) => (!cats.size || cats.has(g.it.cat)) && (!srcs.size || srcs.has(g.co.src)));
   const gear = featured
     ? matched.filter((g) => isFeatured(g.it)).sort((a, b) => Number(!a.free) - Number(!b.free) || b.it.rate - a.it.rate)
@@ -146,7 +146,7 @@ export function Results() {
       </aside>
 
       <div style={{ minWidth: 0 }}>
-        <div className="tabs" role="tablist" id="results-top">
+        <div className="tabs" role="tablist">
           {(
             [
               ["all", t.results.all, gear.length + crew.length],
@@ -161,9 +161,9 @@ export function Results() {
           ))}
         </div>
         <p className="summary">
-          {q ? (
+          {q.trim() ? (
             <>
-              {fmt(t.results.resultsFor, { q, where, when })}
+              {fmt(t.results.resultsFor, { q: q.trim(), where, when })}
               {P.need > 0 && fmt(t.results.lookingFor, { n: P.need })}
               {t.results.sortNote}
             </>
@@ -171,7 +171,10 @@ export function Results() {
             <>
               {fmt(t.results.featuredSummary, { where, when })}
             </>
-          )}
+          )}{" "}
+          <button type="button" className="link" onClick={() => setQ("")}>
+            {t.landing.clear}
+          </button>
         </p>
         <div className="list">
           {crewFirst ? (
@@ -201,29 +204,6 @@ export function Results() {
               </button>
             </div>
           )}
-        </div>
-        <aside className="feedback-banner">
-          <div>
-            <h3>{t.results.feedbackTitle}</h3>
-            <p>{t.results.feedbackText}</p>
-          </div>
-          <Link className="btn primary" href="/suggestions">
-            💡 {t.results.feedbackCta}
-          </Link>
-        </aside>
-        <div className="how">
-          <div>
-            <h4>{t.results.howCompaniesTitle}</h4>
-            <p>{t.results.howCompanies}</p>
-          </div>
-          <div>
-            <h4>{t.results.howCrewTitle}</h4>
-            <p>{t.results.howCrew}</p>
-          </div>
-          <div>
-            <h4>{t.results.howAllTitle}</h4>
-            <p>{t.results.howAll}</p>
-          </div>
         </div>
       </div>
     </div>

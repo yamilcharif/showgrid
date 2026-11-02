@@ -1,4 +1,4 @@
-import { Results } from "@/components/Results";
+import { HomeContent } from "@/components/HomeContent";
 import { SearchBar } from "@/components/SearchBar";
 import { getDictionary } from "@/lib/i18n/server";
 
@@ -22,9 +22,9 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="main">
+      <section className="main" id="results-top">
         <div className="wrap">
-          <Results />
+          <HomeContent />
         </div>
       </section>
     </main>
