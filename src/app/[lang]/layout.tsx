@@ -58,6 +58,7 @@ export default async function RootLayout({ children }: LayoutProps<"/[lang]">) {
                     <b>SHOWGRID</b> · {t.footer.tagline}
                   </span>
                   <span className="foot-links">
+                    <Link href="/companies">{t.footer.companies}</Link>
                     <Link href="/suggestions">{t.footer.suggestions}</Link>
                     <LanguageSelect className="lang" />
                     <span className="mono">show-grid.com</span>

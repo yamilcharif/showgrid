@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { RADII, isoIn, statsFor, unitFor } from "@/lib/search";
 import { useListings } from "./Listings";
@@ -112,7 +113,10 @@ export function SearchBar() {
       </div>
 
       <div className="stats">
-        <div><strong className="num">{STATS.companies}</strong>{STATS.companies === 1 ? t.search.statCompanies[0] : t.search.statCompanies[1]}</div>
+        <Link href="/companies" className="stat-link">
+          <strong className="num">{STATS.companies}</strong>
+          {STATS.companies === 1 ? t.search.statCompanies[0] : t.search.statCompanies[1]} →
+        </Link>
         <div><strong className="num">{STATS.units.toLocaleString("en-US")}</strong>{t.search.statUnits}</div>
         <div><strong className="num">{STATS.techs}</strong>{STATS.techs === 1 ? t.search.statTechs[0] : t.search.statTechs[1]}</div>
         <div><strong className="num">{STATS.countries}</strong>{STATS.countries === 1 ? t.search.statCountries[0] : t.search.statCountries[1]}</div>

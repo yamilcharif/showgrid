@@ -64,7 +64,14 @@ export function CompanyInventory({ company }: { company: CompanyPage }) {
             <span className="tally" />
             {t.company.eyebrow}
           </p>
-          <h1>{company.name}</h1>
+          <div className="co-title">
+            {company.logo && (
+              <div className="co-logo">
+                <Image src={company.logo} alt={`${company.name} logo`} fill sizes="88px" priority />
+              </div>
+            )}
+            <h1>{company.name}</h1>
+          </div>
           <p className="co-meta">
             {company.city}
             {co && co.src !== "manual" && (

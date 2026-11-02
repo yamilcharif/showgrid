@@ -8,6 +8,7 @@ import { useApp } from "./AppState";
 import { useGearList } from "./useGearList";
 import { useListings } from "./Listings";
 import { fmt, plural } from "@/lib/i18n/config";
+import { rentalFactor } from "@/lib/pricing";
 import { useI18n } from "./I18n";
 import { SendList } from "./SendList";
 
@@ -59,8 +60,10 @@ export function GearListDrawer() {
   const sections = groups.map(({ co, lines: ls }) => {
     let sub = 0;
     let req = 0;
+    // the company's own pricing (e.g. 1-3 days = 1 day rate); plain day count otherwise
+    const factor = rentalFactor(co.priceRule, days);
     for (const l of ls) {
-      if (l.it.pub) sub += l.it.rate * l.qty * days;
+      if (l.it.pub) sub += l.it.rate * l.qty * factor;
       else req++;
     }
     grand[co.cur] = (grand[co.cur] ?? 0) + sub;
@@ -79,10 +82,14 @@ export function GearListDrawer() {
             <div className="cl-name">
               {l.it.name}
               <div className="cl-calc num">
-                {l.it.pub ? fmt(t.list.calc, { rate: money(l.it.rate, co.cur), qty: l.qty, days: dl }) : t.list.priceByMessage}
+                {l.it.pub
+                  ? factor === days
+                    ? fmt(t.list.calc, { rate: money(l.it.rate, co.cur), qty: l.qty, days: dl })
+                    : fmt(t.list.calcFactor, { rate: money(l.it.rate, co.cur), qty: l.qty, factor, days: dl })
+                  : t.list.priceByMessage}
               </div>
             </div>
-            <div className="cl-total num">{l.it.pub ? money(l.it.rate * l.qty * days, co.cur) : t.list.onRequest}</div>
+            <div className="cl-total num">{l.it.pub ? money(l.it.rate * l.qty * factor, co.cur) : t.list.onRequest}</div>
             <div className="cl-ctrl">
               {l.qty > l.free ? (
                 <span className="pill warn">

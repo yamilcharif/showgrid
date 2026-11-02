@@ -2,6 +2,8 @@ export type LatLng = [number, number];
 
 export type InventorySource = "rentman" | "flex" | "manual";
 
+import type { PriceRule } from "./pricing";
+
 export type Category =
   | "Lighting"
   | "Audio"
@@ -38,6 +40,9 @@ export interface Company {
   cur: string;
   /** the owner's profile, for messages */
   profileId: string;
+  logo: string | null;
+  /** rental length → day rates charged; null charges every day */
+  priceRule: PriceRule | null;
 }
 
 export interface Item {

@@ -4,6 +4,7 @@ import { actionDictionary } from "@/lib/i18n/server";
 import { updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAccount } from "@/lib/auth";
+import { cleanRule } from "@/lib/pricing";
 import { coords, curOf, PLACE_OPTS } from "@/lib/places";
 import { createClient } from "@/lib/supabase/server";
 
@@ -110,4 +111,30 @@ export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();
   redirect("/");
+}
+
+/** The company's rental-length pricing (null charges every day). */
+export async function savePriceRule(rule: unknown): Promise<{ error?: string }> {
+  const t = (await actionDictionary()).pricing;
+  const acc = await getAccount();
+  if (!acc?.company) return { error: t.errSave };
+  const supabase = await createClient();
+  const { error } = await supabase.from("companies").update({ price_rule: cleanRule(rule) }).eq("owner_id", acc.id);
+  if (error) return { error: t.errSave };
+  updateTag("listings");
+  return {};
+}
+
+/** The company logo: a file the owner uploaded to our storage, or null to remove it. */
+export async function saveLogo(url: string | null): Promise<{ error?: string }> {
+  const t = (await actionDictionary()).publicPage;
+  const acc = await getAccount();
+  if (!acc?.company) return { error: t.errOnlyCompanies };
+  const prefix = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/gear-photos/${acc.company.id}/`;
+  if (url !== null && !url.startsWith(prefix)) return { error: t.errSave };
+  const supabase = await createClient();
+  const { error } = await supabase.from("companies").update({ logo_url: url }).eq("owner_id", acc.id);
+  if (error) return { error: t.errSave };
+  updateTag("listings");
+  return {};
 }

@@ -1,6 +1,7 @@
 import "server-only";
 import { createClient } from "@supabase/supabase-js";
 import { cacheLife, cacheTag } from "next/cache";
+import { cleanRule } from "./pricing";
 import type { Category, Company, InventorySource, Item, Tech } from "./types";
 
 export interface Listings {
@@ -23,7 +24,7 @@ export async function getListings(): Promise<Listings> {
   });
   const today = new Date().toISOString().slice(0, 10);
   const [co, it, bk, te] = await Promise.all([
-    supabase.from("companies").select("id, slug, owner_id, name, city_label, currency").limit(1000),
+    supabase.from("companies").select("id, slug, owner_id, name, city_label, currency, logo_url, price_rule").limit(1000),
     supabase
       .from("items")
       .select("id, company_id, source, name, category, spec, tags, quantity_owned, day_rate, public_price, image_url, photo_url, custom_category, updated_at")
@@ -56,6 +57,8 @@ export async function getListings(): Promise<Listings> {
       id: c.id,
       slug: c.slug,
       profileId: c.owner_id,
+      logo: c.logo_url,
+      priceRule: cleanRule(c.price_rule),
       name: c.name,
       city: c.city_label,
       off: [0, 0],
@@ -104,6 +107,7 @@ export interface CompanyPage {
   name: string;
   city: string;
   about: string | null;
+  logo: string | null;
 }
 
 /** A company's public page header, by slug. */
@@ -114,6 +118,6 @@ export async function getCompanyPage(slug: string): Promise<CompanyPage | null> 
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, {
     auth: { persistSession: false },
   });
-  const { data } = await supabase.from("companies").select("id, slug, name, city_label, about").eq("slug", slug).maybeSingle();
-  return data && { id: data.id, slug: data.slug, name: data.name, city: data.city_label, about: data.about };
+  const { data } = await supabase.from("companies").select("id, slug, name, city_label, about, logo_url").eq("slug", slug).maybeSingle();
+  return data && { id: data.id, slug: data.slug, name: data.name, city: data.city_label, about: data.about, logo: data.logo_url };
 }

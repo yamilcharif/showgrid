@@ -3,6 +3,7 @@
 import { actionDictionary } from "@/lib/i18n/server";
 import { redirect } from "next/navigation";
 import { getAccount } from "@/lib/auth";
+import { MESSAGE_SELECT } from "@/lib/requests";
 import { createClient } from "@/lib/supabase/server";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -28,11 +29,23 @@ export interface Message {
   body: string | null;
   created_at: string;
   request_id: string | null;
+  quote_id: string | null;
+  /** file in the private chat-files bucket: <conversation id>/<file> */
+  attachment_path: string | null;
+  attachment_name: string | null;
 }
 
-export async function sendMessage(conversationId: string, body: string): Promise<{ message?: Message; error?: string }> {
+export async function sendMessage(
+  conversationId: string,
+  body: string,
+  attachment?: { path: string; name: string },
+): Promise<{ message?: Message; error?: string }> {
   const text = body.trim();
-  if (!text) return {};
+  // files must sit in this conversation's folder (storage rules already limit uploads to members)
+  if (attachment && (!attachment.path.startsWith(`${conversationId}/`) || attachment.path.includes(".."))) {
+    return { error: (await actionDictionary()).messages.errSend };
+  }
+  if (!text && !attachment) return {};
   if (text.length > 4000) return { error: (await actionDictionary()).messages.errLong };
   const acc = await getAccount();
   if (!acc) return { error: (await actionDictionary()).messages.errSignedOut };
@@ -41,8 +54,14 @@ export async function sendMessage(conversationId: string, body: string): Promise
   // RLS checks the sender is a member of this conversation
   const { data, error } = await supabase
     .from("messages")
-    .insert({ conversation_id: conversationId, sender_id: acc.id, body: text })
-    .select("id, sender_id, body, created_at, request_id")
+    .insert({
+      conversation_id: conversationId,
+      sender_id: acc.id,
+      body: text || null,
+      attachment_path: attachment?.path ?? null,
+      attachment_name: attachment?.name.slice(0, 200) ?? null,
+    })
+    .select(MESSAGE_SELECT)
     .single();
   if (error) return { error: (await actionDictionary()).messages.errSend };
   return { message: data };

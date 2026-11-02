@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 import { saveAbout, type AboutState } from "./actions";
 import { useT } from "@/components/I18n";
+import { LogoUpload } from "@/components/LogoUpload";
 
-export function PublicPageCard({ slug, about }: { slug: string; about: string | null }) {
+export function PublicPageCard({ slug, about, companyId, logo }: { slug: string; about: string | null; companyId: string; logo: string | null }) {
   const [state, action, pending] = useActionState<AboutState, FormData>(saveAbout, {});
   const [copied, setCopied] = useState(false);
   const t = useT().publicPage;
@@ -28,6 +29,7 @@ export function PublicPageCard({ slug, about }: { slug: string; about: string | 
         <b>{t.title}</b>
         <p className="muted small">{t.text}</p>
       </div>
+      <LogoUpload companyId={companyId} initial={logo} />
       <div className="pub-link">
         <code>{url}</code>
         <div className="inv-actions">

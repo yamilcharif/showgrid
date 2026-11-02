@@ -4,10 +4,12 @@ import { Suspense } from "react";
 import { getAccount, type Account } from "@/lib/auth";
 import { money } from "@/lib/search";
 import { fmt } from "@/lib/i18n/config";
+import { cleanRule } from "@/lib/pricing";
 import type { Dict } from "@/lib/i18n/en";
 import { getDictionary } from "@/lib/i18n/server";
 import { signOut } from "./actions";
 import { PasswordCard } from "./PasswordCard";
+import { PricingCard } from "./PricingCard";
 import { ProfileSetup } from "./ProfileSetup";
 import { PublicPageCard } from "./PublicPageCard";
 import { RentmanCard } from "./RentmanCard";
@@ -80,7 +82,8 @@ function Summary({ acc, t }: { acc: Account; t: Dict["account"] }) {
           </>
         )}
       </dl>
-      {company && <PublicPageCard slug={company.slug} about={company.about} />}
+      {company && <PublicPageCard slug={company.slug} about={company.about} companyId={company.id} logo={company.logo_url} />}
+      {company && <PricingCard initial={cleanRule(company.price_rule)} />}
       {company && (
         <Suspense fallback={null}>
           <Inventory />

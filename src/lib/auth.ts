@@ -10,7 +10,17 @@ export interface Account {
   /** set once they've chosen a password, so later sign-ins don't need a code */
   hasPassword: boolean;
   profile: { kind: AccountKind; display_name: string } | null;
-  company: { name: string; slug: string; about: string | null; city_label: string; currency: string; verified_at: string | null } | null;
+  company: {
+    id: string;
+    name: string;
+    slug: string;
+    about: string | null;
+    logo_url: string | null;
+    price_rule: unknown;
+    city_label: string;
+    currency: string;
+    verified_at: string | null;
+  } | null;
   tech: { name: string; role: string; skills: string[]; years_experience: number; day_rate: number | null; city_label: string; currency: string } | null;
 }
 
@@ -23,7 +33,7 @@ export const getAccount = cache(async (): Promise<Account | null> => {
   const id = claims.sub;
   const [profile, company, tech] = await Promise.all([
     supabase.from("profiles").select("kind, display_name").eq("id", id).maybeSingle(),
-    supabase.from("companies").select("name, slug, about, city_label, currency, verified_at").eq("owner_id", id).maybeSingle(),
+    supabase.from("companies").select("id, name, slug, about, logo_url, price_rule, city_label, currency, verified_at").eq("owner_id", id).maybeSingle(),
     supabase.from("techs").select("name, role, skills, years_experience, day_rate, city_label, currency").eq("owner_id", id).maybeSingle(),
   ]);
   return {
