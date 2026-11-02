@@ -4,6 +4,8 @@ B2B marketplace for live-event gear and crew. Rental houses list inventory synce
 
 ## Run it
 
+Copy `.env.example` to `.env.local` and fill in the Supabase values, then:
+
 ```bash
 npm install
 npm run dev
@@ -23,7 +25,7 @@ Then open http://localhost:3000.
 
 ## Next
 
-1. Connect Supabase: sign-in by email link, company and crew profiles.
+1. ~~Connect Supabase: sign-in by email link, company and crew profiles.~~ Done (`/sign-in`, `/account`).
 2. Messages and sending gear lists as requests.
 3. Rentman sync (server-side, encrypted tokens), then Flex.
 4. Deploy to Vercel on show-grid.com.

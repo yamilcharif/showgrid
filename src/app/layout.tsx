@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Archivo, JetBrains_Mono } from "next/font/google";
+import { AccountLink } from "@/components/AccountLink";
 import { AppStateProvider } from "@/components/AppState";
 import { Header } from "@/components/Header";
 import { GearListDrawer } from "@/components/GearListDrawer";
@@ -29,7 +31,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${archivo.variable} ${mono.variable}`}>
       <body>
         <AppStateProvider>
-          <Header />
+          <Header
+            account={
+              <Suspense fallback={null}>
+                <AccountLink />
+              </Suspense>
+            }
+          />
           {children}
           <footer className="site">
             <div className="wrap">

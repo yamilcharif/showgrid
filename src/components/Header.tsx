@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { useApp } from "./AppState";
 import { ListIcon } from "./icons";
 
-export function Header() {
+export function Header({ account }: { account: ReactNode }) {
   const { cart, setCartOpen } = useApp();
   const n = cart.length;
   return (
@@ -27,6 +28,7 @@ export function Header() {
             <span className="hide-sm">Gear list</span>
             {n > 0 && <span className="badge num">{n}</span>}
           </button>
+          {account}
         </nav>
       </div>
     </header>
