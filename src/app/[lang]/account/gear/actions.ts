@@ -107,24 +107,27 @@ export interface FoundImage {
   url: string;
 }
 
-/** Photo suggestions for a gear name (Brave Search images). Empty when no key is set up. */
+/** Photo suggestions for a gear name: Google Images results through Serper.dev. Empty when no key is set up. */
 export async function searchImages(query: string): Promise<FoundImage[]> {
-  const key = process.env.BRAVE_SEARCH_API_KEY;
+  const key = process.env.SERPER_API_KEY;
   const acc = await getAccount();
   const q = query.trim().slice(0, 120);
   if (!key || !acc?.company || q.length < 3) return [];
   try {
-    const url = new URL("https://api.search.brave.com/res/v1/images/search");
-    url.searchParams.set("q", q);
-    url.searchParams.set("count", "12");
-    url.searchParams.set("safesearch", "strict");
-    const res = await fetch(url, { headers: { Accept: "application/json", "X-Subscription-Token": key }, cache: "no-store" });
+    const res = await fetch("https://google.serper.dev/images", {
+      method: "POST",
+      headers: { "X-API-KEY": key, "Content-Type": "application/json" },
+      body: JSON.stringify({ q, num: 20, safe: "active" }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(8000),
+    });
     if (!res.ok) return [];
-    const body = (await res.json()) as { results?: { thumbnail?: { src?: string }; properties?: { url?: string } }[] };
-    return (body.results ?? [])
-      .map((r) => ({ thumb: r.thumbnail?.src ?? "", url: r.properties?.url ?? "" }))
-      .filter((r) => r.thumb.startsWith("https://") && r.url.startsWith("https://"))
-      .slice(0, 8);
+    const body = (await res.json()) as { images?: { thumbnailUrl?: string; imageUrl?: string }[] };
+    return (body.images ?? [])
+      .map((r) => ({ thumb: r.thumbnailUrl ?? "", url: r.imageUrl ?? "" }))
+      // only photos we can copy later (https, common image formats)
+      .filter((r) => r.thumb.startsWith("https://") && r.url.startsWith("https://") && !/\.(svg|gif)(\?|$)/i.test(r.url))
+      .slice(0, 12);
   } catch {
     return [];
   }
@@ -157,4 +160,49 @@ export async function importImage(src: string): Promise<{ url?: string; error?: 
   } catch {
     return { error: t.errUpload };
   }
+}
+
+/**
+ * Edit an item. Hand-added items change directly; synced items keep Rentman's own name, description,
+ * price and quantity, and the owner's versions are stored beside them so the sync never overwrites them.
+ */
+export async function updateItemDetails(id: string, input: NewItem): Promise<{ error?: string }> {
+  const t = (await actionDictionary()).addItem;
+  const acc = await getAccount();
+  if (!acc?.company || !UUID.test(id)) return { error: t.errOnly };
+  const name = input.name.trim().slice(0, 200);
+  if (name.length < 2) return { error: t.errName };
+  const description = input.description.trim().slice(0, 300) || null;
+  const category = CATEGORIES.includes(input.category) ? input.category : "Other";
+  const prefix = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/gear-photos/${acc.company.id}/`;
+  if (input.photoUrl && !input.photoUrl.startsWith(prefix) && !input.photoUrl.startsWith("https://s3-eu-west-1.amazonaws.com/rentman-production/")) {
+    return { error: (await actionDictionary()).gear.errPhoto };
+  }
+
+  const supabase = await createClient();
+  // RLS: only the owner's own items
+  const { data: item } = await supabase.from("items").select("source, name, spec, category, image_url").eq("id", id).single();
+  if (!item) return { error: t.errSave };
+  // a Rentman photo stays where it is; anything else is the owner's photo
+  const photo_url = input.photoUrl && input.photoUrl === item.image_url ? null : input.photoUrl;
+
+  let patch: Record<string, unknown>;
+  if (item.source === "manual") {
+    const quantity = Math.round(Number(input.quantity));
+    if (!(quantity >= 1 && quantity <= 100000)) return { error: t.errQty };
+    const price = input.price == null || String(input.price) === "" ? null : Math.round(Number(input.price) * 100) / 100;
+    if (price != null && !(price >= 0)) return { error: t.errPrice };
+    patch = { name, spec: description, category, quantity_owned: quantity, day_rate: price, public_price: price != null, photo_url };
+  } else {
+    patch = {
+      custom_name: name === item.name ? null : name,
+      custom_spec: description === (item.spec ?? null) ? null : description,
+      custom_category: category === item.category ? null : category,
+      photo_url,
+    };
+  }
+  const { error } = await supabase.from("items").update(patch).eq("id", id);
+  if (error) return { error: t.errSave };
+  updateTag("listings");
+  return {};
 }

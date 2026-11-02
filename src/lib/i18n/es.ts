@@ -16,6 +16,7 @@ export const es: Dict = {
     messagesUnread: "Mensajes, {n} sin leer",
     finishProfile: "Completar perfil",
     language: "Idioma",
+    suggestions: "Sugerencias",
   },
   footer: { tagline: "Un problema a la vez", suggestions: "Sugerencias", companies: "Empresas de renta", crew: "Crew", countries: "Países" },
   home: {
@@ -74,6 +75,9 @@ export const es: Dict = {
     howCrew:
       "Crea un perfil de crew con tu rol, el equipo que manejas, tu tarifa diaria y tu ciudad. Las empresas cerca te encuentran cuando les falta gente.",
     howAllTitle: "Para todos",
+    feedbackTitle: "Hecho por nosotros, para nosotros.",
+    feedbackText: "ShowGrid lo hace gente que trabaja en eventos en vivo. Cuéntanos qué agregar o arreglar. Los comentarios positivos también se agradecen.",
+    feedbackCta: "Enviar una sugerencia",
     howAll:
       "Escribe el problema como lo dirías en una llamada. Junta equipo de varias empresas en una lista, ve un total estimado y confirma el precio final por mensaje.",
     spreadsheet: "Hoja de cálculo",
@@ -178,6 +182,12 @@ export const es: Dict = {
   addItem: {
     add: "Agregar artículo",
     title: "Agregar un artículo",
+    editTitle: "Editar artículo",
+    edit: "Editar",
+    saved: "Se guardó {name}.",
+    saveEdit: "Guardar cambios",
+    searchPhotos: "Buscar fotos en Google",
+    fromRentman: "El precio y la cantidad vienen de Rentman y se actualizan con cada sincronización.",
     name: "Título",
     namePlaceholder: "p. ej. Robe MegaPointe",
     description: "Descripción",

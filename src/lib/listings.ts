@@ -27,7 +27,7 @@ export async function getListings(): Promise<Listings> {
     supabase.from("companies").select("id, slug, owner_id, name, city_label, currency, logo_url, price_rule").limit(1000),
     supabase
       .from("items")
-      .select("id, company_id, source, name, category, spec, tags, quantity_owned, day_rate, public_price, image_url, photo_url, custom_category, updated_at")
+      .select("id, company_id, source, name, category, spec, tags, quantity_owned, day_rate, public_price, image_url, photo_url, custom_category, custom_name, custom_spec, updated_at")
       .eq("listed", true)
       .gt("quantity_owned", 0)
       .limit(20000),
@@ -71,14 +71,14 @@ export async function getListings(): Promise<Listings> {
       return {
         id: i.id,
         co: i.company_id,
-        name: i.name,
+        name: i.custom_name ?? i.name,
         // the owner's own category and photo win over what the sync brought in
         cat: (i.custom_category ?? i.category) as Category,
         tags: i.tags ?? "",
         qty: Math.max(0, i.quantity_owned - bookedToday),
         total: i.quantity_owned,
         rate: Number(i.day_rate ?? 0),
-        spec: i.spec ?? "",
+        spec: i.custom_spec ?? i.spec ?? "",
         listed: true,
         pub: i.public_price && i.day_rate != null,
         image: i.photo_url ?? i.image_url,

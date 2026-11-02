@@ -39,7 +39,7 @@ async function Gear() {
   // owners see their hidden items too (RLS)
   const { data } = await supabase
     .from("items")
-    .select("id, name, category, custom_category, quantity_owned, day_rate, listed, public_price, image_url, photo_url")
+    .select("id, source, name, custom_name, spec, custom_spec, category, custom_category, quantity_owned, day_rate, listed, public_price, image_url, photo_url")
     .eq("company_id", co.id)
     .order("name")
     .limit(5000);

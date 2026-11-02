@@ -26,8 +26,12 @@ export async function AccountLink() {
           {unread > 0 && <span className="badge num">{unread}</span>}
         </Link>
       )}
-      <Link className="btn ghost-dark acct" href="/account">
-        {acc.profile?.display_name ?? t.header.finishProfile}
+      <Link className="btn ghost-dark acct" href="/account" aria-label={acc.profile?.display_name ?? t.header.finishProfile}>
+        <span className="hide-sm">{acc.profile?.display_name ?? t.header.finishProfile}</span>
+        {/* phones: an icon, so the top bar fits */}
+        <span className="show-sm" aria-hidden="true">
+          👤
+        </span>
       </Link>
     </>
   );

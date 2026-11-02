@@ -202,6 +202,15 @@ export function Results() {
             </div>
           )}
         </div>
+        <aside className="feedback-banner">
+          <div>
+            <h3>{t.results.feedbackTitle}</h3>
+            <p>{t.results.feedbackText}</p>
+          </div>
+          <Link className="btn primary" href="/suggestions">
+            💡 {t.results.feedbackCta}
+          </Link>
+        </aside>
         <div className="how">
           <div>
             <h4>{t.results.howCompaniesTitle}</h4>

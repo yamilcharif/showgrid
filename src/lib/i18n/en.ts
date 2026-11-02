@@ -16,6 +16,7 @@ export const en = {
     messagesUnread: "Messages, {n} unread",
     finishProfile: "Finish profile",
     language: "Language",
+    suggestions: "Suggestions",
   },
   footer: { tagline: "One problem at a time", suggestions: "Suggestions", companies: "Rental houses", crew: "Crew", countries: "Countries" },
   home: {
@@ -74,6 +75,9 @@ export const en = {
     howCrew:
       "Create a crew profile with your role, the gear you know, day rate and home base. Companies near you find you when they're short-handed.",
     howAllTitle: "Everyone",
+    feedbackTitle: "Built for us, by us.",
+    feedbackText: "ShowGrid is made by people who work in live events. Tell us what to add or fix next. Positive feedback is always welcome too.",
+    feedbackCta: "Send a suggestion",
     howAll:
       "Type the problem the way you'd say it on a call. Add gear to one list across companies, see an estimated total, then confirm the final price by message.",
     spreadsheet: "Spreadsheet",
@@ -178,6 +182,12 @@ export const en = {
   addItem: {
     add: "Add item",
     title: "Add an item",
+    editTitle: "Edit item",
+    edit: "Edit",
+    saved: "Saved {name}.",
+    saveEdit: "Save changes",
+    searchPhotos: "Search Google photos",
+    fromRentman: "Price and quantity come from Rentman and update with each sync.",
     name: "Title",
     namePlaceholder: "e.g. Robe MegaPointe",
     description: "Description",

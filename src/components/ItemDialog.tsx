@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { createItem, importImage, searchImages, type FoundImage } from "@/app/[lang]/account/gear/actions";
+import { createItem, importImage, searchImages, updateItemDetails, type FoundImage } from "@/app/[lang]/account/gear/actions";
 import { guessCategory } from "@/lib/categories";
 import { fmt } from "@/lib/i18n/config";
 import { CAT_ABBR } from "@/lib/search";
@@ -13,18 +13,38 @@ import { useT } from "./I18n";
 
 const CATEGORIES = Object.keys(CAT_ABBR) as Category[];
 
-/** "+" on the owner's page: add an item by hand. A photo is found from the title; the owner can pick another or upload one. */
-export function AddItemDialog({ companyId, onClose }: { companyId: string; onClose: () => void }) {
+/** An existing item, for editing. */
+export interface EditableItem {
+  id: string;
+  name: string;
+  description: string;
+  category: Category;
+  quantity: number;
+  price: number | null;
+  photo: string | null;
+  /** added by hand: price and quantity are editable here; synced ones come from Rentman */
+  manual: boolean;
+}
+
+/**
+ * Add an item by hand, or edit one. Photos: Google Images suggestions from the title (picked by the owner),
+ * or the owner's own upload.
+ */
+export function ItemDialog({ companyId, item, onClose }: { companyId: string; item?: EditableItem; onClose: () => void }) {
   const T = useT();
   const t = T.addItem;
   const router = useRouter();
   const { notify } = useApp();
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [category, setCategory] = useState<Category>("Other");
-  const [catTouched, setCatTouched] = useState(false);
-  const [quantity, setQuantity] = useState("1");
-  const [price, setPrice] = useState("");
+  const editing = Boolean(item);
+  const synced = editing && !item!.manual;
+  const [name, setName] = useState(item?.name ?? "");
+  const [description, setDescription] = useState(item?.description ?? "");
+  const [category, setCategory] = useState<Category>(item?.category ?? "Other");
+  const [catTouched, setCatTouched] = useState(editing);
+  const [quantity, setQuantity] = useState(String(item?.quantity ?? 1));
+  const [price, setPrice] = useState(item?.price != null ? String(item.price) : "");
+  // the item's photo now; replaced by a picked suggestion or an upload
+  const [current, setCurrent] = useState(item?.photo ?? null);
   const [found, setFound] = useState<FoundImage[] | null>(null);
   const [searching, setSearching] = useState(false);
   // the chosen photo: a search result (copied into our storage on save) or the owner's own file
@@ -42,19 +62,21 @@ export function AddItemDialog({ companyId, onClose }: { companyId: string; onClo
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // look for a photo once the title settles
+  const search = async (q: string, preselect: boolean) => {
+    setSearching(true);
+    const res = await searchImages(q);
+    setSearching(false);
+    setFound(res);
+    if (preselect) setPicked((p) => p ?? res[0] ?? null);
+  };
+
+  // new items: look for a photo once the title settles. Edits search when asked (Search photos).
   useEffect(() => {
     const q = name.trim();
-    if (q.length < 3) return;
-    const timer = setTimeout(async () => {
-      setSearching(true);
-      const res = await searchImages(q);
-      setSearching(false);
-      setFound(res);
-      setPicked((p) => p ?? res[0] ?? null);
-    }, 800);
+    if (editing || q.length < 3) return;
+    const timer = setTimeout(() => search(q, true), 800);
     return () => clearTimeout(timer);
-  }, [name]);
+  }, [name, editing]);
 
   const onName = (v: string) => {
     setName(v);
@@ -77,20 +99,23 @@ export function AddItemDialog({ companyId, onClose }: { companyId: string; onClo
       photoUrl = supabase.storage.from("gear-photos").getPublicUrl(path).data.publicUrl;
     } else if (picked) {
       const res = await importImage(picked.url);
-      // a photo that won't copy isn't worth blocking the item: save it without one
-      photoUrl = res.url ?? null;
+      // a photo that won't copy isn't worth blocking the item: keep the old one (or none)
+      photoUrl = res.url ?? current;
+    } else {
+      photoUrl = current;
     }
-    const res = await createItem({
+    const input = {
       name,
       description,
       category,
       quantity: Number(quantity),
       price: price.trim() === "" ? null : Number(price),
       photoUrl,
-    });
+    };
+    const res = item ? await updateItemDetails(item.id, input) : await createItem(input);
     setSaving(false);
     if (res.error) return setError(res.error);
-    notify(fmt(t.added, { name: name.trim() }));
+    notify(fmt(item ? t.saved : t.added, { name: name.trim() }));
     router.refresh();
     onClose();
   };
@@ -102,14 +127,14 @@ export function AddItemDialog({ companyId, onClose }: { companyId: string; onClo
     setOwn({ file: f, preview: URL.createObjectURL(f) });
   };
 
-  const preview = own?.preview ?? picked?.thumb ?? null;
+  const preview = own?.preview ?? picked?.thumb ?? current;
 
   return (
     <>
       <div className="drawer-scrim" onClick={onClose} />
-      <div className="dialog" role="dialog" aria-modal="true" aria-label={t.title}>
+      <div className="dialog" role="dialog" aria-modal="true" aria-label={editing ? t.editTitle : t.title}>
         <header>
-          <h2>{t.title}</h2>
+          <h2>{editing ? t.editTitle : t.title}</h2>
           <button type="button" className="x" aria-label={t.cancel} onClick={onClose}>
             ×
           </button>
@@ -135,9 +160,9 @@ export function AddItemDialog({ companyId, onClose }: { companyId: string; onClo
                 {preview ? <img src={preview} alt="" /> : <span>{searching ? t.finding : CAT_ABBR[category]}</span>}
               </div>
               <div className="ai-photo-side">
-                {found && found.length > 1 && !own && <span className="muted small">{t.pickOther}</span>}
+                {found && found.length > 0 && !own && <span className="muted small">{t.pickOther}</span>}
                 {found && found.length === 0 && !own && <span className="muted small">{t.noAuto}</span>}
-                {found && found.length > 1 && !own && (
+                {found && found.length > 0 && !own && (
                   <div className="ai-thumbs">
                     {found.map((f) => (
                       <button
@@ -154,16 +179,20 @@ export function AddItemDialog({ companyId, onClose }: { companyId: string; onClo
                   </div>
                 )}
                 <div className="inv-actions">
+                  <button type="button" className="btn sm" disabled={searching || name.trim().length < 3} onClick={() => search(name.trim(), false)}>
+                    {searching ? t.finding : t.searchPhotos}
+                  </button>
                   <button type="button" className="btn sm" onClick={() => file.current?.click()}>
                     {t.uploadOwn}
                   </button>
-                  {(picked || own) && (
+                  {(picked || own || current) && (
                     <button
                       type="button"
                       className="link"
                       onClick={() => {
                         setOwn(null);
                         setPicked(null);
+                        setCurrent(null);
                       }}
                     >
                       {t.removePhoto}
@@ -210,12 +239,13 @@ export function AddItemDialog({ companyId, onClose }: { companyId: string; onClo
             </div>
             <div className="field">
               <label htmlFor="ai-qty">{t.quantity}</label>
-              <input id="ai-qty" type="number" min={1} required inputMode="numeric" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+              <input id="ai-qty" type="number" min={1} required inputMode="numeric" disabled={synced} value={quantity} onChange={(e) => setQuantity(e.target.value)} />
             </div>
           </div>
           <div className="field">
             <label htmlFor="ai-price">{t.price}</label>
-            <input id="ai-price" type="number" min={0} step="any" inputMode="decimal" placeholder={t.pricePlaceholder} value={price} onChange={(e) => setPrice(e.target.value)} />
+            <input id="ai-price" type="number" min={0} step="any" inputMode="decimal" disabled={synced} placeholder={t.pricePlaceholder} value={price} onChange={(e) => setPrice(e.target.value)} />
+            {synced && <small className="muted">{t.fromRentman}</small>}
           </div>
           {error && (
             <p className="auth-err" role="alert">
@@ -224,7 +254,7 @@ export function AddItemDialog({ companyId, onClose }: { companyId: string; onClo
           )}
           <div className="inv-actions">
             <button className="btn primary" disabled={saving}>
-              {saving ? t.saving : t.save}
+              {saving ? t.saving : editing ? t.saveEdit : t.save}
             </button>
             <button type="button" className="link" onClick={onClose}>
               {t.cancel}

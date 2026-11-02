@@ -7,7 +7,7 @@ import { useMemo, useState } from "react";
 import { startConversation } from "@/app/[lang]/messages/actions";
 import { useApp } from "@/components/AppState";
 import { deleteItem, updateItems } from "@/app/[lang]/account/gear/actions";
-import { AddItemDialog } from "@/components/AddItemDialog";
+import { ItemDialog, type EditableItem } from "@/components/ItemDialog";
 import { useT } from "@/components/I18n";
 import { fmt } from "@/lib/i18n/config";
 import { useListings } from "@/components/Listings";
@@ -26,6 +26,7 @@ export function CompanyInventory({ company, isOwner = false }: { company: Compan
   const [cat, setCat] = useState<Category | "all">("all");
   const [text, setText] = useState("");
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<EditableItem | null>(null);
   const router = useRouter();
   const co = companyById(company.id);
   const t = useT();
@@ -182,13 +183,32 @@ export function CompanyInventory({ company, isOwner = false }: { company: Compan
                   inList={cart.find((l) => l.id === it.id)?.qty}
                   onAdd={() => add(it.id)}
                   onOpenList={() => setCartOpen(true)}
-                  owner={isOwner ? { onHide: () => hide(it), onDelete: it.manual ? () => remove(it) : undefined } : undefined}
+                  owner={
+                    isOwner
+                      ? {
+                          onEdit: () =>
+                            setEditing({
+                              id: it.id,
+                              name: it.name,
+                              description: it.spec,
+                              category: it.cat,
+                              quantity: it.total,
+                              price: it.pub ? it.rate : null,
+                              photo: it.image,
+                              manual: it.manual,
+                            }),
+                          onHide: () => hide(it),
+                          onDelete: it.manual ? () => remove(it) : undefined,
+                        }
+                      : undefined
+                  }
                 />
               ))}
             </div>
           </section>
         ))}
-        {adding && <AddItemDialog companyId={company.id} onClose={() => setAdding(false)} />}
+        {adding && <ItemDialog companyId={company.id} onClose={() => setAdding(false)} />}
+        {editing && <ItemDialog companyId={company.id} item={editing} onClose={() => setEditing(null)} />}
         <p className="muted small co-note">
           {fmt(t.company.note, { name: company.name })}
         </p>
@@ -204,7 +224,7 @@ interface CardProps {
   onAdd: () => void;
   onOpenList: () => void;
   /** edit controls, only on the owner's own page */
-  owner?: { onHide: () => void; onDelete?: () => void };
+  owner?: { onEdit: () => void; onHide: () => void; onDelete?: () => void };
 }
 
 function GearCard({ it, cur, inList, onAdd, onOpenList, owner }: CardProps) {
@@ -213,6 +233,9 @@ function GearCard({ it, cur, inList, onAdd, onOpenList, owner }: CardProps) {
     <article className="gcard">
       {owner && (
         <div className="gowner">
+          <button type="button" onClick={owner.onEdit}>
+            {t.addItem.edit}
+          </button>
           <button type="button" onClick={owner.onHide}>
             {t.addItem.hide}
           </button>

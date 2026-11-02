@@ -557,7 +557,7 @@ a.co:hover { text-decoration-color: currentColor; }
 .ai-preview { width: 120px; aspect-ratio: 1; border-radius: 10px; background: #fff; border: 1px solid var(--line); display: grid; place-items: center; overflow: hidden; color: #6b6b73; font-family: var(--f-mono); font-size: 13px; text-align: center; padding: 4px; }
 .ai-preview img { width: 100%; height: 100%; object-fit: contain; }
 .ai-photo-side { display: grid; gap: 8px; }
-.ai-thumbs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.ai-thumbs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; max-height: 240px; overflow-y: auto; }
 .ai-thumbs button { padding: 0; border: 2px solid transparent; border-radius: 8px; background: #fff; aspect-ratio: 1; overflow: hidden; cursor: pointer; }
 .ai-thumbs button.on { border-color: var(--ink); }
 .ai-thumbs img { width: 100%; height: 100%; object-fit: contain; }
@@ -572,3 +572,19 @@ a.co:hover { text-decoration-color: currentColor; }
 .gowner button { border: 0; border-radius: 6px; padding: 4px 8px; background: rgba(11, 11, 12, 0.82); color: #fff; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
 .gowner button:hover { background: #0b0b0c; }
 .auth-page .back { text-decoration: none; font-size: 14px; display: inline-block; margin-bottom: 14px; }
+
+/* suggestions banner on the home page */
+.feedback-banner { display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; margin-top: 36px; padding: 22px 24px; border-radius: 12px; background: var(--hero-bg); color: var(--hero-ink); border: 1px solid var(--hero-line); }
+.feedback-banner h3 { margin: 0 0 4px; font-size: 22px; font-variation-settings: "wdth" 112; }
+.feedback-banner p { margin: 0; color: var(--hero-muted); max-width: 60ch; }
+.feedback-banner .btn.primary { background: var(--hero-ink); color: var(--hero-bg); border-color: var(--hero-ink); }
+/* phones: a tighter top bar so every button fits */
+@media (max-width: 640px) {
+  .top nav { gap: 5px; }
+  .top nav .btn { padding: 6px 9px; }
+  .top .wordmark { font-size: 19px; }
+}
+@media (max-width: 400px) {
+  .top .wordmark { font-size: 17px; }
+  .btn.acct { max-width: 86px; }
+}

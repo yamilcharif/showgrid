@@ -7,12 +7,17 @@ import { CAT_ABBR, isAccessory, money } from "@/lib/search";
 import { createClient } from "@/lib/supabase/browser";
 import type { Category } from "@/lib/types";
 import { updateItems, type ItemPatch } from "./actions";
+import { ItemDialog, type EditableItem } from "@/components/ItemDialog";
 import { useT } from "@/components/I18n";
 import { fmt } from "@/lib/i18n/config";
 
 export interface OwnItem {
   id: string;
+  source: "rentman" | "flex" | "manual";
   name: string;
+  custom_name: string | null;
+  spec: string | null;
+  custom_spec: string | null;
   category: Category;
   custom_category: Category | null;
   quantity_owned: number;
@@ -36,6 +41,13 @@ export function GearManager({
   initial: OwnItem[];
 }) {
   const [items, setItems] = useState(initial);
+  // after an edit the page reloads its data: take the fresh list (React's "adjust state when a prop changes")
+  const [prevInitial, setPrevInitial] = useState(initial);
+  if (initial !== prevInitial) {
+    setPrevInitial(initial);
+    setItems(initial);
+  }
+  const [editing, setEditing] = useState<EditableItem | null>(null);
   const [text, setText] = useState("");
   const [cat, setCat] = useState<Category | "all">("all");
   const [show, setShow] = useState<Show>("all");
@@ -165,6 +177,7 @@ export function GearManager({
         </p>
       )}
 
+      {editing && <ItemDialog companyId={companyId} item={editing} onClose={() => setEditing(null)} />}
       <ul className="gm-list">
         {shown.slice(0, 400).map((i) => (
           <GearRow
@@ -174,6 +187,18 @@ export function GearManager({
             cat={catOf(i)}
             onSave={(patch) => save([i.id], patch)}
             onError={setError}
+            onEdit={() =>
+              setEditing({
+                id: i.id,
+                name: i.custom_name ?? i.name,
+                description: i.custom_spec ?? i.spec ?? "",
+                category: catOf(i),
+                quantity: i.quantity_owned,
+                price: i.day_rate != null ? Number(i.day_rate) : null,
+                photo: i.photo_url ?? i.image_url,
+                manual: i.source === "manual",
+              })
+            }
           />
         ))}
       </ul>
@@ -187,6 +212,7 @@ export function GearManager({
 }
 
 interface RowProps {
+  onEdit: () => void;
   i: OwnItem;
   companyId: string;
   cat: Category;
@@ -194,7 +220,7 @@ interface RowProps {
   onError: (e: string) => void;
 }
 
-function GearRow({ i, companyId, cat, onSave, onError }: RowProps) {
+function GearRow({ i, companyId, cat, onSave, onError, onEdit }: RowProps) {
   const file = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const photo = i.photo_url ?? i.image_url;
@@ -254,7 +280,7 @@ function GearRow({ i, companyId, cat, onSave, onError }: RowProps) {
         }}
       />
       <div className="gm-main">
-        <b>{i.name}</b>
+        <b>{i.custom_name ?? i.name}</b>
         <span className="muted small num">
           ×{i.quantity_owned}
           {i.day_rate
@@ -275,6 +301,9 @@ function GearRow({ i, companyId, cat, onSave, onError }: RowProps) {
         </span>
       </div>
       <div className="gm-ctrls">
+        <button type="button" className="btn sm" onClick={onEdit}>
+          {T.addItem.edit}
+        </button>
         <select
           aria-label={fmt(t.categoryOf, { name: i.name })}
           value={cat}
