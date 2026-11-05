@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { startConversation } from "@/app/[lang]/messages/actions";
 import { ContactLinks } from "@/components/ContactLinks";
+import { getAccount } from "@/lib/auth";
 import { countryName, flag } from "@/lib/flags";
 import { fmt, plural } from "@/lib/i18n/config";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
@@ -11,6 +12,7 @@ import { initials } from "@/lib/initials";
 import { getTechPage } from "@/lib/listings";
 import { ccOf } from "@/lib/places";
 import { money } from "@/lib/search";
+import { CrewOwnerTools } from "./CrewOwnerTools";
 
 export async function generateMetadata({ params }: PageProps<"/[lang]/crew/[id]">): Promise<Metadata> {
   const [tech, t] = await Promise.all([getTechPage((await params).id), getDictionary()]);
@@ -29,8 +31,10 @@ export default function CrewProfilePage({ params }: PageProps<"/[lang]/crew/[id]
 }
 
 async function Profile({ params }: { params: PageProps<"/[lang]/crew/[id]">["params"] }) {
-  const [tech, T, locale] = await Promise.all([getTechPage((await params).id), getDictionary(), getLocale()]);
+  const [tech, T, locale, acc] = await Promise.all([getTechPage((await params).id), getDictionary(), getLocale(), getAccount()]);
   if (!tech) notFound();
+  // the crew member gets edit controls on their own profile
+  const isOwner = acc?.tech?.id === tech.id;
   const t = T.crewDir;
   const cc = ccOf(tech.city);
   return (
@@ -73,10 +77,14 @@ async function Profile({ params }: { params: PageProps<"/[lang]/crew/[id]">["par
               ))}
             </div>
           )}
-          <form action={startConversation} className="co-actions">
-            <input type="hidden" name="to" value={tech.profileId} />
-            <button className="btn primary">{fmt(t.message, { name: tech.name.split(" ")[0] })}</button>
-          </form>
+          {isOwner ? (
+            <CrewOwnerTools userId={acc.id} photo={tech.photo} />
+          ) : (
+            <form action={startConversation} className="co-actions">
+              <input type="hidden" name="to" value={tech.profileId} />
+              <button className="btn primary">{fmt(t.message, { name: tech.name.split(" ")[0] })}</button>
+            </form>
+          )}
         </div>
       </div>
     </section>

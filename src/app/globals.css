@@ -340,6 +340,9 @@ footer.site b { letter-spacing: 0.06em; font-variation-settings: "wdth" 125; }
 .co-stats div { display: grid; color: var(--hero-muted); font-size: 13px; }
 .co-stats strong { color: var(--hero-ink); font-size: 26px; font-weight: 700; }
 .co-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.crew-owner { color: var(--ink); margin: 18px 0 0; max-width: 480px; }
+.crew-owner a.btn, .crew-owner button { color: var(--ink); }
+.co-hero .crew-owner .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .co-hero .btn.primary { background: var(--hero-ink); color: var(--hero-bg); border-color: var(--hero-ink); }
 .co-page { padding-block: 24px 64px; }
 .co-tools { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 8px; }
