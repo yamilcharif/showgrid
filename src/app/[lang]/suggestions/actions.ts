@@ -1,6 +1,7 @@
 "use server";
 
 import { actionDictionary } from "@/lib/i18n/server";
+import { fmt } from "@/lib/i18n/config";
 import { getAccount } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { sendEmail } from "@/lib/email";
@@ -38,5 +39,16 @@ export async function sendFeedback(_prev: FeedbackState, form: FormData): Promis
     ].join("\n"),
     replyTo,
   });
+
+  // a thank-you to the person who wrote, in their language
+  if (replyTo) {
+    const t = (await actionDictionary()).suggestions;
+    const who = name ?? acc?.profile?.display_name;
+    await sendEmail({
+      to: replyTo,
+      subject: t.mailSubject,
+      text: [who ? fmt(t.mailHello, { name: who }) : t.mailHelloAnon, "", t.mailBody, "", t.mailSign, "", "—", t.mailYours, message].join("\n"),
+    });
+  }
   return { sent: true };
 }

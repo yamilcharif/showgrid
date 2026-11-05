@@ -643,5 +643,11 @@ export const es: Dict = {
     errShort: "Escribe unas palabras primero.",
     errLong: "Que sea de menos de 4.000 caracteres.",
     errSend: "No se pudo enviar. Inténtalo de nuevo.",
+    mailSubject: "Gracias por tu sugerencia",
+    mailHello: "Hola {name}:",
+    mailHelloAnon: "Hola:",
+    mailBody: "Gracias por tomarte el tiempo de enviarnos tu sugerencia. Leemos cada una, y nos ayudan a mejorar ShowGrid para ti y para todos los que trabajan en eventos en vivo.\n\nSi tenemos alguna pregunta sobre tu idea, te responderemos a este correo.",
+    mailSign: "El equipo de ShowGrid\nOne problem at a time.\nshow-grid.com",
+    mailYours: "Tu sugerencia:",
   },
 };

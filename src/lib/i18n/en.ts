@@ -643,6 +643,12 @@ export const en = {
     errShort: "Write a few words first.",
     errLong: "Keep it under 4,000 characters.",
     errSend: "Couldn't send it. Try again.",
+    mailSubject: "Thank you for your suggestion",
+    mailHello: "Hi {name},",
+    mailHelloAnon: "Hi,",
+    mailBody: "Thank you for taking the time to send us your suggestion. We read every one, and they help us make ShowGrid better for you and everyone who works in live events.\n\nIf we have a question about your idea, we'll reply to this email.",
+    mailSign: "The ShowGrid team\nOne problem at a time.\nshow-grid.com",
+    mailYours: "Your suggestion:",
   },
 };
 
