@@ -23,6 +23,12 @@ export function Header({ account }: { account: ReactNode }) {
           <span className="tagline">{t.header.tagline}</span>
         </Link>
         <nav>
+          <Link className="btn ghost-dark" href="/rider" aria-label={t.header.rider}>
+            <span className="hide-sm">{t.header.rider}</span>
+            <span className="show-sm" aria-hidden="true">
+              📄
+            </span>
+          </Link>
           <Link className="btn ghost-dark sugg-link" href="/suggestions" aria-label={t.header.suggestions}>
             <span className="hide-sm">{t.header.suggestions}</span>
             <span className="show-sm" aria-hidden="true">
