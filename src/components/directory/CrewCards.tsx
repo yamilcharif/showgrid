@@ -7,7 +7,7 @@ import { flag } from "@/lib/flags";
 import { plural } from "@/lib/i18n/config";
 import { ccOf } from "@/lib/places";
 import type { Tech } from "@/lib/types";
-import { initials } from "./CompanyCards";
+import { initials } from "@/lib/initials";
 
 /** Crew members as cards: photo (or initials), role, city, experience and top skills. */
 export function CrewCards({ techs }: { techs: Tech[] }) {

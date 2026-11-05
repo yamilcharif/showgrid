@@ -7,10 +7,8 @@ import { useT } from "@/components/I18n";
 import { useListings } from "@/components/Listings";
 import { fmt, plural } from "@/lib/i18n/config";
 import { SRC_LABEL } from "@/lib/search";
+import { initials } from "@/lib/initials";
 import type { Company, Item } from "@/lib/types";
-
-export const initials = (n: string) =>
-  n.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
 
 /** Rental houses as cards: a few gear photos, logo, name, city and size. */
 export function CompanyCards({ companies }: { companies: Company[] }) {

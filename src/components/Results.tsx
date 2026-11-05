@@ -23,15 +23,13 @@ import type { Category, InventorySource } from "@/lib/types";
 import { useListings } from "./Listings";
 import { useI18n, useT } from "./I18n";
 import { useApp } from "./AppState";
+import { initials } from "@/lib/initials";
 import { useGearList } from "./useGearList";
 
 type Tab = "all" | "gear" | "crew";
 
 const CATS = Object.keys(CAT_ABBR) as Category[];
 const SRCS: InventorySource[] = ["rentman", "flex", "manual"];
-
-const initials = (n: string) =>
-  n.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
 
 export function Results() {
   const listings = useListings();
