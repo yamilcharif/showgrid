@@ -5,7 +5,7 @@
 import type { jsPDF as JsPDF } from "jspdf";
 import type { Dict } from "./i18n/en";
 import { fmt } from "./i18n/config";
-import { PAPER, buildLabels, inkFor, sheetOf, type LabelSettings } from "./labels";
+import { PAPER, buildLabels, inkFor, partSize, sheetOf, type LabelSettings } from "./labels";
 import { patternPng, type PatternSettings } from "./pattern";
 import type { EstimateRow, RiderLine } from "./rider";
 import { caseNumbers, fmtLen, fmtWeight, footprint, groupSummary, position, stats, type TruckPlan } from "./truck";
@@ -320,21 +320,22 @@ export async function labelsPdf(s: LabelSettings) {
       const pw = w - w * 0.12 - (fill ? 0 : 0.12);
       const pt = (inches: number) => inches * 72;
       doc.setTextColor(ink).setFont("helvetica", "bold");
-      const ts = s.textScale ?? 1;
-      const idPt = pt(Math.min(h * 0.44, w * 0.26) * ts);
+      const idPt = pt(Math.min(h * 0.44, w * 0.26) * partSize(s, "id"));
       doc.setFontSize(idPt).text(fitText(doc, l.fx.id, pw * 0.6, idPt), px, y + h * 0.06 + (idPt / 72) * 0.8);
       if (l.fx.pos) {
-        const posPt = pt(Math.min(h * 0.2, w * 0.12) * ts);
+        const posPt = pt(Math.min(h * 0.2, w * 0.12) * partSize(s, "pos"));
         const posText = fitText(doc, l.fx.pos, pw * 0.42, posPt);
         doc.text(posText, px + pw, y + h * 0.06 + (posPt / 72) * 0.85, { align: "right" });
       }
       doc.setFont("helvetica", "normal");
       let ty = y + h * 0.56;
-      for (const line of [l.fx.type, l.fx.mode].filter(Boolean)) {
-        doc.text(fitText(doc, line, pw, pt(Math.min(h * 0.105, w * 0.065) * ts)), px, ty);
-        ty += h * 0.13;
+      for (const [line, k] of [[l.fx.type, "type"], [l.fx.mode, "mode"]] as const) {
+        if (!line) continue;
+        const size = pt(Math.min(h * 0.105, w * 0.065) * partSize(s, k));
+        doc.text(fitText(doc, line, pw, size), px, ty);
+        ty += (size / 72) * 1.25;
       }
-      doc.setFont("helvetica", "bold").setFontSize(pt(Math.min(h * 0.11, w * 0.06) * ts));
+      doc.setFont("helvetica", "bold").setFontSize(pt(Math.min(h * 0.11, w * 0.06) * partSize(s, "patch")));
       const by2 = y + h * 0.9;
       if (l.fx.u) doc.text(`U: ${l.fx.u}`, px, by2);
       if (l.fx.a) doc.text(`A: ${l.fx.a}`, px + pw * 0.35, by2);
@@ -344,7 +345,7 @@ export async function labelsPdf(s: LabelSettings) {
         const lhh = lw / logo.ratio;
         if (s.logoPos) doc.addImage(logo.data, "PNG", x + s.logoPos.x * w - lw / 2, y + s.logoPos.y * h - lhh / 2, lw, lhh);
         else doc.addImage(logo.data, "PNG", px + pw - lw, y + h * 0.94 - lhh, lw, lhh);
-      } else if (s.extra.trim()) doc.text(fitText(doc, s.extra, pw * 0.4, pt(h * 0.13)), px + pw, by2, { align: "right" });
+      } else if (s.extra.trim()) doc.text(fitText(doc, s.extra, pw * 0.4, pt(Math.min(h * 0.13, w * 0.07) * partSize(s, "extra"))), px + pw, by2, { align: "right" });
       if (s.outline) doc.setDrawColor("#888888").setLineWidth(0.005).rect(x, y, w, h);
       return;
     }
@@ -386,9 +387,8 @@ export async function labelsPdf(s: LabelSettings) {
     }
     // text block, vertically centred: big first line, smaller details, then the extra text
     const pt = (inches: number) => inches * 72;
-    const ts = s.textScale ?? 1;
-    const sizes = l.lines.map((_, k) => (k === 0 ? Math.min(pt(h * 0.26), pt(w * 0.13)) : Math.min(pt(h * 0.14), pt(w * 0.075))) * ts);
-    if (s.extra.trim()) sizes.push(Math.min(pt(h * 0.1), pt(w * 0.055)) * ts);
+    const sizes = l.lines.map((_, k) => (k === 0 ? Math.min(pt(h * 0.26), pt(w * 0.13)) * partSize(s, "l1") : Math.min(pt(h * 0.14), pt(w * 0.075)) * partSize(s, "ln")));
+    if (s.extra.trim()) sizes.push(Math.min(pt(h * 0.1), pt(w * 0.055)) * partSize(s, "extra"));
     const texts = [...l.lines, ...(s.extra.trim() ? [s.extra] : [])];
     const total = sizes.reduce((a, z) => a + (z / 72) * 1.15, 0);
     let ty = by + Math.max(0, (bh - total) / 2);

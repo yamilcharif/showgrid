@@ -8,7 +8,7 @@ import { ProjectBar, useToolState } from "@/components/Projects";
 import { ToolFiles } from "@/components/ToolFiles";
 import { useI18n } from "@/components/I18n";
 import { fmt, plural } from "@/lib/i18n/config";
-import { LABELS_START as START, MAX_ROWS, PAPER, SHEETS, buildLabels, colorKey, customSheet, detectFixture, inkFor, parseTable, readTable, type Band, type FixtureCols, type Label, type LabelSettings as Settings, type LabelSide as Side, type Sheet } from "@/lib/labels";
+import { LABELS_START as START, MAX_ROWS, PAPER, SHEETS, buildLabels, colorKey, partSize, type LabelPart, customSheet, detectFixture, inkFor, parseTable, readTable, type Band, type FixtureCols, type Label, type LabelSettings as Settings, type LabelSide as Side, type Sheet } from "@/lib/labels";
 
 const STORE_KEY = "sg_labels";
 /** Shrinks an uploaded logo so the settings stay small enough to keep on this device. */
@@ -40,6 +40,8 @@ export function LabelTool() {
   const [reading, setReading] = useState(false);
   const [error, setError] = useState("");
   const [paste, setPaste] = useState("");
+  // the part of the labels whose text size is being changed; null changes all the text
+  const [part, setPart] = useState<LabelPart | null>(null);
   // what a plot PDF gave: how many fixtures and motors, and which set is loaded
   const [plot, setPlot] = useState<{ fixtures: number; motors: number; kind: "fixtures" | "motors"; rows: { fixtures: string[][]; motors: string[][] } } | null>(null);
   const [printing, setPrinting] = useState(false);
@@ -174,6 +176,16 @@ export function LabelTool() {
     window.addEventListener("pointerup", up);
   };
 
+  // click a part of any label to size that part on all of them
+  const pick = (k: LabelPart) => ({
+    "data-part": k,
+    className: part === k ? "part-sel" : undefined,
+    onClick: (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setPart(part === k ? null : k);
+    },
+  });
+
   const sheetPage = (p: number) => (
     <div key={p} className="lab-page" style={{ width: `${paper.w}in`, height: `${paper.h}in` }}>
       {slots.slice(p * perSheet, (p + 1) * perSheet).map((l, i) => {
@@ -188,7 +200,7 @@ export function LabelTool() {
           background: s.bg,
           color: s.ink,
           ["--band" as string]: l.band,
-          ["--ts" as string]: s.textScale ?? 1,
+          ...Object.fromEntries((["id", "pos", "type", "mode", "patch", "extra", "l1", "ln"] as const).map((k) => [`--ts-${k}`, partSize(s, k)])),
         };
         if (l.fx) {
           const fill = s.fxFill !== false;
@@ -198,14 +210,21 @@ export function LabelTool() {
               className={`lab lab-fx ${s.outline ? "outline" : ""}`}
               style={{ ...style, background: fill ? l.band : s.bg, color: fill ? inkFor(l.band) : s.ink, borderLeft: fill ? undefined : `0.12in solid ${l.band}` }}
             >
-              <span className="fx-id">{l.fx.id}</span>
-              <span className="fx-pos">{l.fx.pos}</span>
-              <span className="fx-type">
-                {l.fx.type}
-                {l.fx.mode && <br />}
-                {l.fx.mode}
+              <span className="fx-id">
+                <span {...pick("id")}>{l.fx.id}</span>
               </span>
-              <span className="fx-patch">
+              <span className="fx-pos">
+                <span {...pick("pos")}>{l.fx.pos}</span>
+              </span>
+              <span className="fx-type">
+                {l.fx.type && <span {...pick("type")}>{l.fx.type}</span>}
+                {l.fx.mode && (
+                  <span className={`fx-mode${part === "mode" ? " part-sel" : ""}`} data-part="mode" onClick={pick("mode").onClick}>
+                    {l.fx.mode}
+                  </span>
+                )}
+              </span>
+              <span className={`fx-patch${part === "patch" ? " part-sel" : ""}`} data-part="patch" onClick={pick("patch").onClick}>
                 {l.fx.u && <span>U: {l.fx.u}</span>}
                 {l.fx.a && <span>A: {l.fx.a}</span>}
               </span>
@@ -213,7 +232,9 @@ export function LabelTool() {
                 // eslint-disable-next-line @next/next/no-img-element -- an uploaded logo, printed as is
                 <img className="fx-logo lab-drag" src={s.logo} alt="" style={logoStyle(true)} onPointerDown={dragLogo} draggable={false} />
               ) : s.extra.trim() ? (
-                <span className="fx-extra">{s.extra}</span>
+                <span className="fx-extra">
+                  <span {...pick("extra")}>{s.extra}</span>
+                </span>
               ) : null}
             </div>
           );
@@ -225,11 +246,15 @@ export function LabelTool() {
             {s.logo && <img className="lab-logo lab-drag" src={s.logo} alt="" style={logoStyle(false)} onPointerDown={dragLogo} draggable={false} />}
             <div className="lab-text">
               {l.lines.map((line, k) => (
-                <span key={k} className={k === 0 ? "l1" : "ln"}>
+                <span key={k} className={`${k === 0 ? "l1" : "ln"}${part === (k === 0 ? "l1" : "ln") ? " part-sel" : ""}`} data-part={k === 0 ? "l1" : "ln"} onClick={pick(k === 0 ? "l1" : "ln").onClick}>
                   {line}
                 </span>
               ))}
-              {s.extra.trim() && <span className="lx">{s.extra}</span>}
+              {s.extra.trim() && (
+                <span className={`lx${part === "extra" ? " part-sel" : ""}`} data-part="extra" onClick={pick("extra").onClick}>
+                  {s.extra}
+                </span>
+              )}
             </div>
           </div>
         );
@@ -427,10 +452,30 @@ export function LabelTool() {
         </div>
         <label className="field">
           <span>
-            {t.textSize} · {Math.round((s.textScale ?? 1) * 100)}%
+            {t.textSize} · {part ? t.parts[part] : t.allText} · {Math.round((part ? s.partScale?.[part] ?? 1 : s.textScale ?? 1) * 100)}%
           </span>
-          <input type="range" min={0.5} max={2.5} step={0.05} value={s.textScale ?? 1} onChange={(e) => set({ textScale: Number(e.target.value) })} />
+          <input
+            type="range"
+            min={part ? 0.3 : 0.5}
+            max={part ? 3 : 2.5}
+            step={0.05}
+            value={part ? s.partScale?.[part] ?? 1 : s.textScale ?? 1}
+            onChange={(e) => set(part ? { partScale: { ...s.partScale, [part]: Number(e.target.value) } } : { textScale: Number(e.target.value) })}
+          />
         </label>
+        <div className="lab-partbar">
+          <span className="muted small">{part ? fmt(t.partPicked, { part: t.parts[part] }) : t.partHint}</span>
+          {part && (
+            <>
+              <button type="button" className="link small" onClick={() => set({ partScale: { ...s.partScale, [part]: 1 } })}>
+                {t.partReset}
+              </button>
+              <button type="button" className="link small" onClick={() => setPart(null)}>
+                {t.allText}
+              </button>
+            </>
+          )}
+        </div>
         <div className="pat-two">
           <label className="field">
             <span>{t.band}</span>
@@ -611,7 +656,7 @@ export function LabelTool() {
           </button>
         </div>
         {askAccount && !signedIn && <AccountNeeded />}
-        <div ref={previewRef} className="lab-preview">
+        <div ref={previewRef} className="lab-preview" onClick={() => setPart(null)}>
           {labels.length ? (
             <>
               {[0, 1].filter((p) => p < pages).map((p) => (

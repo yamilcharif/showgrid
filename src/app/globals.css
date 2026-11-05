@@ -927,9 +927,9 @@ a.co:hover { text-decoration-color: currentColor; }
 .lab-text { display: grid; gap: 1.5cqh; min-width: 0; flex: 1; line-height: 1.08; font-family: var(--f-body); }
 .lab.align-center .lab-text { text-align: center; }
 .lab-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lab-text .l1 { font-weight: 800; font-size: calc(min(26cqh, 13cqw) * var(--ts, 1)); white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.lab-text .ln { font-weight: 600; font-size: calc(min(14cqh, 7.5cqw) * var(--ts, 1)); }
-.lab-text .lx { font-weight: 500; font-size: calc(min(10cqh, 5.5cqw) * var(--ts, 1)); opacity: 0.75; }
+.lab-text .l1 { font-weight: 800; font-size: calc(min(26cqh, 13cqw) * var(--ts-l1, 1)); white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.lab-text .ln { font-weight: 600; font-size: calc(min(14cqh, 7.5cqw) * var(--ts-ln, 1)); }
+.lab-text .lx { font-weight: 500; font-size: calc(min(10cqh, 5.5cqw) * var(--ts-extra, 1)); opacity: 0.75; }
 .lab-print .lab-page { break-after: page; }
 .lab-print .lab-page:last-child { break-after: auto; }
 @media (max-width: 980px) { .lab-tool { grid-template-columns: 1fr; } .lab-main { position: static; } }
@@ -958,13 +958,13 @@ a.co:hover { text-decoration-color: currentColor; }
 .pl-open { font-weight: 700; font-size: 13px; color: var(--ok); }
 .lab-template { margin-bottom: 4px; }
 /* fixture sticker: big ID top left, position top right, type and mode, U: and A:, logo bottom right */
-.lab.lab-fx { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto 1fr auto; align-items: start; gap: 0 4cqw; padding: 6cqh 6cqw 6cqh; border-radius: 0.08in; font-family: var(--f-body); }
-.fx-id { font-weight: 800; font-size: calc(min(44cqh, 26cqw) * var(--ts, 1)); line-height: 0.9; letter-spacing: -0.02em; }
-.fx-pos { font-weight: 800; font-size: calc(min(20cqh, 12cqw) * var(--ts, 1)); line-height: 1; text-align: right; justify-self: end; max-width: 45cqw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fx-type { grid-column: 1 / -1; font-weight: 600; font-size: calc(min(12cqh, 6.5cqw) * var(--ts, 1)); line-height: 1.15; margin-top: 4cqh; overflow: hidden; }
-.fx-patch { display: flex; gap: 14cqw; font-weight: 600; font-size: calc(min(11cqh, 6cqw) * var(--ts, 1)); align-self: end; }
+.lab.lab-fx { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto minmax(0, 1fr) auto; align-items: start; gap: 0 4cqw; padding: 6cqh 6cqw 6cqh; border-radius: 0.08in; font-family: var(--f-body); }
+.fx-id { font-weight: 800; font-size: calc(min(44cqh, 26cqw) * var(--ts-id, 1)); line-height: 0.9; letter-spacing: -0.02em; }
+.fx-pos { font-weight: 800; font-size: calc(min(20cqh, 12cqw) * var(--ts-pos, 1)); line-height: 1; text-align: right; justify-self: end; max-width: 45cqw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fx-type { grid-column: 1 / -1; font-weight: 600; font-size: calc(min(12cqh, 6.5cqw) * var(--ts-type, 1)); line-height: 1.15; margin-top: 4cqh; overflow: hidden; }
+.fx-patch { display: flex; gap: 14cqw; font-weight: 600; font-size: calc(min(11cqh, 6cqw) * var(--ts-patch, 1)); align-self: end; }
 .fx-logo { align-self: end; justify-self: end; max-height: 24cqh; max-width: 30cqw; object-fit: contain; }
-.fx-extra { align-self: end; justify-self: end; font-weight: 800; font-size: 13cqh; }
+.fx-extra { align-self: end; justify-self: end; font-weight: 800; font-size: calc(min(13cqh, 7cqw) * var(--ts-extra, 1)); }
 .lab-data { grid-column: 1 / -1; }
 .lab-data summary { cursor: pointer; font-weight: 700; }
 .lab-grid { max-height: 420px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; }
@@ -1037,3 +1037,9 @@ a.co:hover { text-decoration-color: currentColor; }
 .lab-side input[type="range"] { padding: 0; accent-color: var(--tally); }
 .lab-per { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .pat-logo { flex-wrap: wrap; }
+.fx-mode { display: block; font-size: calc(min(12cqh, 6.5cqw) * var(--ts-mode, 1)); }
+.lab-preview [data-part] { cursor: pointer; border-radius: 2px; }
+.lab-preview [data-part]:hover { outline: 1px dashed currentColor; outline-offset: 1px; }
+.lab-preview .part-sel { outline: 2px solid var(--tally) !important; outline-offset: 1px; }
+.lab-partbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.lab.lab-fx .fx-type { align-self: stretch; min-height: 0; }

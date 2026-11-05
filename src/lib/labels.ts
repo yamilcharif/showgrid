@@ -143,7 +143,15 @@ export interface LabelSettings {
   logoPos?: { x: number; y: number } | null;
   /** text size, times the layout's own (1 = as designed) */
   textScale?: number;
+  /** one part's size on top of that, for every label: {"id": 1.4, "patch": 0.8} */
+  partScale?: Record<string, number>;
 }
+
+/** The parts of a label whose text can be sized on its own. */
+export type LabelPart = "id" | "pos" | "type" | "mode" | "patch" | "extra" | "l1" | "ln";
+
+/** A part's text size: the overall size times its own. */
+export const partSize = (s: LabelSettings, part: LabelPart) => (s.textScale ?? 1) * (s.partScale?.[part] ?? 1);
 
 export const LABELS_START: LabelSettings = {
   rows: [],

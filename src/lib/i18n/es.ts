@@ -991,6 +991,11 @@ export const es: Dict = {
     perRow: "Etiquetas por fila",
     perCol: "Etiquetas por columna",
     textSize: "Tamaño de letra",
+    allText: "Todo el texto",
+    partHint: "Haz clic en una parte de una etiqueta (ID, posición, modelo, U/A…) para cambiar el tamaño solo de esa parte en todas.",
+    partPicked: "Cambiando {part} en todas las etiquetas.",
+    partReset: "Volver a 100%",
+    parts: { id: "el ID", pos: "la posición", type: "el modelo", mode: "el modo", patch: "U / A", extra: "el texto extra", l1: "la primera línea", ln: "las otras líneas" },
   },
   projects: {
     title: "Proyectos",

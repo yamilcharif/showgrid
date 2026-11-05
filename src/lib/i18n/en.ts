@@ -991,6 +991,11 @@ export const en = {
     perRow: "Labels across",
     perCol: "Labels down",
     textSize: "Text size",
+    allText: "All the text",
+    partHint: "Click a part of a label (ID, position, model, U/A…) to size just that part on every label.",
+    partPicked: "Sizing {part} on every label.",
+    partReset: "Back to 100%",
+    parts: { id: "the ID", pos: "the position", type: "the model", mode: "the mode", patch: "U / A", extra: "the extra text", l1: "the first line", ln: "the other lines" },
   },
   projects: {
     title: "Projects",
