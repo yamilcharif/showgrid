@@ -8,10 +8,10 @@ import { useI18n } from "@/components/I18n";
 import { useListings } from "@/components/Listings";
 import { LocationBox } from "@/components/LocationBox";
 import { fmt, plural } from "@/lib/i18n/config";
-import { estimateRider, parseRider, pdfText, quoteRider, type CompanyQuote, type RiderLine } from "@/lib/rider";
+import { estimateRider, parseRider, pdfText, quoteRider, summarize, type CompanyQuote, type RiderLine, type SubChoice } from "@/lib/rider";
 import { RADII, dayCount, fmtDist, isoIn, money, rangeLabel, unitFor } from "@/lib/search";
 
-const MAX_BYTES = 20 * 1024 * 1024;
+const MAX_BYTES = 300 * 1024 * 1024;
 
 /** Upload a rider (or paste one), check the gear it lists, and see which rental houses nearby have it and for how much. */
 export function RiderTool() {
@@ -269,20 +269,33 @@ function QuoteCard({ q, total, dates, unit, locale }: { q: CompanyQuote; total: 
   const [confirming, setConfirming] = useState(false);
   const [result, setResult] = useState<SendResult | null>(null);
   const [sending, start] = useTransition();
-  const found = q.matches.filter((m) => m.it && m.have > 0);
+  // contrarider: the substitute shown for each line, and the renter's yes or no
+  const [choice, setChoice] = useState<SubChoice>({});
+  const pick = (key: number) => choice[key] ?? { id: q.matches.find((m) => m.line.key === key)?.subs[0]?.it.id ?? "", ok: null };
+  const sum = summarize(q, choice);
+  const contra = q.matches.filter((m) => m.subs.length);
   const sent = result?.sent[0];
 
   const send = () =>
     start(async () => {
+      const subbed = new Map(sum.used.map((u) => [u.m.line.key, u.sub.have]));
       const missing = q.matches
-        .filter((m) => m.have < m.line.qty)
-        .map((m) => `- ${m.line.qty - m.have}x ${m.line.name}`);
-      const note = [t.noteHead, ...(missing.length ? ["", t.noteMissing, ...missing] : [])].join("\n").slice(0, 2000);
+        .map((m) => ({ m, n: m.line.qty - m.have - (subbed.get(m.line.key) ?? 0) }))
+        .filter(({ n }) => n > 0)
+        .map(({ m, n }) => `- ${n}x ${m.line.name}`);
+      const instead = sum.used.map((u) => fmt(t.noteInstead, { qty: u.sub.have, sub: u.sub.it.name, orig: u.m.line.name }));
+      const note = [
+        t.noteHead,
+        ...(instead.length ? ["", t.noteContra, ...instead] : []),
+        ...(missing.length ? ["", t.noteMissing, ...missing] : []),
+      ]
+        .join("\n")
+        .slice(0, 2000);
       const res = await sendGearList({
         from: dates.from,
         to: dates.to,
         note,
-        groups: [{ companyId: q.co.id, lines: found.map((m) => ({ item: m.it!.id, qty: m.have })) }],
+        groups: [{ companyId: q.co.id, lines: sum.lines.map((l) => ({ item: l.it.id, qty: l.qty })) }],
       });
       setResult(res);
       setConfirming(false);
@@ -301,14 +314,16 @@ function QuoteCard({ q, total, dates, unit, locale }: { q: CompanyQuote; total: 
         </div>
         <div className="rider-co-num">
           <strong className="num">{fmt(t.covers, { pct: Math.round(q.coverage * 100) })}</strong>
+          {sum.used.length > 0 && <span className="small rider-with">{fmt(t.withContra, { pct: Math.round(sum.coverage * 100) })}</span>}
           <span className="muted small">
-            {q.cost > 0 ? fmt(t.costFor, { cost: money(q.cost, q.co.cur) }) : t.allOnRequest}
-            {q.cost > 0 && q.onRequest > 0 && ` ${plural(q.onRequest, t.plusOnRequest)}`}
+            {sum.cost > 0 ? fmt(t.costFor, { cost: money(sum.cost, q.co.cur) }) : t.allOnRequest}
+            {sum.cost > 0 && sum.onRequest > 0 && ` ${plural(sum.onRequest, t.plusOnRequest)}`}
           </span>
         </div>
       </div>
       <div className="rider-bar-meter" aria-hidden="true">
         <span style={{ width: `${Math.round(q.coverage * 100)}%` }} />
+        <span className="contra" style={{ width: `${Math.round((sum.coverage - q.coverage) * 100)}%` }} />
       </div>
 
       <button type="button" className="link small" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
@@ -336,13 +351,62 @@ function QuoteCard({ q, total, dates, unit, locale }: { q: CompanyQuote; total: 
         </ul>
       )}
 
+      {contra.length > 0 && !sent && (
+        <div className="rider-contra">
+          <h4>{t.contra}</h4>
+          <p className="muted small">{fmt(t.contraHint, { name: q.co.name })}</p>
+          <ul>
+            {contra.map((m) => {
+              const c = pick(m.line.key);
+              const sub = m.subs.find((x) => x.it.id === c.id) ?? m.subs[0];
+              const set = (patch: Partial<{ id: string; ok: boolean | null }>) => setChoice((ch) => ({ ...ch, [m.line.key]: { ...c, ...patch } }));
+              return (
+                <li key={m.line.key} className={c.ok === true ? "yes" : c.ok === false ? "no" : undefined}>
+                  <div className="rider-contra-what">
+                    <span className="muted small">{fmt(t.contraFor, { qty: m.line.qty - m.have, name: m.line.name })}</span>
+                    {m.subs.length > 1 ? (
+                      <select value={sub.it.id} aria-label={fmt(t.contraPick, { name: m.line.name })} onChange={(e) => set({ id: e.target.value })}>
+                        {m.subs.map((x) => (
+                          <option key={x.it.id} value={x.it.id}>
+                            {x.have}× {x.it.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <strong>
+                        {sub.have}× {sub.it.name}
+                      </strong>
+                    )}
+                    <span className="muted small">
+                      {sub.same
+                        ? fmt(t.contraSame, { kind: t.kinds[sub.kind] })
+                        : fmt(t.contraNear, { sub: t.kinds[sub.kind], orig: t.kinds[m.kind!] })}{" "}
+                      {plural(sub.have, t.contraFree)}
+                      {sub.it.pub && sub.it.rate > 0 && ` · ${money(sub.it.rate, q.co.cur)}${t.perDay}`}
+                    </span>
+                  </div>
+                  <div className="yesno" role="group" aria-label={m.line.name}>
+                    <button type="button" className="btn sm" aria-pressed={c.ok === true} onClick={() => set({ id: sub.it.id, ok: true })}>
+                      {t.yes}
+                    </button>
+                    <button type="button" className="btn sm" aria-pressed={c.ok === false} onClick={() => set({ id: sub.it.id, ok: false })}>
+                      {t.no}
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
       {sent ? (
         <p className="rider-sent">
           ✓ {fmt(t.sent, { name: q.co.name })} <Link href={`/messages/${sent.conversationId}`}>{t.openChat}</Link>
         </p>
       ) : confirming ? (
         <div className="rider-confirm">
-          <p>{fmt(t.confirm, { name: q.co.name, n: found.length, dates: rangeLabel(dates, locale) })}</p>
+          <p>{fmt(t.confirm, { name: q.co.name, n: sum.lines.length, dates: rangeLabel(dates, locale) })}</p>
           <div className="inv-actions">
             <button type="button" className="btn primary" onClick={send} disabled={sending}>
               {sending ? t.sending : t.confirmYes}

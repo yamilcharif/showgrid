@@ -1,6 +1,7 @@
+import { STANDS_IN, gearKind, type GearKind } from "./gearKind";
 import { rentalFactor } from "./pricing";
 import { ccOf, coords } from "./places";
-import { RADII, dayCount, freeFor, miles, parseQuery, unitFor, type DateRange } from "./search";
+import { RADII, dayCount, freeFor, isAccessory, miles, parseQuery, unitFor, type DateRange } from "./search";
 import type { Company, Item, Place, Tech } from "./types";
 
 /** One line of a rider or input list: "8x MAC Aura XB" → { qty: 8, name: "MAC Aura XB" }. */
@@ -62,7 +63,7 @@ export async function pdfText(file: File): Promise<string> {
   const { getDocumentProxy } = await import("unpdf");
   const pdf = await getDocumentProxy(new Uint8Array(await file.arrayBuffer()));
   const lines: string[] = [];
-  for (let p = 1; p <= Math.min(pdf.numPages, 40); p++) {
+  for (let p = 1; p <= Math.min(pdf.numPages, 200); p++) {
     const page = await pdf.getPage(p);
     const { items } = await page.getTextContent();
     const rows = new Map<number, { x: number; s: string }[]>();
@@ -82,11 +83,25 @@ export async function pdfText(file: File): Promise<string> {
 
 // ---------- matching against companies nearby ----------
 
+/** Contrarider: a similar item the company has, offered in place of what it is missing for a line. */
+export interface Sub {
+  it: Item;
+  /** units it can stand in for: the rest of the line, up to what's free */
+  have: number;
+  kind: GearKind;
+  /** the same kind as the line ("spot" for a spot) rather than a near one ("hybrid" for a spot) */
+  same: boolean;
+}
+
 export interface LineMatch {
   line: RiderLine;
   it: Item | null;
   /** units this company can give for the line on the dates */
   have: number;
+  /** what the line is, when we can tell: "spot", "wash", "hazer"… */
+  kind: GearKind | null;
+  /** similar gear for the units it can't give, best first */
+  subs: Sub[];
 }
 
 export interface CompanyQuote {
@@ -100,6 +115,8 @@ export interface CompanyQuote {
   cost: number;
   /** covered lines whose price is on request */
   onRequest: number;
+  /** day rates charged for the rental length, from the company's rule */
+  factor: number;
 }
 
 /**
@@ -177,12 +194,15 @@ export function quoteRider(
         // a better match wins; on a tie, the one with more units free
         if (sc > bestSc || free > bestFree) [best, bestSc, bestFree] = [it, sc, free];
       }
-      return { line, it: best, have: best ? Math.min(line.qty, Math.max(0, bestFree)) : 0 };
+      const have = best ? Math.min(line.qty, Math.max(0, bestFree)) : 0;
+      const kind = gearKind(line.name) ?? (best ? gearKind((best as Item).name) : null);
+      return { line, it: best, have, kind, subs: have < line.qty && kind ? subsFor(line, kind, best, items, line.qty - have, dates) : [] };
     });
     const found = matches.filter((m) => m.it && m.have > 0);
-    if (!found.length) continue;
+    if (!found.length && !matches.some((m) => m.subs.length)) continue;
     const factor = rentalFactor(co.priceRule, days);
     out.push({
+      factor,
       co,
       d,
       matches,
@@ -192,7 +212,65 @@ export function quoteRider(
       onRequest: found.filter((m) => !m.it!.pub || !m.it!.rate).length,
     });
   }
-  return out.sort((a, b) => b.coverage - a.coverage || a.d - b.d).slice(0, 12);
+  // most of the rider first; a company that could cover more with its contrarider wins a tie
+  const reach = (q: CompanyQuote) => summarize(q, Object.fromEntries(q.matches.filter((m) => m.subs.length).map((m) => [m.line.key, { id: m.subs[0].it.id, ok: true }]))).coverage;
+  return out.sort((a, b) => b.coverage - a.coverage || reach(b) - reach(a) || a.d - b.d).slice(0, 12);
+}
+
+/** Similar items this company has free on the dates, best first: same kind before near kinds, then the most units. */
+function subsFor(line: RiderLine, kind: GearKind, matched: Item | null, items: Item[], missing: number, dates: DateRange): Sub[] {
+  const ok = STANDS_IN[kind];
+  // truss and the like stand in only at the same length
+  const sizes = sizesIn(line.name);
+  const subs: (Sub & { free: number })[] = [];
+  for (const it of items) {
+    if (it === matched || isAccessory(it.name)) continue;
+    const k = gearKind(it.name);
+    if (!k || !ok.includes(k)) continue;
+    if (sizes.length && !sizes.every((n) => sizesIn(it.name).includes(n))) continue;
+    const free = freeFor(it, dates);
+    if (free < 1) continue;
+    subs.push({ it, have: Math.min(missing, free), kind: k, same: k === kind, free });
+  }
+  return subs
+    .sort((a, b) => ok.indexOf(a.kind) - ok.indexOf(b.kind) || b.have - a.have || b.free - a.free)
+    .slice(0, 4)
+    .map((x) => ({ it: x.it, have: x.have, kind: x.kind, same: x.same }));
+}
+
+/** The contrarider choices for one company: line key → the substitute picked, and whether it's accepted. */
+export type SubChoice = Record<number, { id: string; ok: boolean | null }>;
+
+/**
+ * A company's quote with the accepted substitutes counted in: coverage, cost and the lines to request.
+ * Lines asking for the same item are added together, up to what's free.
+ */
+export function summarize(q: CompanyQuote, choice: SubChoice) {
+  const wantUnits = q.matches.reduce((a, m) => a + m.line.qty, 0);
+  const take = new Map<string, { it: Item; qty: number }>();
+  const used: { m: LineMatch; sub: Sub }[] = [];
+  const add = (it: Item, qty: number) => {
+    const cur = take.get(it.id);
+    take.set(it.id, { it, qty: (cur?.qty ?? 0) + qty });
+  };
+  for (const m of q.matches) {
+    if (m.it && m.have > 0) add(m.it, m.have);
+    const c = choice[m.line.key];
+    const sub = c?.ok ? m.subs.find((s) => s.it.id === c.id) : undefined;
+    if (sub) {
+      add(sub.it, sub.have);
+      used.push({ m, sub });
+    }
+  }
+  const lines = [...take.values()];
+  const covered = q.matches.reduce((a, m) => a + m.have, 0) + used.reduce((a, u) => a + u.sub.have, 0);
+  return {
+    lines,
+    used,
+    coverage: wantUnits ? Math.min(1, covered / wantUnits) : 0,
+    cost: lines.reduce((a, l) => a + (l.it.pub ? l.it.rate * l.qty * q.factor : 0), 0),
+    onRequest: lines.filter((l) => !l.it.pub || !l.it.rate).length,
+  };
 }
 
 /**
