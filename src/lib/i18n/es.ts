@@ -976,6 +976,13 @@ export const es: Dict = {
     addCol: "+ Columna",
     delRow: "Borrar fila",
     fxCols: { id: "ID / número", pos: "Posición", type: "Tipo de fixture", mode: "Modo", uni: "Universo", addr: "Dirección" },
+    errNoText: "Este PDF no tiene texto que se pueda leer (es una imagen o el texto se convirtió en líneas). Exporta el reporte de patch o pega la lista.",
+    plotFound: "Encontramos en el plano: {f} fixtures con patch y {m} motores.",
+    plotFixtures: "{n} fixtures",
+    plotMotors: "{n} motores",
+    plotHint: "El ID y el patch se emparejan por lo cerca que están en el dibujo, y cada uno toma el nombre de posición más cercano. Revísalos en los datos de abajo; el tipo de fixture está en la leyenda, así que complétalo con ⇣ en su columna.",
+    fillCol: "Rellenar esta columna",
+    fillPrompt: "Valor para las celdas vacías de {col} (todas, si no hay vacías):",
   },
   projects: {
     title: "Proyectos",

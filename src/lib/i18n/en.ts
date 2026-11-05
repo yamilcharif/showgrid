@@ -976,6 +976,13 @@ export const en = {
     addCol: "+ Column",
     delRow: "Delete row",
     fxCols: { id: "ID / unit number", pos: "Position", type: "Fixture type", mode: "Mode", uni: "Universe", addr: "Address" },
+    errNoText: "This PDF has no readable text (it's an image or the text was turned into lines). Export the patch report or paste the list.",
+    plotFound: "Found in the plot: {f} fixtures with patch and {m} motors.",
+    plotFixtures: "{n} fixtures",
+    plotMotors: "{n} motors",
+    plotHint: "IDs and patch are paired by how close they are on the drawing, and each takes the nearest position name. Check them in the data below; the fixture type comes from the legend, so fill it with ⇣ on its column.",
+    fillCol: "Fill this column",
+    fillPrompt: "Value for the empty cells of {col} (all of them if none are empty):",
   },
   projects: {
     title: "Projects",

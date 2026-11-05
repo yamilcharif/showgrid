@@ -1026,3 +1026,8 @@ a.co:hover { text-decoration-color: currentColor; }
 .case-tools-lbl { color: var(--muted); font-weight: 600; }
 .case-tools .btn:disabled, .tilt-seg button:disabled { opacity: 0.45; cursor: not-allowed; }
 .truck-help { margin: 0; }
+.lab-plot { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--ok); background: var(--ok-soft); border-radius: var(--r); }
+.lab-plot p { margin: 0; }
+.lab-plot p.small:first-child { font-weight: 700; }
+.lab-th { display: flex; align-items: center; }
+.lab-th button { padding: 0 8px; text-decoration: none; font-size: 15px; }

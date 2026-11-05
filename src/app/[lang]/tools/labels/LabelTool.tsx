@@ -40,6 +40,8 @@ export function LabelTool() {
   const [reading, setReading] = useState(false);
   const [error, setError] = useState("");
   const [paste, setPaste] = useState("");
+  // what a plot PDF gave: how many fixtures and motors, and which set is loaded
+  const [plot, setPlot] = useState<{ fixtures: number; motors: number; kind: "fixtures" | "motors"; rows: { fixtures: string[][]; motors: string[][] } } | null>(null);
   const [printing, setPrinting] = useState(false);
   const [askAccount, setAskAccount] = useState(false);
   const signedIn = useSignedIn();
@@ -94,7 +96,19 @@ export function LabelTool() {
   const open = async (f: File) => {
     if (/\.xls$/i.test(f.name)) return setError(t.errOldExcel);
     setReading(true);
+    setPlot(null);
     try {
+      // a plot is a drawing: read fixtures and motors from where the words sit; a report or list reads as a table
+      if (/\.pdf$/i.test(f.name) || f.type === "application/pdf") {
+        const { readPlot, fixtureRows, motorRows } = await import("@/lib/plotReader");
+        const found = await readPlot(f);
+        if (!found.words) return setError(t.errNoText);
+        if (found.fixtures.length >= 2 || found.motors.length >= 2) {
+          const kind = found.fixtures.length >= 2 ? "fixtures" : "motors";
+          setPlot({ fixtures: found.fixtures.length, motors: found.motors.length, kind, rows: { fixtures: fixtureRows(found.fixtures), motors: motorRows(found.motors) } });
+          return loadRows(kind === "fixtures" ? fixtureRows(found.fixtures) : motorRows(found.motors));
+        }
+      }
       loadRows(await readTable(f));
     } catch {
       setError(t.errRead);
@@ -125,6 +139,14 @@ export function LabelTool() {
   const fromShown = (v: string) => {
     const n = Number(v);
     return Number.isFinite(n) && n >= 0 ? (s.metric ? n / 25.4 : n) : 0;
+  };
+  /** Puts one value in a column's empty cells (all of them if none are empty), like a fixture type for every ID. */
+  const fillColumn = (c: number) => {
+    const v = window.prompt(fmt(t.fillPrompt, { col: colName(c) }));
+    if (v == null) return;
+    const start = s.headers ? 1 : 0;
+    const anyEmpty = s.rows.some((r, k) => k >= start && !(r[c] ?? "").trim());
+    set({ rows: s.rows.map((r, k) => (k >= start && (!anyEmpty || !(r[c] ?? "").trim()) ? Object.assign([...r], { [c]: v }) : r)) });
   };
   const editCell = (r: number, c: number, v: string) =>
     set({ rows: s.rows.map((row, k) => (k === r ? Object.assign([...row], { [c]: v }) : row)) });
@@ -235,6 +257,31 @@ export function LabelTool() {
           }}
         />
         {error && <p className="auth-err">{error}</p>}
+        {plot && (
+          <div className="lab-plot">
+            <p className="small">{fmt(t.plotFound, { f: plot.fixtures, m: plot.motors })}</p>
+            {plot.fixtures > 0 && plot.motors > 0 && (
+              <div className="seg seg2" role="radiogroup">
+                {(["fixtures", "motors"] as const).map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    role="radio"
+                    aria-checked={plot.kind === k}
+                    className={plot.kind === k ? "on" : undefined}
+                    onClick={() => {
+                      setPlot({ ...plot, kind: k });
+                      loadRows(plot.rows[k]);
+                    }}
+                  >
+                    {k === "fixtures" ? fmt(t.plotFixtures, { n: plot.fixtures }) : fmt(t.plotMotors, { n: plot.motors })}
+                  </button>
+                ))}
+              </div>
+            )}
+            <p className="muted small">{t.plotHint}</p>
+          </div>
+        )}
         <details open={!s.rows.length}>
           <summary>{t.paste}</summary>
           <textarea className="note lab-paste" rows={5} placeholder={t.pastePlaceholder} value={paste} onChange={(e) => setPaste(e.target.value)} />
@@ -522,7 +569,12 @@ export function LabelTool() {
                     <th />
                     {Array.from({ length: width }, (_, c) => (
                       <th key={c}>
-                        <input value={head[c] ?? ""} aria-label={colName(c)} onChange={(e) => editCell(0, c, e.target.value)} />
+                        <span className="lab-th">
+                          <input value={head[c] ?? ""} aria-label={colName(c)} onChange={(e) => editCell(0, c, e.target.value)} />
+                          <button type="button" className="link small" title={t.fillCol} aria-label={`${t.fillCol}: ${colName(c)}`} onClick={() => fillColumn(c)}>
+                            ⇣
+                          </button>
+                        </span>
                       </th>
                     ))}
                     <th />
