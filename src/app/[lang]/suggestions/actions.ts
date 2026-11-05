@@ -3,6 +3,7 @@
 import { actionDictionary } from "@/lib/i18n/server";
 import { getAccount } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { sendEmail } from "@/lib/email";
 
 export interface FeedbackState {
   error?: string;
@@ -20,5 +21,22 @@ export async function sendFeedback(_prev: FeedbackState, form: FormData): Promis
   const supabase = await createClient();
   const { error } = await supabase.from("feedback").insert({ profile_id: acc?.profile ? acc.id : null, name, email, message });
   if (error) return { error: (await actionDictionary()).suggestions.errSend };
+
+  // a copy to the team; the suggestion is already saved, so a failed email doesn't fail the form
+  const from = name ?? acc?.profile?.display_name ?? "Someone";
+  const replyTo = email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : acc?.email;
+  await sendEmail({
+    to: process.env.FEEDBACK_EMAIL || "hello@show-grid.com",
+    subject: `ShowGrid suggestion from ${from}`,
+    text: [
+      message,
+      "",
+      "—",
+      `Name: ${name ?? "(not given)"}`,
+      `Email: ${email ?? "(not given)"}`,
+      acc ? `Signed in as: ${acc.profile?.display_name ?? ""} <${acc.email}>` : "Not signed in",
+    ].join("\n"),
+    replyTo,
+  });
   return { sent: true };
 }
