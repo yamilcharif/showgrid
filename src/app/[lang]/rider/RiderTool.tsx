@@ -8,6 +8,8 @@ import { useI18n } from "@/components/I18n";
 import { useListings } from "@/components/Listings";
 import { LocationBox } from "@/components/LocationBox";
 import { ProjectBar, useToolState } from "@/components/Projects";
+import { ToolsBack } from "@/components/ToolsBack";
+import { ToolFiles } from "@/components/ToolFiles";
 import { fmt, plural } from "@/lib/i18n/config";
 import { estimateRider, parseRider, pdfText, quoteRider, summarize, type CompanyQuote, type RentalMode, type RiderLine, type SubChoice } from "@/lib/rider";
 import { RADII, dayCount, fmtDist, isoIn, money, rangeLabel, unitFor } from "@/lib/search";
@@ -85,6 +87,7 @@ export function RiderTool() {
     <>
       <section className="co-hero">
         <div className="wrap">
+          <ToolsBack label={T.tools.back} />
           <p className="eyebrow">
             <span className="tally" />
             {t.eyebrow}
@@ -183,6 +186,21 @@ export function RiderTool() {
 
       <div className="wrap co-page rider-page">
         <ProjectBar project={project} saving={saving} />
+        <ToolFiles
+          tool="rider"
+          name={project?.name ?? (source.replace(/\.[a-z0-9]+$/i, "") || "rider")}
+          data={saved}
+          onOpen={(v) => v && typeof v === "object" && Array.isArray((v as RiderSaved).lines) && setSaved({ ...RIDER_START, ...(v as RiderSaved) })}
+          downloadLabel={T.files.riderCsv}
+          download={
+            lines.some((l) => l.on)
+              ? async () => {
+                  const { riderCsv } = await import("@/lib/projectExport");
+                  return { blob: new Blob([riderCsv(lines, est.rows, est.cur)], { type: "text/csv" }), name: `${project?.name ?? (source.replace(/\.[a-z0-9]+$/i, "") || "rider")}.csv` };
+                }
+              : undefined
+          }
+        />
         <div className="rider-cols">
           <section className="auth-form rider-list">
             {lines.length > 0 ? (

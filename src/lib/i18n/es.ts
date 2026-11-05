@@ -751,6 +751,7 @@ export const es: Dict = {
     disclaimerTitle: "Solo para cálculos generales.",
     disclaimer: "Estas herramientas están hechas solo para cálculos y planificación generales. Los precios, estimados, reemplazos, pesos, medidas, vuelos y demás resultados son aproximados y pueden estar equivocados. ShowGrid no es responsable de los resultados ni de las decisiones que se tomen con ellos: haz tu propia investigación y verifica todo con las empresas, aerolíneas y profesionales involucrados.",
     disclaimerLink: "Términos de uso",
+    back: "Todas las herramientas",
   },
   truck: {
     metaTitle: "Carga de camión · ShowGrid",
@@ -841,6 +842,8 @@ export const es: Dict = {
     summary: "Por departamento",
     colShare: "% del peso",
     groupNames: ["Luces", "Audio", "Video", "Rigging", "Energía", "Backline", "Escenario"],
+    pickCase: "Haz clic en un case del camión para girarlo o inclinarlo",
+    rotateHint: "Lo gira sobre el piso, un cuarto de vuelta (o tecla R)",
   },
   pattern: {
     metaTitle: "Test pattern LED · ShowGrid",
@@ -1004,5 +1007,19 @@ export const es: Dict = {
     noProject: "Sin proyecto abierto: esto se guarda solo en este equipo.",
     noProjectSignedOut: "Se guarda solo en este equipo. Entra para guardarlo en un proyecto.",
     signInShort: "Entrar",
+  },
+  files: {
+    save: "Guardar",
+    open: "Abrir",
+    preparing: "Preparando…",
+    saved: "Guardado en tu computadora. Ábrelo aquí cuando quieras para seguir trabajando.",
+    opened: "Abierto. Tu trabajo está de vuelta.",
+    wrongTool: "Ese archivo es de otra herramienta.",
+    badFile: "Ese no es un archivo de ShowGrid.",
+    downloadError: "No se pudo armar la descarga. Inténtalo de nuevo.",
+    truckPdf: "Descargar PDF",
+    patternPng: "Descargar PNG",
+    labelsPdf: "Descargar PDF",
+    riderCsv: "Descargar CSV",
   },
 };

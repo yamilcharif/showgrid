@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AccountNeeded, useSignedIn } from "@/components/AccountGate";
 import { useT } from "@/components/I18n";
 import { ProjectBar, useToolState } from "@/components/Projects";
+import { ToolFiles } from "@/components/ToolFiles";
+import { patternPng } from "@/lib/pattern";
+import { useI18n } from "@/components/I18n";
 import { fmt } from "@/lib/i18n/config";
 import { PATTERN_START as START, drawPattern as draw, wallLen, type Hits, type LogoAt, type PatternSettings as Settings, type Pip, type Rect } from "@/lib/pattern";
 
@@ -44,6 +46,7 @@ function readImage(file: File, max: number): Promise<string> {
 
 export function PatternTool() {
   const t = useT().pattern;
+  const { t: T } = useI18n();
   // kept in the open project, or on this device
   const { state: s, setState: setS, project, saving } = useToolState("pattern", STORE_KEY, START, (v) => (v && typeof v === "object" ? { ...START, ...(v as Partial<Settings>) } : START));
   const [imgTick, setImgTick] = useState(0);
@@ -85,20 +88,7 @@ export function PatternTool() {
     if (ctx) hits.current = draw(ctx, s, ready);
   }, [s, W, H, tooBig, imgTick]);
 
-  // drawing is open to everyone; downloading needs an account
-  const signedIn = useSignedIn();
-  const [askAccount, setAskAccount] = useState(false);
-  const download = () => {
-    if (!signedIn) return setAskAccount(true);
-    canvas.current?.toBlob((blob) => {
-      if (!blob) return;
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `${(s.name.trim() || "led-test-pattern").replace(/[^\w-]+/g, "-")}-${W}x${H}.png`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    }, "image/png");
-  };
+
 
   // ---------- dragging on the canvas ----------
 
@@ -173,6 +163,21 @@ export function PatternTool() {
   return (
     <div className="pat-tool">
       <ProjectBar project={project} saving={saving} />
+      <ToolFiles
+        tool="pattern"
+        name={`${s.name.trim() || project?.name || "led-test-pattern"} ${W}x${H}`}
+        data={s}
+        onOpen={(v) => v && typeof v === "object" && setS({ ...START, ...(v as Partial<Settings>) })}
+        downloadLabel={T.files.patternPng}
+        download={
+          tooBig
+            ? undefined
+            : async () => {
+                const blob = await patternPng(s);
+                return blob ? { blob, name: `${(s.name.trim() || "led-test-pattern").replace(/[^\w-]+/g, "-")}-${W}x${H}.png` } : null;
+              }
+        }
+      />
       <aside className="auth-form pat-side">
         <h2>{t.wall}</h2>
         <div className="pat-two">
@@ -360,11 +365,7 @@ export function PatternTool() {
               · {fmt(t.panels, { n: s.cols * s.rows })} · {wm.m} × {hm.m} · {wm.ft} × {hm.ft}
             </span>
           </div>
-          <button type="button" className="btn primary" onClick={download} disabled={tooBig}>
-            ↓ {t.download}
-          </button>
         </div>
-        {askAccount && !signedIn && <AccountNeeded />}
         {tooBig ? <p className="auth-err">{t.tooBig}</p> : <canvas
             ref={canvas}
             className="pat-canvas"

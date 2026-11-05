@@ -751,6 +751,7 @@ export const en = {
     disclaimerTitle: "For general calculations only.",
     disclaimer: "These tools are made only for general calculations and planning. Prices, estimates, substitutions, weights, sizes, flights and other results are approximate and may be wrong. ShowGrid is not responsible for the results or for decisions based on them: do your own research and check everything with the companies, airlines and professionals involved.",
     disclaimerLink: "Terms of Use",
+    back: "All tools",
   },
   truck: {
     metaTitle: "Truck pack · ShowGrid",
@@ -841,6 +842,8 @@ export const en = {
     summary: "By department",
     colShare: "Share of weight",
     groupNames: ["Lighting", "Audio", "Video", "Rigging", "Power", "Backline", "Staging"],
+    pickCase: "Click a case in the truck to turn or tilt it",
+    rotateHint: "Turn it on the floor, a quarter turn (or press R)",
   },
   pattern: {
     metaTitle: "LED test pattern · ShowGrid",
@@ -1004,6 +1007,20 @@ export const en = {
     noProject: "No project open: this is kept on this device only.",
     noProjectSignedOut: "Kept on this device only. Sign in to keep it in a project.",
     signInShort: "Sign in",
+  },
+  files: {
+    save: "Save",
+    open: "Open",
+    preparing: "Preparing…",
+    saved: "Saved to your computer. Open it here any time to keep working.",
+    opened: "Opened. Your work is back.",
+    wrongTool: "That file is from another tool.",
+    badFile: "That isn't a ShowGrid file.",
+    downloadError: "Couldn't build the download. Try again.",
+    truckPdf: "Download PDF",
+    patternPng: "Download PNG",
+    labelsPdf: "Download PDF",
+    riderCsv: "Download CSV",
   },
 };
 

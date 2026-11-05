@@ -1005,3 +1005,24 @@ a.co:hover { text-decoration-color: currentColor; }
 .group-table td .swatch { margin-right: 8px; vertical-align: -1px; }
 .print-root .group-table { margin: 10px 0; font-size: 9pt; }
 .cl-group { font-size: 9pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: #333; }
+.tools-back { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 18px; padding: 7px 14px; border: 1px solid var(--hero-line); border-radius: 999px; color: var(--hero-ink); font-size: 14px; font-weight: 600; text-decoration: none; }
+.tools-back:hover { border-color: var(--hero-ink); background: rgba(255, 255, 255, 0.06); }
+/* narrow phones: Suggestions stays in the footer so the tools, list and account buttons fit */
+@media (max-width: 420px) {
+  .top nav .sugg-link { display: none; }
+  .top nav { gap: 4px; }
+}
+/* tool pages never wider than the phone: long tables scroll inside their card */
+.truck-tool > *, .pat-tool > *, .lab-tool > *, .rider-cols > * { min-width: 0; }
+.truck-side { overflow-x: auto; }
+.truck-cases { min-width: 330px; }
+.tool-files { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tool-files .account-needed { flex-basis: 100%; }
+.tf-ok { color: var(--ok); font-weight: 600; }
+.rider-page > .tool-files { margin-bottom: 18px; }
+.case-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: var(--r); background: var(--surface); }
+.case-tools.on { border-style: solid; border-color: var(--tally); }
+.case-tools > strong { margin-right: auto; }
+.case-tools-lbl { color: var(--muted); font-weight: 600; }
+.case-tools .btn:disabled, .tilt-seg button:disabled { opacity: 0.45; cursor: not-allowed; }
+.truck-help { margin: 0; }

@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import { AccountNeeded, useSignedIn } from "@/components/AccountGate";
 import { useT } from "@/components/I18n";
 import { ProjectBar, useToolState } from "@/components/Projects";
+import { ToolFiles } from "@/components/ToolFiles";
+import { useI18n } from "@/components/I18n";
 import { fmt, plural } from "@/lib/i18n/config";
 import { LABELS_START as START, MAX_ROWS, PAPER, SHEETS, buildLabels, colorKey, customSheet, detectFixture, inkFor, parseTable, readTable, type Band, type FixtureCols, type Label, type LabelSettings as Settings, type LabelSide as Side, type Sheet } from "@/lib/labels";
 
@@ -29,6 +31,7 @@ function readLogo(file: File): Promise<string> {
 
 export function LabelTool() {
   const t = useT().labels;
+  const { t: T } = useI18n();
   // kept in the open project, or on this device
   const { state: s, setState: setS, project, saving } = useToolState("labels", STORE_KEY, START, (v) => {
     const saved = v as Partial<Settings> | null;
@@ -194,6 +197,24 @@ export function LabelTool() {
   return (
     <div className="lab-tool">
       <ProjectBar project={project} saving={saving} />
+      <ToolFiles
+        tool="labels"
+        name={`${project?.name ?? t.metaTitle.split(" · ")[0]}`}
+        data={s}
+        onOpen={(v) => {
+          const saved = v as Partial<Settings> | null;
+          if (saved && typeof saved === "object") setS({ ...START, ...saved, custom: { ...START.custom, ...saved.custom } });
+        }}
+        downloadLabel={T.files.labelsPdf}
+        download={
+          labels.length
+            ? async () => {
+                const { labelsPdf } = await import("@/lib/projectExport");
+                return { blob: new Blob([await labelsPdf(s)], { type: "application/pdf" }), name: `${project?.name ?? "labels"}.pdf`.replace(/[\\/:*?"<>|]+/g, "-") };
+              }
+            : undefined
+        }
+      />
       <aside className="auth-form lab-side">
         <h2>{t.data}</h2>
         <div className="inv-actions">

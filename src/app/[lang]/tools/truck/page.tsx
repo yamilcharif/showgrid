@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ToolsBack } from "@/components/ToolsBack";
 import { ToolsDisclaimer } from "@/components/ToolsDisclaimer";
 import { getDictionary } from "@/lib/i18n/server";
 import { TruckPlanner } from "./TruckPlanner";
@@ -17,6 +18,7 @@ export default async function TruckPage() {
     <main>
       <section className="co-hero">
         <div className="wrap">
+          <ToolsBack label={dict.tools.back} />
           <p className="eyebrow">
             <span className="tally" />
             <Link href="/tools">{t.eyebrow}</Link>

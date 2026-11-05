@@ -6,6 +6,8 @@ import { AccountNeeded, useSignedIn } from "@/components/AccountGate";
 import { useT } from "@/components/I18n";
 import { shrinkImage } from "@/lib/image";
 import { ProjectBar, useToolState } from "@/components/Projects";
+import { ToolFiles } from "@/components/ToolFiles";
+import { useI18n } from "@/components/I18n";
 import { fmt, plural } from "@/lib/i18n/config";
 import {
   CASE_COLORS,
@@ -62,6 +64,8 @@ interface Drag {
 
 export function TruckPlanner() {
   const t = useT().truck;
+  const { t: T, locale } = useI18n();
+  const tf = T.files;
   // kept in the open project, or on this device
   const { state, setState, project, saving } = useToolState("truck", STORE_KEY, START, (v) => {
     const saved = v as Saved;
@@ -267,6 +271,31 @@ export function TruckPlanner() {
   return (
     <div className="truck-tool">
       <ProjectBar project={project} saving={saving} />
+      <ToolFiles
+        tool="truck"
+        name={`${project?.name ?? t.planTitle} · ${truck.key === "custom" ? Math.round(truck.l / 12) : truck.key}'`}
+        data={state}
+        onOpen={(v) => {
+          const saved = v as Saved;
+          if (saved?.truck && Array.isArray(saved.types) && Array.isArray(saved.placed)) update(() => saved);
+        }}
+        downloadLabel={tf.truckPdf}
+        download={
+          placed.length
+            ? async () => {
+                // the plan and the case labels, together
+                const [{ truckPlanPdf, truckLabelsPdf, safeName }, { zipSync }] = await Promise.all([import("@/lib/projectExport"), import("fflate")]);
+                const date = new Date().toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" });
+                const base = safeName(`${project?.name ?? t.planTitle} ${truck.key}'`);
+                const zip = zipSync({
+                  [`${base} - plan.pdf`]: new Uint8Array(await truckPlanPdf(state, t, date)),
+                  [`${base} - case labels.pdf`]: new Uint8Array(await truckLabelsPdf(state, t)),
+                });
+                return { blob: new Blob([zip as BlobPart], { type: "application/zip" }), name: `${base}.zip` };
+              }
+            : undefined
+        }
+      />
       <aside className="auth-form truck-side">
         <div className="field">
           <label htmlFor="truckSize">{t.truck}</label>
@@ -574,6 +603,34 @@ export function TruckPlanner() {
           )}
         </div>
 
+        {/* turn and tilt, always in sight: they act on the case clicked in the plan */}
+        <div className={selCase ? "case-tools on" : "case-tools"}>
+          <strong className="small">{selCase ? typeMap.get(selCase.type)?.name : t.pickCase}</strong>
+          <button type="button" className="btn sm" disabled={!selCase} onClick={() => selCase && rotate(selCase.uid)} title={t.rotateHint}>
+            ⟳ {t.rotate} 90°
+          </button>
+          <span className="case-tools-lbl small">{t.tilt}</span>
+          <span className="seg seg3 tilt-seg" role="radiogroup" aria-label={t.tilt}>
+            {([0, 90, 180] as const).map((deg) => (
+              <button
+                key={deg}
+                type="button"
+                role="radio"
+                disabled={!selCase}
+                aria-checked={!!selCase && (selCase.tilt ?? 0) === deg}
+                className={selCase && (selCase.tilt ?? 0) === deg ? "on" : undefined}
+                title={t.tilts[deg]}
+                onClick={() => selCase && tilt(selCase.uid, deg)}
+              >
+                {deg}°
+              </button>
+            ))}
+          </span>
+          <button type="button" className="btn sm" disabled={!selCase} onClick={() => selCase && unload(selCase.uid)}>
+            {t.unload}
+          </button>
+        </div>
+
         <svg
           ref={svgRef}
           className={drag ? "truck-svg dragging" : "truck-svg"}
@@ -656,27 +713,7 @@ export function TruckPlanner() {
           )}
         </svg>
 
-        <div className="truck-help">
-          <span className="muted small">{t.help}</span>
-          {selCase && (
-            <span className="inv-actions">
-              <strong className="small">{typeMap.get(selCase.type)?.name}</strong>
-              <button type="button" className="btn sm" onClick={() => rotate(selCase.uid)}>
-                ⟳ {t.rotate}
-              </button>
-              <span className="seg seg3 tilt-seg" role="radiogroup" aria-label={t.tilt}>
-                {([0, 90, 180] as const).map((deg) => (
-                  <button key={deg} type="button" role="radio" aria-checked={(selCase.tilt ?? 0) === deg} className={(selCase.tilt ?? 0) === deg ? "on" : undefined} title={t.tilts[deg]} onClick={() => tilt(selCase.uid, deg)}>
-                    {deg}°
-                  </button>
-                ))}
-              </span>
-              <button type="button" className="btn sm" onClick={() => unload(selCase.uid)}>
-                {t.unload}
-              </button>
-            </span>
-          )}
-        </div>
+        <p className="muted small truck-help">{t.help}</p>
 
         <div className="truck-print-bar">
           <label className="truck-numbering">
