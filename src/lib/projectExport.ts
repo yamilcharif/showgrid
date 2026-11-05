@@ -320,26 +320,30 @@ export async function labelsPdf(s: LabelSettings) {
       const pw = w - w * 0.12 - (fill ? 0 : 0.12);
       const pt = (inches: number) => inches * 72;
       doc.setTextColor(ink).setFont("helvetica", "bold");
-      const idPt = pt(h * 0.44);
+      const ts = s.textScale ?? 1;
+      const idPt = pt(Math.min(h * 0.44, w * 0.26) * ts);
       doc.setFontSize(idPt).text(fitText(doc, l.fx.id, pw * 0.6, idPt), px, y + h * 0.06 + (idPt / 72) * 0.8);
       if (l.fx.pos) {
-        const posText = fitText(doc, l.fx.pos, pw * 0.42, pt(h * 0.2));
-        doc.text(posText, px + pw, y + h * 0.06 + (pt(h * 0.2) / 72) * 0.85, { align: "right" });
+        const posPt = pt(Math.min(h * 0.2, w * 0.12) * ts);
+        const posText = fitText(doc, l.fx.pos, pw * 0.42, posPt);
+        doc.text(posText, px + pw, y + h * 0.06 + (posPt / 72) * 0.85, { align: "right" });
       }
       doc.setFont("helvetica", "normal");
       let ty = y + h * 0.56;
       for (const line of [l.fx.type, l.fx.mode].filter(Boolean)) {
-        doc.text(fitText(doc, line, pw, pt(h * 0.105)), px, ty);
+        doc.text(fitText(doc, line, pw, pt(Math.min(h * 0.105, w * 0.065) * ts)), px, ty);
         ty += h * 0.13;
       }
-      doc.setFont("helvetica", "bold").setFontSize(pt(h * 0.11));
+      doc.setFont("helvetica", "bold").setFontSize(pt(Math.min(h * 0.11, w * 0.06) * ts));
       const by2 = y + h * 0.9;
       if (l.fx.u) doc.text(`U: ${l.fx.u}`, px, by2);
       if (l.fx.a) doc.text(`A: ${l.fx.a}`, px + pw * 0.35, by2);
       if (logo) {
-        const lh = h * 0.22;
-        const lw = Math.min(lh * logo.ratio, pw * 0.3);
-        doc.addImage(logo.data, "PNG", px + pw - lw, y + h * 0.94 - lw / logo.ratio, lw, lw / logo.ratio);
+        const lh = h * (s.logoSize ?? 0.22);
+        const lw = Math.min(lh * logo.ratio, w * 0.7);
+        const lhh = lw / logo.ratio;
+        if (s.logoPos) doc.addImage(logo.data, "PNG", x + s.logoPos.x * w - lw / 2, y + s.logoPos.y * h - lhh / 2, lw, lhh);
+        else doc.addImage(logo.data, "PNG", px + pw - lw, y + h * 0.94 - lhh, lw, lhh);
       } else if (s.extra.trim()) doc.text(fitText(doc, s.extra, pw * 0.4, pt(h * 0.13)), px + pw, by2, { align: "right" });
       if (s.outline) doc.setDrawColor("#888888").setLineWidth(0.005).rect(x, y, w, h);
       return;
@@ -358,8 +362,14 @@ export async function labelsPdf(s: LabelSettings) {
       by += h * 0.14;
       bh -= h * 0.14;
     }
-    if (logo) {
-      const lh = s.logoSide === "top" ? bh * 0.34 : bh * 0.7;
+    if (logo && s.logoPos) {
+      // dragged: on top of the label, not taking room from the text
+      const lh = h * (s.logoSize ?? 0.5);
+      const lw = Math.min(lh * logo.ratio, w * 0.7);
+      const lhh = lw / logo.ratio;
+      doc.addImage(logo.data, "PNG", x + s.logoPos.x * w - lw / 2, y + s.logoPos.y * h - lhh / 2, lw, lhh);
+    } else if (logo) {
+      const lh = s.logoSide === "top" ? bh * 0.34 : (s.logoSize ? h * s.logoSize : bh * 0.7);
       const lw = Math.min(lh * logo.ratio, s.logoSide === "top" ? bw * 0.7 : bw * 0.32);
       const lhh = lw / logo.ratio;
       const lx = s.logoSide === "left" ? bx : s.logoSide === "right" ? bx + bw - lw : bx + (bw - lw) / 2;
@@ -376,8 +386,9 @@ export async function labelsPdf(s: LabelSettings) {
     }
     // text block, vertically centred: big first line, smaller details, then the extra text
     const pt = (inches: number) => inches * 72;
-    const sizes = l.lines.map((_, k) => (k === 0 ? Math.min(pt(h * 0.26), pt(w * 0.13)) : Math.min(pt(h * 0.14), pt(w * 0.075))));
-    if (s.extra.trim()) sizes.push(Math.min(pt(h * 0.1), pt(w * 0.055)));
+    const ts = s.textScale ?? 1;
+    const sizes = l.lines.map((_, k) => (k === 0 ? Math.min(pt(h * 0.26), pt(w * 0.13)) : Math.min(pt(h * 0.14), pt(w * 0.075))) * ts);
+    if (s.extra.trim()) sizes.push(Math.min(pt(h * 0.1), pt(w * 0.055)) * ts);
     const texts = [...l.lines, ...(s.extra.trim() ? [s.extra] : [])];
     const total = sizes.reduce((a, z) => a + (z / 72) * 1.15, 0);
     let ty = by + Math.max(0, (bh - total) / 2);

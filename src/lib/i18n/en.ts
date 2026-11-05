@@ -983,6 +983,12 @@ export const en = {
     plotHint: "IDs and patch are paired by how close they are on the drawing, and each takes the nearest position name. Check them in the data below; the fixture type comes from the legend, so fill it with ⇣ on its column.",
     fillCol: "Fill this column",
     fillPrompt: "Value for the empty cells of {col} (all of them if none are empty):",
+    logoSize: "Logo size",
+    logoFree: "Where you dragged it",
+    logoDragHint: "Drag the logo on any label to move it on all of them.",
+    perRow: "Labels across",
+    perCol: "Labels down",
+    textSize: "Text size",
   },
   projects: {
     title: "Projects",

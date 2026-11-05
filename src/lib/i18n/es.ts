@@ -983,6 +983,12 @@ export const es: Dict = {
     plotHint: "El ID y el patch se emparejan por lo cerca que están en el dibujo, y cada uno toma el nombre de posición más cercano. Revísalos en los datos de abajo; el tipo de fixture está en la leyenda, así que complétalo con ⇣ en su columna.",
     fillCol: "Rellenar esta columna",
     fillPrompt: "Valor para las celdas vacías de {col} (todas, si no hay vacías):",
+    logoSize: "Tamaño del logo",
+    logoFree: "Donde lo arrastraste",
+    logoDragHint: "Arrastra el logo en cualquier etiqueta para moverlo en todas.",
+    perRow: "Etiquetas por fila",
+    perCol: "Etiquetas por columna",
+    textSize: "Tamaño de letra",
   },
   projects: {
     title: "Proyectos",

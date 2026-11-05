@@ -150,7 +150,29 @@ export function LabelTool() {
   };
   const editCell = (r: number, c: number, v: string) =>
     set({ rows: s.rows.map((row, k) => (k === r ? Object.assign([...row], { [c]: v }) : row)) });
+  const fmtSize = (inches: number) => (s.metric ? `${Math.round(inches * 25.4)} mm` : `${Math.round(inches * 100) / 100}"`);
   const setCustom = (patch: Partial<Settings["custom"]>) => set({ sheetId: "custom", custom: { ...s.custom, ...patch } });
+
+  // the logo: in the layout's place, or wherever it was dragged, at the chosen size
+  const logoStyle = (fixture: boolean): CSSProperties | undefined => {
+    const size = s.logoSize;
+    if (s.logoPos) return { position: "absolute", left: `${s.logoPos.x * 100}%`, top: `${s.logoPos.y * 100}%`, transform: "translate(-50%, -50%)", maxHeight: `${(size ?? (fixture ? 0.24 : 0.5)) * 100}cqh`, maxWidth: "70cqw" };
+    return size ? { maxHeight: `${size * 100}cqh`, maxWidth: "70cqw" } : undefined;
+  };
+  // dragging the logo on any label moves it on all of them
+  const dragLogo = (e: React.PointerEvent<HTMLImageElement>) => {
+    const box = e.currentTarget.parentElement?.getBoundingClientRect();
+    if (!box) return;
+    e.preventDefault();
+    const move = (ev: PointerEvent) =>
+      set({ logoPos: { x: Math.min(1, Math.max(0, (ev.clientX - box.left) / box.width)), y: Math.min(1, Math.max(0, (ev.clientY - box.top) / box.height)) } });
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
 
   const sheetPage = (p: number) => (
     <div key={p} className="lab-page" style={{ width: `${paper.w}in`, height: `${paper.h}in` }}>
@@ -166,6 +188,7 @@ export function LabelTool() {
           background: s.bg,
           color: s.ink,
           ["--band" as string]: l.band,
+          ["--ts" as string]: s.textScale ?? 1,
         };
         if (l.fx) {
           const fill = s.fxFill !== false;
@@ -186,8 +209,12 @@ export function LabelTool() {
                 {l.fx.u && <span>U: {l.fx.u}</span>}
                 {l.fx.a && <span>A: {l.fx.a}</span>}
               </span>
-              {/* eslint-disable-next-line @next/next/no-img-element -- an uploaded logo, printed as is */}
-              {s.logo ? <img className="fx-logo" src={s.logo} alt="" /> : s.extra.trim() ? <span className="fx-extra">{s.extra}</span> : null}
+              {s.logo ? (
+                // eslint-disable-next-line @next/next/no-img-element -- an uploaded logo, printed as is
+                <img className="fx-logo lab-drag" src={s.logo} alt="" style={logoStyle(true)} onPointerDown={dragLogo} draggable={false} />
+              ) : s.extra.trim() ? (
+                <span className="fx-extra">{s.extra}</span>
+              ) : null}
             </div>
           );
         }
@@ -195,7 +222,7 @@ export function LabelTool() {
           <div key={l.key} className={`lab ${s.outline ? "outline" : ""} band-${s.band} logo-${s.logo ? s.logoSide : "none"} align-${s.align}`} style={style}>
             {s.band !== "none" && <span className="lab-band" />}
             {/* eslint-disable-next-line @next/next/no-img-element -- an uploaded logo, printed as is */}
-            {s.logo && <img className="lab-logo" src={s.logo} alt="" />}
+            {s.logo && <img className="lab-logo lab-drag" src={s.logo} alt="" style={logoStyle(false)} onPointerDown={dragLogo} draggable={false} />}
             <div className="lab-text">
               {l.lines.map((line, k) => (
                 <span key={k} className={k === 0 ? "l1" : "ln"}>
@@ -398,6 +425,12 @@ export function LabelTool() {
             </label>
           ))}
         </div>
+        <label className="field">
+          <span>
+            {t.textSize} · {Math.round((s.textScale ?? 1) * 100)}%
+          </span>
+          <input type="range" min={0.5} max={2.5} step={0.05} value={s.textScale ?? 1} onChange={(e) => set({ textScale: Number(e.target.value) })} />
+        </label>
         <div className="pat-two">
           <label className="field">
             <span>{t.band}</span>
@@ -454,19 +487,29 @@ export function LabelTool() {
           </label>
           {s.logo && (
             <>
-              <select value={s.logoSide} aria-label={t.logoSide} onChange={(e) => set({ logoSide: e.target.value as Side })}>
+              <select value={s.logoPos ? "free" : s.logoSide} aria-label={t.logoSide} onChange={(e) => e.target.value !== "free" && set({ logoSide: e.target.value as Side, logoPos: null })}>
+                {s.logoPos && <option value="free">{t.logoFree}</option>}
                 {(["left", "right", "top"] as const).map((k) => (
                   <option key={k} value={k}>
                     {t.sides[k]}
                   </option>
                 ))}
               </select>
-              <button type="button" className="link small" onClick={() => set({ logo: null })}>
+              <button type="button" className="link small" onClick={() => set({ logo: null, logoPos: null })}>
                 {t.remove}
               </button>
             </>
           )}
         </div>
+        {s.logo && (
+          <>
+            <label className="field">
+              <span>{t.logoSize}</span>
+              <input type="range" min={0.08} max={0.9} step={0.01} value={s.logoSize ?? (s.template === "fixture" ? 0.24 : 0.7)} onChange={(e) => set({ logoSize: Number(e.target.value) })} />
+            </label>
+            <p className="muted small">{t.logoDragHint}</p>
+          </>
+        )}
 
         <h2>{t.sheet}</h2>
         <select value={s.sheetId} onChange={(e) => set({ sheetId: e.target.value })}>
@@ -516,7 +559,36 @@ export function LabelTool() {
             </label>
           ))}
         </div>
-        <p className="muted small">{fmt(t.perSheet, { cols: sheet.cols, rows: sheet.rows, n: perSheet })}</p>
+        <div className="lab-per">
+          {(["cols", "rows"] as const).map((k) => (
+            <label key={k} className="field">
+              <span>{k === "cols" ? t.perRow : t.perCol}</span>
+              <input
+                type="number"
+                min={1}
+                max={30}
+                value={sheet[k]}
+                onChange={(e) => {
+                  // the sticker size is worked out so that many fit between the margins
+                  const n = Math.max(1, Math.min(30, Math.round(Number(e.target.value) || 1)));
+                  const cols = k === "cols" ? n : sheet.cols;
+                  const rows = k === "rows" ? n : sheet.rows;
+                  const pg = PAPER[sheet.paper];
+                  setCustom({
+                    paper: sheet.paper,
+                    top: sheet.top,
+                    left: sheet.left,
+                    gapX: sheet.gapX,
+                    gapY: sheet.gapY,
+                    w: Math.max(0.25, (pg.w - 2 * sheet.left - (cols - 1) * sheet.gapX) / cols),
+                    h: Math.max(0.25, (pg.h - 2 * sheet.top - (rows - 1) * sheet.gapY) / rows),
+                  });
+                }}
+              />
+            </label>
+          ))}
+        </div>
+        <p className="muted small">{fmt(t.perSheet, { cols: sheet.cols, rows: sheet.rows, n: perSheet })} · {fmtSize(sheet.w)} × {fmtSize(sheet.h)}</p>
         <label className="field">
           <span>{t.startAt}</span>
           <input type="number" min={1} max={perSheet} value={s.startAt} onChange={(e) => set({ startAt: Math.max(1, Math.min(perSheet, Math.round(Number(e.target.value) || 1))) })} />

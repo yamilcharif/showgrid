@@ -137,6 +137,12 @@ export interface LabelSettings {
   fxFill?: boolean;
   /** a chosen color for some values of the color-by column: {"LX1": "#e53935"} */
   valueColors?: Record<string, string>;
+  /** logo height as a share of the label's height; unset uses the layout's own size */
+  logoSize?: number;
+  /** where the logo was dragged to: its centre, as a share of the label's width and height */
+  logoPos?: { x: number; y: number } | null;
+  /** text size, times the layout's own (1 = as designed) */
+  textScale?: number;
 }
 
 export const LABELS_START: LabelSettings = {
