@@ -41,6 +41,8 @@ export interface PatternSettings {
   logoAt: LogoAt;
   /** logo height, as a share of the wall height (or of a panel, on every panel) */
   logoSize: number;
+  /** one color for the whole logo (keeping its shape); unset shows it in its own colors */
+  logoColor?: string | null;
   /** where the logo was dragged to (its centre, in wall pixels), for logoAt "custom" */
   logoX?: number;
   logoY?: number;
@@ -97,6 +99,24 @@ export function wallLen(mm: number) {
   const ft = Math.floor(inches / 12);
   const inch = Math.round(inches - ft * 12);
   return { m: `${m.toFixed(m < 10 ? 2 : 1)} m`, ft: inch === 12 ? `${ft + 1}'` : `${ft}' ${inch}"` };
+}
+
+const tints = new WeakMap<HTMLImageElement, { color: string; canvas: HTMLCanvasElement }>();
+
+/** The logo in one color: its shape (transparency) kept, every visible pixel painted the chosen color. */
+function tinted(img: HTMLImageElement, color: string): HTMLCanvasElement {
+  const hit = tints.get(img);
+  if (hit && hit.color === color) return hit.canvas;
+  const c = document.createElement("canvas");
+  c.width = img.naturalWidth || img.width;
+  c.height = img.naturalHeight || img.height;
+  const g = c.getContext("2d")!;
+  g.drawImage(img, 0, 0);
+  g.globalCompositeOperation = "source-in";
+  g.fillStyle = color;
+  g.fillRect(0, 0, c.width, c.height);
+  tints.set(img, { color, canvas: c });
+  return c;
 }
 
 /** Draws the pattern at the wall's exact pixel size: every panel edge falls on a whole pixel. */
@@ -240,7 +260,8 @@ export function drawPattern(ctx: CanvasRenderingContext2D, s: PatternSettings, i
   let logoHit: Rect | null = null;
 
   // the logo last, so it sits on top of everything
-  const logo = s.logo ? images.get(s.logo) : undefined;
+  const original = s.logo ? images.get(s.logo) : undefined;
+  const logo = original && s.logoColor ? tinted(original, s.logoColor) : original;
   if (logo) {
     const put = (cx: number, cy: number, maxH: number, maxW: number) => {
       const k = Math.min(maxH / logo.height, maxW / logo.width);

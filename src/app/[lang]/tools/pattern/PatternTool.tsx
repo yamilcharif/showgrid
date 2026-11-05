@@ -281,9 +281,20 @@ export function PatternTool() {
             <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden onChange={pick(1024, (src) => set({ logo: src }))} />
           </label>
           {s.logo && (
-            <button type="button" className="link small" onClick={() => set({ logo: null })}>
-              {t.remove}
-            </button>
+            <>
+              <label className="pat-color" title={t.logoColor}>
+                <input type="color" value={s.logoColor ?? "#ffffff"} aria-label={t.logoColor} onChange={(e) => set({ logoColor: e.target.value })} />
+                {t.logoColor}
+              </label>
+              {s.logoColor && (
+                <button type="button" className="link small" onClick={() => set({ logoColor: null })}>
+                  {t.logoOriginal}
+                </button>
+              )}
+              <button type="button" className="link small" onClick={() => set({ logo: null, logoColor: null })}>
+                {t.remove}
+              </button>
+            </>
           )}
         </div>
         {s.logo && (

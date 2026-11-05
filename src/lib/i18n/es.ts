@@ -899,6 +899,8 @@ export const es: Dict = {
     pipAdd: "+ Agregar ventana",
     dragHint: "Arrastra con el mouse las ventanas, el título y el logo. Las ventanas se pegan a los bordes de los paneles.",
     recenter: "Centrar el título",
+    logoColor: "Color del logo",
+    logoOriginal: "Colores originales",
   },
   labels: {
     metaTitle: "Etiquetas · ShowGrid",

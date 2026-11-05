@@ -1036,3 +1036,4 @@ a.co:hover { text-decoration-color: currentColor; }
 .lab-preview .lab-drag:hover { outline: 1px dashed currentColor; outline-offset: 2px; }
 .lab-side input[type="range"] { padding: 0; accent-color: var(--tally); }
 .lab-per { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pat-logo { flex-wrap: wrap; }

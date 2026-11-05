@@ -899,6 +899,8 @@ export const en = {
     pipAdd: "+ Add window",
     dragHint: "Drag the windows, the title and the logo with the mouse. Windows snap to panel edges.",
     recenter: "Center the title",
+    logoColor: "Logo color",
+    logoOriginal: "Original colors",
   },
   labels: {
     metaTitle: "Label maker · ShowGrid",
