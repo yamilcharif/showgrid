@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ToolsDisclaimer } from "@/components/ToolsDisclaimer";
 import { getDictionary } from "@/lib/i18n/server";
 import { PatternTool } from "./PatternTool";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const t = (await getDictionary()).pattern;
+  const dict = await getDictionary();
+  const t = dict.pattern;
   return { title: t.metaTitle, description: t.lede };
 }
 
 export default async function PatternPage() {
-  const t = (await getDictionary()).pattern;
+  const dict = await getDictionary();
+  const t = dict.pattern;
   return (
     <main>
       <section className="co-hero">
@@ -24,6 +27,7 @@ export default async function PatternPage() {
       </section>
       <div className="wrap co-page">
         <PatternTool />
+        <ToolsDisclaimer t={dict.tools} compact />
       </div>
     </main>
   );

@@ -4,63 +4,11 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { createPortal } from "react-dom";
 import { AccountNeeded, useSignedIn } from "@/components/AccountGate";
 import { useT } from "@/components/I18n";
+import { ProjectBar, useToolState } from "@/components/Projects";
 import { fmt, plural } from "@/lib/i18n/config";
-import { PAPER, SHEETS, customSheet, parseTable, readTable, type Sheet } from "@/lib/labels";
+import { LABELS_START as START, MAX_ROWS, PAPER, SHEETS, buildLabels, colorKey, customSheet, detectFixture, inkFor, parseTable, readTable, type Band, type FixtureCols, type Label, type LabelSettings as Settings, type LabelSide as Side, type Sheet } from "@/lib/labels";
 
 const STORE_KEY = "sg_labels";
-const BAND_COLORS = ["#e4572e", "#4c9be8", "#f2c14e", "#59c9a5", "#b07fe0", "#ff8fab", "#90be6d", "#f3a712", "#5dd9c1", "#8d99ae"];
-const MAX_ROWS = 3000;
-
-type Band = "none" | "left" | "top";
-type Side = "left" | "right" | "top";
-
-interface Settings {
-  rows: string[][];
-  headers: boolean;
-  /** column indexes printed, in order; the first is the big line */
-  fields: number[];
-  extra: string;
-  copies: number;
-  /** column holding a copy count, or -1 */
-  qtyCol: number;
-  bg: string;
-  ink: string;
-  accent: string;
-  band: Band;
-  /** column whose values pick the band color, or -1 for one color */
-  colorBy: number;
-  align: "left" | "center";
-  logo: string | null;
-  logoSide: Side;
-  sheetId: string;
-  custom: Omit<Sheet, "id" | "name" | "cols" | "rows">;
-  metric: boolean;
-  startAt: number;
-  outline: boolean;
-}
-
-const START: Settings = {
-  rows: [],
-  headers: true,
-  fields: [],
-  extra: "",
-  copies: 1,
-  qtyCol: -1,
-  bg: "#ffffff",
-  ink: "#0b0b0c",
-  accent: "#ff3b3b",
-  band: "left",
-  colorBy: -1,
-  align: "left",
-  logo: null,
-  logoSide: "right",
-  sheetId: "5163",
-  custom: { paper: "letter", w: 4, h: 2, top: 0.5, left: 0.25, gapX: 0.125, gapY: 0.125 },
-  metric: false,
-  startAt: 1,
-  outline: false,
-};
-
 /** Shrinks an uploaded logo so the settings stay small enough to keep on this device. */
 function readLogo(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -79,16 +27,13 @@ function readLogo(file: File): Promise<string> {
   });
 }
 
-interface Label {
-  key: string;
-  lines: string[];
-  band: string;
-}
-
 export function LabelTool() {
   const t = useT().labels;
-  const [s, setS] = useState<Settings>(START);
-  const [loaded, setLoaded] = useState(false);
+  // kept in the open project, or on this device
+  const { state: s, setState: setS, project, saving } = useToolState("labels", STORE_KEY, START, (v) => {
+    const saved = v as Partial<Settings> | null;
+    return saved && typeof saved === "object" ? { ...START, ...saved, custom: { ...START.custom, ...saved.custom } } : START;
+  });
   const [reading, setReading] = useState(false);
   const [error, setError] = useState("");
   const [paste, setPaste] = useState("");
@@ -100,24 +45,6 @@ export function LabelTool() {
   const [previewW, setPreviewW] = useState(600);
   const set = (patch: Partial<Settings>) => setS((x) => ({ ...x, ...patch }));
 
-  useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(STORE_KEY) ?? "null");
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time load from localStorage
-      if (saved && typeof saved === "object") setS({ ...START, ...saved, custom: { ...START.custom, ...saved.custom } });
-    } catch {
-      // storage blocked: defaults
-    }
-    setLoaded(true);
-  }, []);
-  useEffect(() => {
-    if (!loaded) return;
-    try {
-      localStorage.setItem(STORE_KEY, JSON.stringify(s));
-    } catch {
-      // too big or blocked: the list just won't be kept
-    }
-  }, [loaded, s]);
 
   // the preview scales the real-size sheet to the width available
   useEffect(() => {
@@ -145,7 +72,19 @@ export function LabelTool() {
   const loadRows = (rows: string[][]) => {
     const clean = rows.filter((r) => r.some((c) => c.trim())).slice(0, MAX_ROWS);
     const width = Math.max(0, ...clean.map((r) => r.length));
-    set({ rows: clean, fields: Array.from({ length: Math.min(3, width) }, (_, i) => i), qtyCol: -1, colorBy: -1, headers: clean.length > 1 && width > 1 });
+    const headers = clean.length > 1 && width > 1;
+    // a patch list or plot report: make fixture stickers, colored by position
+    const fx = headers ? detectFixture(clean[0]) : null;
+    const fixture = !!fx && fx.id >= 0 && (fx.addr >= 0 || fx.pos >= 0);
+    set({
+      rows: clean,
+      fields: Array.from({ length: Math.min(3, width) }, (_, i) => i),
+      qtyCol: -1,
+      headers,
+      template: fixture ? "fixture" : "general",
+      fx: fx ?? undefined,
+      colorBy: fixture ? fx!.pos : -1,
+    });
     setError("");
   };
 
@@ -170,18 +109,7 @@ export function LabelTool() {
   const sheet = s.sheetId === "custom" ? customSheet(s.custom) : SHEETS.find((x) => x.id === s.sheetId) ?? SHEETS[1];
   const perSheet = sheet.cols * sheet.rows;
 
-  const labels = useMemo<Label[]>(() => {
-    const values = s.colorBy >= 0 ? [...new Set(body.map((r) => r[s.colorBy] ?? ""))] : [];
-    const out: Label[] = [];
-    body.forEach((r, i) => {
-      const lines = s.fields.map((c) => r[c] ?? "").filter((v) => v.trim());
-      if (!lines.length) return;
-      const band = s.colorBy >= 0 ? BAND_COLORS[values.indexOf(r[s.colorBy] ?? "") % BAND_COLORS.length] : s.accent;
-      const n = s.qtyCol >= 0 ? Math.max(0, Math.min(500, Math.round(Number(String(r[s.qtyCol]).replace(/[^\d.]/g, "")) || 0))) : s.copies;
-      for (let k = 0; k < n; k++) out.push({ key: `${i}-${k}`, lines, band });
-    });
-    return out;
-  }, [body, s.fields, s.colorBy, s.accent, s.qtyCol, s.copies]);
+  const labels = useMemo(() => buildLabels(s), [s]);
 
   // empty spots at the start, for a sheet that's partly used
   const skip = Math.max(0, Math.min(perSheet - 1, s.startAt - 1));
@@ -195,6 +123,8 @@ export function LabelTool() {
     const n = Number(v);
     return Number.isFinite(n) && n >= 0 ? (s.metric ? n / 25.4 : n) : 0;
   };
+  const editCell = (r: number, c: number, v: string) =>
+    set({ rows: s.rows.map((row, k) => (k === r ? Object.assign([...row], { [c]: v }) : row)) });
   const setCustom = (patch: Partial<Settings["custom"]>) => set({ sheetId: "custom", custom: { ...s.custom, ...patch } });
 
   const sheetPage = (p: number) => (
@@ -212,6 +142,30 @@ export function LabelTool() {
           color: s.ink,
           ["--band" as string]: l.band,
         };
+        if (l.fx) {
+          const fill = s.fxFill !== false;
+          return (
+            <div
+              key={l.key}
+              className={`lab lab-fx ${s.outline ? "outline" : ""}`}
+              style={{ ...style, background: fill ? l.band : s.bg, color: fill ? inkFor(l.band) : s.ink, borderLeft: fill ? undefined : `0.12in solid ${l.band}` }}
+            >
+              <span className="fx-id">{l.fx.id}</span>
+              <span className="fx-pos">{l.fx.pos}</span>
+              <span className="fx-type">
+                {l.fx.type}
+                {l.fx.mode && <br />}
+                {l.fx.mode}
+              </span>
+              <span className="fx-patch">
+                {l.fx.u && <span>U: {l.fx.u}</span>}
+                {l.fx.a && <span>A: {l.fx.a}</span>}
+              </span>
+              {/* eslint-disable-next-line @next/next/no-img-element -- an uploaded logo, printed as is */}
+              {s.logo ? <img className="fx-logo" src={s.logo} alt="" /> : s.extra.trim() ? <span className="fx-extra">{s.extra}</span> : null}
+            </div>
+          );
+        }
         return (
           <div key={l.key} className={`lab ${s.outline ? "outline" : ""} band-${s.band} logo-${s.logo ? s.logoSide : "none"} align-${s.align}`} style={style}>
             {s.band !== "none" && <span className="lab-band" />}
@@ -239,6 +193,7 @@ export function LabelTool() {
 
   return (
     <div className="lab-tool">
+      <ProjectBar project={project} saving={saving} />
       <aside className="auth-form lab-side">
         <h2>{t.data}</h2>
         <div className="inv-actions">
@@ -274,24 +229,68 @@ export function LabelTool() {
               {t.headers}
             </label>
             <h2>{t.content}</h2>
-            <p className="muted small">{t.contentHint}</p>
-            <div className="lab-fields">
-              {Array.from({ length: width }, (_, i) => {
-                const on = s.fields.includes(i);
-                return (
-                  <label key={i} className={on ? "on" : undefined}>
-                    <input
-                      type="checkbox"
-                      checked={on}
-                      onChange={(e) => set({ fields: e.target.checked ? [...s.fields, i] : s.fields.filter((x) => x !== i) })}
-                    />
-                    {on && <b>{s.fields.indexOf(i) + 1}</b>}
-                    <span>{colName(i)}</span>
-                    <small className="muted">{body[0]?.[i]}</small>
-                  </label>
-                );
-              })}
+            <div className="seg seg2 lab-template" role="radiogroup" aria-label={t.template}>
+              {(["general", "fixture"] as const).map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  role="radio"
+                  aria-checked={(s.template ?? "general") === k}
+                  className={(s.template ?? "general") === k ? "on" : undefined}
+                  onClick={() => set(k === "fixture" && !s.fx ? { template: k, fx: detectFixture(head) } : { template: k })}
+                >
+                  {k === "general" ? t.templateGeneral : t.templateFixture}
+                </button>
+              ))}
             </div>
+            {s.template === "fixture" ? (
+              <>
+                <p className="muted small">{t.fxHint}</p>
+                <div className="pat-two">
+                  {(["id", "pos", "type", "mode", "uni", "addr"] as const).map((k) => (
+                    <label key={k} className="field">
+                      <span>{t.fxCols[k]}</span>
+                      <select
+                        value={s.fx?.[k] ?? -1}
+                        onChange={(e) => set({ fx: { ...(s.fx ?? { id: -1, pos: -1, type: -1, mode: -1, uni: -1, addr: -1 }), [k]: Number(e.target.value) } as FixtureCols })}
+                      >
+                        <option value={-1}>{t.none}</option>
+                        {Array.from({ length: width }, (_, i) => (
+                          <option key={i} value={i}>
+                            {colName(i)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ))}
+                </div>
+                <label className="pat-check">
+                  <input type="checkbox" checked={s.fxFill !== false} onChange={(e) => set({ fxFill: e.target.checked })} />
+                  {t.fxFill}
+                </label>
+              </>
+            ) : (
+              <>
+                <p className="muted small">{t.contentHint}</p>
+                <div className="lab-fields">
+                  {Array.from({ length: width }, (_, i) => {
+                    const on = s.fields.includes(i);
+                    return (
+                      <label key={i} className={on ? "on" : undefined}>
+                        <input
+                          type="checkbox"
+                          checked={on}
+                          onChange={(e) => set({ fields: e.target.checked ? [...s.fields, i] : s.fields.filter((x) => x !== i) })}
+                        />
+                        {on && <b>{s.fields.indexOf(i) + 1}</b>}
+                        <span>{colName(i)}</span>
+                        <small className="muted">{body[0]?.[i]}</small>
+                      </label>
+                    );
+                  })}
+                </div>
+              </>
+            )}
             <label className="field">
               <span>{t.extra}</span>
               <input value={s.extra} maxLength={80} placeholder={t.extraPlaceholder} onChange={(e) => set({ extra: e.target.value })} />
@@ -360,6 +359,16 @@ export function LabelTool() {
               ))}
             </select>
           </label>
+        )}
+        {s.colorBy >= 0 && (
+          <div className="lab-colorkey">
+            {colorKey(s).slice(0, 40).map(({ value, color }) => (
+              <label key={value} className="pat-color">
+                <input type="color" value={color} onChange={(e) => set({ valueColors: { ...s.valueColors, [value]: e.target.value } })} />
+                {value || "—"}
+              </label>
+            ))}
+          </div>
         )}
         <div className="pat-logo">
           <label className="btn sm">
@@ -477,6 +486,60 @@ export function LabelTool() {
           )}
         </div>
       </section>
+
+      {width > 0 && (
+        <details className="auth-form lab-data" open={body.length <= 60}>
+          <summary>
+            {t.editData} <span className="muted small">· {plural(body.length, t.rowsLoaded)}</span>
+          </summary>
+          <p className="muted small">{t.editHint}</p>
+          <div className="lab-grid">
+            <table>
+              {s.headers && (
+                <thead>
+                  <tr>
+                    <th />
+                    {Array.from({ length: width }, (_, c) => (
+                      <th key={c}>
+                        <input value={head[c] ?? ""} aria-label={colName(c)} onChange={(e) => editCell(0, c, e.target.value)} />
+                      </th>
+                    ))}
+                    <th />
+                  </tr>
+                </thead>
+              )}
+              <tbody>
+                {body.slice(0, 500).map((r, i) => {
+                  const ri = i + (s.headers ? 1 : 0);
+                  return (
+                    <tr key={ri}>
+                      <td className="muted small">{i + 1}</td>
+                      {Array.from({ length: width }, (_, c) => (
+                        <td key={c}>
+                          <input value={r[c] ?? ""} aria-label={`${colName(c)} ${i + 1}`} onChange={(e) => editCell(ri, c, e.target.value)} />
+                        </td>
+                      ))}
+                      <td>
+                        <button type="button" className="link small" aria-label={t.delRow} onClick={() => set({ rows: s.rows.filter((_, k) => k !== ri) })}>
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="inv-actions">
+            <button type="button" className="btn sm" onClick={() => set({ rows: [...s.rows, Array(width).fill("")] })}>
+              {t.addRow}
+            </button>
+            <button type="button" className="btn sm" onClick={() => set({ rows: s.rows.map((r, k) => (k === 0 && s.headers ? [...r, fmt(t.column, { n: width + 1 })] : [...r, ""])) })}>
+              {t.addCol}
+            </button>
+          </div>
+        </details>
+      )}
 
       {printing &&
         createPortal(

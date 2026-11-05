@@ -4,6 +4,8 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AccountNeeded, useSignedIn } from "@/components/AccountGate";
 import { useT } from "@/components/I18n";
+import { shrinkImage } from "@/lib/image";
+import { ProjectBar, useToolState } from "@/components/Projects";
 import { fmt, plural } from "@/lib/i18n/config";
 import {
   CASE_COLORS,
@@ -12,15 +14,20 @@ import {
   fmtLen,
   fmtWeight,
   footprint,
+  GROUP_PRESETS,
+  barLoss,
+  tooHigh,
   restingZ,
   settle,
   snap,
   stats,
   type CaseType,
   type Placed,
-  type TruckSize,
+  caseNumbers,
+  type TruckPlan as Saved,
 } from "@/lib/truck";
-import { TruckPrint, caseNumbers, type PrintMode } from "./TruckPrint";
+import { GroupTable } from "./GroupTable";
+import { TruckPrint, type PrintMode } from "./TruckPrint";
 
 // three.js is only loaded in the browser, and only on this page
 const Truck3D = dynamic(() => import("./Truck3D").then((m) => m.Truck3D), { ssr: false });
@@ -29,14 +36,6 @@ const STORE_KEY = "sg_truck";
 const CAB = 64;
 const PAD = 14;
 
-interface Saved {
-  truck: TruckSize;
-  types: CaseType[];
-  placed: Placed[];
-  metric: boolean;
-  /** case #1 at the doors (first out) rather than at the front (first in) */
-  fromDoors?: boolean;
-}
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -52,6 +51,7 @@ interface Drag {
   uid: string | null;
   type: string;
   rot: boolean;
+  tilt: 0 | 90 | 180;
   /** where in the case it was grabbed, in inches */
   gx: number;
   gy: number;
@@ -62,8 +62,11 @@ interface Drag {
 
 export function TruckPlanner() {
   const t = useT().truck;
-  const [state, setState] = useState<Saved>(START);
-  const [loaded, setLoaded] = useState(false);
+  // kept in the open project, or on this device
+  const { state, setState, project, saving } = useToolState("truck", STORE_KEY, START, (v) => {
+    const saved = v as Saved;
+    return saved?.truck && Array.isArray(saved.types) && Array.isArray(saved.placed) ? saved : START;
+  });
   const [sel, setSel] = useState<string | null>(null);
   const [drag, setDragState] = useState<Drag | null>(null);
   const [printing, setPrinting] = useState<{ mode: PrintMode; shot: string | null } | null>(null);
@@ -100,31 +103,12 @@ export function TruckPlanner() {
     };
   }, [printing]);
 
-  // the plan is kept per device
-  useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(STORE_KEY) ?? "null") as Saved | null;
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time load from localStorage
-      if (saved?.truck && Array.isArray(saved.types) && Array.isArray(saved.placed)) setState(saved);
-    } catch {
-      // storage blocked: start fresh
-    }
-    setLoaded(true);
-  }, []);
-  useEffect(() => {
-    if (!loaded) return;
-    try {
-      localStorage.setItem(STORE_KEY, JSON.stringify(state));
-    } catch {
-      // storage blocked: the plan just won't be kept
-    }
-  }, [loaded, state]);
 
   const update = useCallback((fn: (s: Saved) => Saved) => setState((s) => {
     const next = fn(s);
     const map = new Map(next.types.map((ty) => [ty.id, ty]));
     return { ...next, placed: settle(next.placed.filter((p) => map.has(p.type)), map) };
-  }), []);
+  }), [setState]);
 
   const len = (n: number) => fmtLen(n, metric);
   // inputs show inches or centimetres; the plan is kept in inches
@@ -176,11 +160,11 @@ export function TruckPlanner() {
         setSel(null);
         return;
       }
-      const f = { x: d.x, y: d.y, l: d.rot ? ty.w : ty.l, w: d.rot ? ty.l : ty.w };
+      const f = footprint({ uid: "", type: d.type, x: d.x, y: d.y, z: 0, rot: d.rot, tilt: d.tilt }, ty);
       const at = snap(f, truck, placed, typeMap, d.uid ?? undefined);
       const id = d.uid ?? uid();
       // a high z settles it on top of whatever is under it
-      const next: Placed = { uid: id, type: d.type, x: at.x, y: at.y, z: 1e6, rot: d.rot };
+      const next: Placed = { uid: id, type: d.type, x: at.x, y: at.y, z: 1e6, rot: d.rot, tilt: d.tilt };
       update((s) => ({ ...s, placed: [...s.placed.filter((p) => p.uid !== id), next] }));
       setSel(id);
     };
@@ -215,6 +199,20 @@ export function TruckPlanner() {
       }),
     [update],
   );
+  /** Tips a case: 0° on its wheels, 90° standing on its end, 180° upside down. */
+  const tilt = useCallback(
+    (id: string, deg: 0 | 90 | 180) =>
+      update((s) => {
+        const p = s.placed.find((x) => x.uid === id);
+        const ty = p && s.types.find((x) => x.id === p.type);
+        if (!p || !ty) return s;
+        const f = footprint({ ...p, tilt: deg }, ty);
+        const map = new Map(s.types.map((x) => [x.id, x]));
+        const at = snap(f, s.truck, s.placed, map, id, 0);
+        return { ...s, placed: s.placed.map((x) => (x.uid === id ? { ...x, tilt: deg, x: at.x, y: at.y, z: 1e6 } : x)) };
+      }),
+    [update],
+  );
   const unload = useCallback((id: string) => {
     update((s) => ({ ...s, placed: s.placed.filter((p) => p.uid !== id) }));
     setSel(null);
@@ -245,19 +243,19 @@ export function TruckPlanner() {
     if (!drag) return null;
     const ty = typeMap.get(drag.type);
     if (!ty) return null;
-    const f = { x: drag.x, y: drag.y, l: drag.rot ? ty.w : ty.l, w: drag.rot ? ty.l : ty.w };
+    const f = footprint({ uid: "", type: drag.type, x: drag.x, y: drag.y, z: 0, rot: drag.rot, tilt: drag.tilt }, ty);
     const at = drag.over ? snap(f, truck, shown, typeMap, drag.uid ?? undefined) : { x: f.x, y: f.y };
     const z = drag.over ? restingZ({ ...f, ...at }, shown, typeMap, drag.uid ?? undefined) : 0;
-    return { ...f, ...at, z, ty, tall: z + ty.h > truck.h + 0.01 };
+    return { ...f, ...at, z, ty, tall: tooHigh({ ...f, ...at }, z, truck) };
   })();
   const boxes3d = useMemo(
     () =>
       placed.map((p) => {
         const ty = typeMap.get(p.type)!;
         const f = footprint(p, ty);
-        return { id: p.uid, ...f, z: p.z, color: ty.color, bad: p.z + ty.h > truck.h + 0.01, sel: p.uid === sel };
+        return { id: p.uid, ...f, z: p.z, color: ty.color, bad: tooHigh(f, p.z, truck), sel: p.uid === sel };
       }),
-    [placed, typeMap, truck.h, sel],
+    [placed, typeMap, truck, sel],
   );
 
   const vbW = CAB + truck.l + PAD;
@@ -268,6 +266,7 @@ export function TruckPlanner() {
 
   return (
     <div className="truck-tool">
+      <ProjectBar project={project} saving={saving} />
       <aside className="auth-form truck-side">
         <div className="field">
           <label htmlFor="truckSize">{t.truck}</label>
@@ -317,9 +316,116 @@ export function TruckPlanner() {
             />
           </label>
         </div>
+        <label className="pat-check">
+          <input
+            type="checkbox"
+            checked={!!truck.bar}
+            onChange={(e) => update((s) => ({ ...s, truck: { ...s.truck, bar: e.target.checked ? { clear: Math.round(s.truck.h * 0.85), from: 0, depth: 12 } : null } }))}
+          />
+          {t.lowBar}
+        </label>
+        {truck.bar && (
+          <div className="truck-dims truck-bar">
+            {(
+              [
+                ["clear", t.barClear],
+                ["from", t.barFrom],
+                ["depth", t.barDepth],
+              ] as const
+            ).map(([k, label]) => (
+              <label key={k} className="field">
+                <span>{label}</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={toShown(truck.bar![k])}
+                  onChange={(e) => update((s) => ({ ...s, truck: { ...s.truck, bar: { ...s.truck.bar!, [k]: k === "depth" || k === "clear" ? fromShown(e.target.value) : Math.max(0, Number(e.target.value) ? fromShown(e.target.value) : 0) } } }))}
+                />
+              </label>
+            ))}
+            <p className="muted small">{fmt(t.barLost, { v: metric ? `${(barLoss(truck) * 1.6387e-5).toFixed(2)} m³` : `${Math.round(barLoss(truck) / 1728)} ft³` })}</p>
+          </div>
+        )}
         <p className="muted small">
           {t.inside}: {len(truck.l)} × {len(truck.w)} × {len(truck.h)}
         </p>
+
+        <div className="field">
+          <span>{t.logo}</span>
+          <div className="pat-logo">
+            {/* eslint-disable-next-line @next/next/no-img-element -- an uploaded logo */}
+            {state.logo && <img className="truck-logo-thumb" src={state.logo} alt="" />}
+            <label className="btn sm">
+              {state.logo ? t.logoChange : t.logoAdd}
+              <input
+                type="file"
+                hidden
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) shrinkImage(f, 800).then((logo) => update((s) => ({ ...s, logo })), () => {});
+                }}
+              />
+            </label>
+            {state.logo && (
+              <button type="button" className="link small" onClick={() => update((s) => ({ ...s, logo: null }))}>
+                {t.logoRemove}
+              </button>
+            )}
+          </div>
+          <span className="muted small">{t.logoHint}</span>
+        </div>
+
+        <h2>{t.groups}</h2>
+        <p className="muted small">{t.groupsHint}</p>
+        {(state.groups ?? []).map((g) => (
+          <div key={g.id} className="truck-group">
+            <input
+              type="color"
+              className="swatch-pick"
+              value={g.color}
+              aria-label={t.changeColor}
+              onChange={(e) =>
+                update((s) => ({
+                  ...s,
+                  groups: (s.groups ?? []).map((x) => (x.id === g.id ? { ...x, color: e.target.value } : x)),
+                  // every case in the department takes its color
+                  types: s.types.map((x) => (x.group === g.id ? { ...x, color: e.target.value } : x)),
+                }))
+              }
+            />
+            <input value={g.name} maxLength={40} aria-label={t.groupName} onChange={(e) => update((s) => ({ ...s, groups: (s.groups ?? []).map((x) => (x.id === g.id ? { ...x, name: e.target.value } : x)) }))} />
+            <button
+              type="button"
+              className="link small"
+              onClick={() => update((s) => ({ ...s, groups: (s.groups ?? []).filter((x) => x.id !== g.id), types: s.types.map((x) => (x.group === g.id ? { ...x, group: null } : x)) }))}
+            >
+              {t.remove}
+            </button>
+          </div>
+        ))}
+        <div className="inv-actions">
+          <select
+            value=""
+            aria-label={t.addGroup}
+            onChange={(e) => {
+              const i = Number(e.target.value);
+              if (e.target.value === "") return;
+              const name = i >= 0 ? t.groupNames[i] ?? GROUP_PRESETS[i].name : t.newGroup;
+              const color = i >= 0 ? GROUP_PRESETS[i].color : CASE_COLORS[(state.groups?.length ?? 0) % CASE_COLORS.length];
+              update((s) => ({ ...s, groups: [...(s.groups ?? []), { id: uid(), name, color }] }));
+            }}
+          >
+            <option value="">{t.addGroup}</option>
+            {GROUP_PRESETS.map((g, i) => (
+              <option key={g.name} value={i} disabled={(state.groups ?? []).some((x) => x.name === (t.groupNames[i] ?? g.name))}>
+                {t.groupNames[i] ?? g.name}
+              </option>
+            ))}
+            <option value={-1}>{t.newGroup}</option>
+          </select>
+        </div>
 
         <h2>{t.cases}</h2>
         <table className="truck-cases">
@@ -341,10 +447,28 @@ export function TruckPlanner() {
               return (
                 <tr key={ty.id}>
                   <td>
-                    <span className="swatch" style={{ background: ty.color }} />
+                    <input type="color" className="swatch-pick" value={ty.color} aria-label={t.changeColor} title={t.changeColor} onChange={(e) => set({ color: e.target.value })} />
                   </td>
                   <td>
                     <input value={ty.name} maxLength={60} aria-label={t.caseName} onChange={(e) => set({ name: e.target.value })} />
+                    {(state.groups?.length ?? 0) > 0 && (
+                      <select
+                        className="case-group"
+                        value={ty.group ?? ""}
+                        aria-label={t.groupCol}
+                        onChange={(e) => {
+                          const g = state.groups?.find((x) => x.id === e.target.value);
+                          set(g ? { group: g.id, color: g.color } : { group: null });
+                        }}
+                      >
+                        <option value="">{t.groupNone}</option>
+                        {state.groups!.map((g) => (
+                          <option key={g.id} value={g.id}>
+                            {g.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </td>
                   {(["l", "w", "h"] as const).map((k) => (
                     <td key={k}>
@@ -426,6 +550,8 @@ export function TruckPlanner() {
           </button>
         </div>
 
+        {(state.groups?.length ?? 0) > 0 && placed.length > 0 && <GroupTable plan={state} t={t} metric={metric} />}
+
         <div className="truck-tray" aria-label={t.toLoad}>
           <strong>{t.toLoad}</strong>
           {left.some((x) => x.n) ? (
@@ -437,7 +563,7 @@ export function TruckPlanner() {
                   type="button"
                   className="tray-case"
                   style={{ borderColor: ty.color }}
-                  onPointerDown={(e) => startDrag(e, { uid: null, type: ty.id, rot: false, gx: ty.l / 2, gy: ty.w / 2 })}
+                  onPointerDown={(e) => startDrag(e, { uid: null, type: ty.id, rot: false, tilt: 0, gx: ty.l / 2, gy: ty.w / 2 })}
                 >
                   <span className="swatch" style={{ background: ty.color }} />
                   {ty.name} <span className="muted">{fmt(t.left, { n })}</span>
@@ -462,6 +588,14 @@ export function TruckPlanner() {
             {t.front}
           </text>
           <rect className="floor" x={CAB} y={0} width={truck.l} height={truck.w} />
+          {truck.bar && (
+            <g className="lowbar">
+              <rect x={CAB + truck.l - truck.bar.from - truck.bar.depth} y={0} width={Math.max(1, truck.bar.depth)} height={truck.w} />
+              <text x={CAB + truck.l - truck.bar.from - truck.bar.depth / 2} y={truck.w / 2} textAnchor="middle" dominantBaseline="middle" transform={`rotate(-90 ${CAB + truck.l - truck.bar.from - truck.bar.depth / 2} ${truck.w / 2})`}>
+                {t.lowBarShort} {len(truck.bar.clear)}
+              </text>
+            </g>
+          )}
           {Array.from({ length: Math.floor(truck.l / 12) }, (_, i) => (
             <line key={i} className={(i + 1) % 4 ? "ft" : "ft four"} x1={CAB + (i + 1) * 12} x2={CAB + (i + 1) * 12} y1={0} y2={truck.w} />
           ))}
@@ -478,7 +612,7 @@ export function TruckPlanner() {
           {sorted.map((p) => {
             const ty = typeMap.get(p.type)!;
             const f = footprint(p, ty);
-            const tall = p.z + ty.h > truck.h + 0.01;
+            const tall = tooHigh(f, p.z, truck);
             const level = p.z > 0;
             // the label goes on the top case of a stack only
             const covered = shown.some((o) => {
@@ -496,7 +630,7 @@ export function TruckPlanner() {
                 className={`case${p.uid === sel ? " sel" : ""}${tall ? " tall" : ""}${level ? " up" : ""}`}
                 onPointerDown={(e) => {
                   const at = toTruck(e);
-                  startDrag(e, { uid: p.uid, type: p.type, rot: p.rot, gx: at ? at.x - p.x : f.l / 2, gy: at ? at.y - p.y : f.w / 2 });
+                  startDrag(e, { uid: p.uid, type: p.type, rot: p.rot, tilt: p.tilt ?? 0, gx: at ? at.x - p.x : f.l / 2, gy: at ? at.y - p.y : f.w / 2 });
                 }}
                 onDoubleClick={() => rotate(p.uid)}
               >
@@ -530,6 +664,13 @@ export function TruckPlanner() {
               <button type="button" className="btn sm" onClick={() => rotate(selCase.uid)}>
                 ⟳ {t.rotate}
               </button>
+              <span className="seg seg3 tilt-seg" role="radiogroup" aria-label={t.tilt}>
+                {([0, 90, 180] as const).map((deg) => (
+                  <button key={deg} type="button" role="radio" aria-checked={(selCase.tilt ?? 0) === deg} className={(selCase.tilt ?? 0) === deg ? "on" : undefined} title={t.tilts[deg]} onClick={() => tilt(selCase.uid, deg)}>
+                    {deg}°
+                  </button>
+                ))}
+              </span>
               <button type="button" className="btn sm" onClick={() => unload(selCase.uid)}>
                 {t.unload}
               </button>
@@ -558,9 +699,10 @@ export function TruckPlanner() {
         <h2 className="truck-3d-title">{t.view3d}</h2>
         <Truck3D truck={truck} boxes={boxes3d} hint={t.orbit} reset={t.resetView} shotRef={shotRef} />
         {printing && (
-          <TruckPrint mode={printing.mode} truck={truck} placed={placed} types={typeMap} metric={metric} fromDoors={fromDoors} shot={printing.shot} />
+          <TruckPrint mode={printing.mode} truck={truck} placed={placed} types={typeMap} metric={metric} fromDoors={fromDoors} shot={printing.shot} logo={state.logo ?? null} groups={state.groups ?? []} />
         )}
       </section>
     </div>
   );
 }
+

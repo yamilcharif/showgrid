@@ -1,9 +1,10 @@
 "use client";
 
 import { createPortal } from "react-dom";
+import { GroupTable } from "./GroupTable";
 import { useI18n } from "@/components/I18n";
 import { fmt } from "@/lib/i18n/config";
-import { fmtLen, fmtWeight, footprint, loadOrder, position, stats, type CaseType, type Placed, type TruckSize } from "@/lib/truck";
+import { caseNumbers, type Group, fmtLen, fmtWeight, footprint, position, stats, type CaseType, type Placed, type TruckSize } from "@/lib/truck";
 
 export type PrintMode = "plan" | "labels";
 
@@ -16,16 +17,13 @@ interface Props {
   /** #1 at the doors (unload order) rather than at the front */
   fromDoors: boolean;
   shot: string | null;
+  logo: string | null;
+  groups: Group[];
 }
 
-/** Case numbers: load order from the front, or counted from the doors. */
-export function caseNumbers(placed: Placed[], types: Map<string, CaseType>, fromDoors: boolean) {
-  const order = loadOrder(placed, types);
-  return new Map(order.map((uid, i) => [uid, fromDoors ? order.length - i : i + 1]));
-}
 
 /** What gets printed: the plan with its views and load list, or a sheet of case labels. Lives outside the page so only it prints. */
-export function TruckPrint({ mode, truck, placed, types, metric, fromDoors, shot }: Props) {
+export function TruckPrint({ mode, truck, placed, types, metric, fromDoors, shot, logo, groups }: Props) {
   const { t: T, locale } = useI18n();
   const t = T.truck;
   const num = caseNumbers(placed, types, fromDoors);
@@ -34,7 +32,10 @@ export function TruckPrint({ mode, truck, placed, types, metric, fromDoors, shot
   const where = (p: Placed) => {
     const ty = types.get(p.type)!;
     const pos = position(p, ty, truck, placed, types);
-    return { pos, words: [t.words[pos.zone], t.words[pos.side], pos.level > 1 ? fmt(t.words.stack, { n: pos.level }) : t.words.floor] };
+    const words = [t.words[pos.zone], t.words[pos.side], pos.level > 1 ? fmt(t.words.stack, { n: pos.level }) : t.words.floor];
+    if (pos.tilt === 90) words.push(t.words.tilt90);
+    if (pos.tilt === 180) words.push(t.words.tilt180);
+    return { pos, words };
   };
   const st = stats(truck, placed, types);
   const date = new Date().toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" });
@@ -55,6 +56,7 @@ export function TruckPrint({ mode, truck, placed, types, metric, fromDoors, shot
                     {fmt(t.feet, { n: truck.key === "custom" ? Math.round(truck.l / 12) : truck.key })}
                   </span>
                 </div>
+                {groups.find((g) => g.id === ty.group) && <div className="cl-group">{groups.find((g) => g.id === ty.group)!.name}</div>}
                 <div className="cl-name">{ty.name}</div>
                 <div className="cl-size">
                   {len(ty.l)} × {len(ty.w)} × {len(ty.h)}
@@ -64,8 +66,11 @@ export function TruckPrint({ mode, truck, placed, types, metric, fromDoors, shot
                   <strong>{words[0]}</strong>
                   <strong>{words[1]}</strong>
                   <strong className={pos.level > 1 ? "stack" : undefined}>{words[2]}</strong>
+                  {words[3] && <strong className="stack">{words[3]}</strong>}
                 </div>
                 {pos.on && <div className="cl-on">{fmt(t.onCase, { n: num.get(pos.on) ?? "?" })}</div>}
+                {/* eslint-disable-next-line @next/next/no-img-element -- the member's logo */}
+                {logo && <img className="cl-logo" src={logo} alt="" />}
               </div>
             </section>
           );
@@ -74,6 +79,8 @@ export function TruckPrint({ mode, truck, placed, types, metric, fromDoors, shot
     ) : (
       <div className="print-plan">
         <header className="pp-head">
+          {/* eslint-disable-next-line @next/next/no-img-element -- the member's logo */}
+          {logo && <img className="pp-logo" src={logo} alt="" />}
           <div>
             <h1>
               {t.planTitle} · {fmt(t.feet, { n: truck.key === "custom" ? Math.round(truck.l / 12) : truck.key })}
@@ -126,6 +133,7 @@ export function TruckPrint({ mode, truck, placed, types, metric, fromDoors, shot
               <img className="pp-3d" src={shot} alt="" />
             </>
           )}
+          {groups.length > 0 && <GroupTable plan={{ truck, types: [...types.values()], placed, metric, groups }} t={t} metric={metric} />}
           <h2>{t.loadList}</h2>
           <p className="pp-note">{fromDoors ? t.loadListNote : t.loadListNoteFront}</p>
           <table className="pp-table">
@@ -211,6 +219,7 @@ function SideView({ truck, placed, types, num }: ViewProps) {
   return (
     <svg className="pp-view" viewBox={`${-m} ${-m} ${truck.l + m * 2} ${truck.h + m * 2}`}>
       <rect className="pp-floor" x={0} y={0} width={truck.l} height={truck.h} />
+      {truck.bar && <rect className="pp-bar" x={truck.l - truck.bar.from - truck.bar.depth} y={0} width={truck.bar.depth} height={Math.max(0, truck.h - truck.bar.clear)} />}
       {list.map((p) => {
         const f = footprint(p, types.get(p.type)!);
         const y = truck.h - p.z - f.h;

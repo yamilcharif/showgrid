@@ -85,6 +85,15 @@ export function Truck3D({ truck, boxes, hint, reset, shotRef }: { truck: TruckSi
       wall.position.set(0, H / 2, W / 2);
       shell.add(wall);
 
+      // the low bar, hanging from the ceiling near the doors
+      if (t.bar && t.bar.clear < t.h) {
+        const bd = Math.max(0.1, t.bar.depth * FT);
+        const bh = (t.h - t.bar.clear) * FT;
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(bd, bh, W), new THREE.MeshStandardMaterial({ color: 0xff3b3b, transparent: true, opacity: 0.45 }));
+        bar.position.set(L - t.bar.from * FT - bd / 2, H - bh / 2, W / 2);
+        shell.add(bar);
+      }
+
       // look in from the doors, a little above
       camera.position.set(L * 0.92, H * 1.5 + L * 0.18, W * 1.5 + L * 0.32);
       controls.target.set(L * 0.45, H * 0.3, W / 2);

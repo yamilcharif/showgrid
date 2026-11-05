@@ -11,6 +11,14 @@ export interface TruckSize {
   h: number;
   /** most it should carry, in pounds; 0 when unknown */
   payload?: number;
+  /** a low bar across the truck (a door header, a load bar): the height under it, how far it is from the doors and how deep */
+  bar?: LowBar | null;
+}
+
+export interface LowBar {
+  clear: number;
+  from: number;
+  depth: number;
 }
 
 /** Usual inside dimensions; trucks vary, so the planner lets you change them. */
@@ -29,6 +37,8 @@ export interface CaseType {
   h: number;
   /** pounds, case and contents */
   wt?: number;
+  /** the department it belongs to (lighting, audio…), whose color it takes */
+  group?: string | null;
   qty: number;
   color: string;
 }
@@ -41,6 +51,8 @@ export interface Placed {
   z: number;
   /** turned 90°: length runs across the truck */
   rot: boolean;
+  /** tipped over: 90° stands it on its end (length becomes height), 180° is upside down (wheels up) */
+  tilt?: 0 | 90 | 180;
 }
 
 export const CASE_COLORS = ["#e4572e", "#4c9be8", "#f2c14e", "#59c9a5", "#b07fe0", "#ff8fab", "#90be6d", "#f3a712", "#5dd9c1", "#c9ada7"];
@@ -59,7 +71,10 @@ export const CASE_PRESETS: Omit<CaseType, "id" | "qty" | "color">[] = [
 
 /** Footprint of a placed case on the floor plan. */
 export function footprint(p: Placed, t: CaseType) {
-  return { x: p.x, y: p.y, l: p.rot ? t.w : t.l, w: p.rot ? t.l : t.w, h: t.h };
+  // standing on its end, the length becomes the height
+  const up = p.tilt === 90;
+  const l = up ? t.h : t.l;
+  return { x: p.x, y: p.y, l: p.rot ? t.w : l, w: p.rot ? l : t.w, h: up ? t.l : t.h };
 }
 
 const overlaps = (a: { x: number; y: number; l: number; w: number }, b: { x: number; y: number; l: number; w: number }) =>
@@ -77,7 +92,7 @@ export function settle(placed: Placed[], types: Map<string, CaseType>): Placed[]
     if (!t) continue;
     const f = footprint(p, t);
     const z = Math.max(0, ...done.filter((d) => overlaps(f, d.f)).map((d) => d.top));
-    done.push({ ...p, z, top: z + t.h, f });
+    done.push({ ...p, z, top: z + f.h, f });
   }
   const byUid = new Map(done.map((d) => [d.uid, d]));
   return placed.filter((p) => byUid.has(p.uid)).map((p) => ({ ...p, z: byUid.get(p.uid)!.z }));
@@ -90,7 +105,7 @@ export function restingZ(f: { x: number; y: number; l: number; w: number }, plac
     const t = types.get(p.type);
     if (!t || p.uid === skip) continue;
     const g = footprint(p, t);
-    if (overlaps(f, g)) z = Math.max(z, p.z + t.h);
+    if (overlaps(f, g)) z = Math.max(z, p.z + g.h);
   }
   return z;
 }
@@ -123,6 +138,21 @@ export function snap(
   return { x: clamp(near(f.x, xs), truck.l - f.l), y: clamp(near(f.y, ys), truck.w - f.w) };
 }
 
+/** The ceiling over a case: the truck's height, or the clearance under the low bar where the case reaches it. */
+export function ceilingOver(f: { x: number; l: number }, truck: TruckSize) {
+  const b = truck.bar;
+  if (!b) return truck.h;
+  const x0 = truck.l - b.from - b.depth;
+  const x1 = truck.l - b.from;
+  return f.x < x1 - 0.01 && x0 < f.x + f.l - 0.01 ? Math.min(truck.h, b.clear) : truck.h;
+}
+
+/** Whether a case at height z hits the ceiling or the low bar. */
+export const tooHigh = (f: { x: number; l: number; h: number }, z: number, truck: TruckSize) => z + f.h > ceilingOver(f, truck) + 0.01;
+
+/** Space the low bar takes away, in cubic inches. */
+export const barLoss = (truck: TruckSize) => (truck.bar ? Math.max(0, truck.bar.depth) * truck.w * Math.max(0, truck.h - truck.bar.clear) : 0);
+
 export function stats(truck: TruckSize, placed: Placed[], types: Map<string, CaseType>) {
   let floor = 0;
   let vol = 0;
@@ -137,13 +167,15 @@ export function stats(truck: TruckSize, placed: Placed[], types: Map<string, Cas
     if (p.z === 0) floor += f.l * f.w;
     vol += f.l * f.w * f.h;
     depth = Math.max(depth, f.x + f.l);
-    if (p.z + t.h > truck.h + 0.01) tooTall++;
+    if (tooHigh(f, p.z, truck)) tooTall++;
     weight += t.wt ?? 0;
     if (f.x + f.l / 2 < truck.l / 2) front += t.wt ?? 0;
   }
   return {
     floor: floor / (truck.l * truck.w),
-    volume: vol / (truck.l * truck.w * truck.h),
+    // of the space you can actually use: the truck minus what the low bar takes
+    volume: vol / Math.max(1, truck.l * truck.w * truck.h - barLoss(truck)),
+    lost: barLoss(truck),
     /** how far from the front wall the load reaches */
     depth,
     tooTall,
@@ -208,7 +240,7 @@ export function position(p: Placed, t: CaseType, truck: TruckSize, placed: Place
     level++;
     cur = under;
   }
-  return { zone, side, level, on };
+  return { zone, side, level, on, tilt: p.tilt ?? 0 };
 }
 
 /** 98 → 8' 2"; in metric, 98 → 249 cm. */
@@ -217,4 +249,58 @@ export function fmtLen(inches: number, metric: boolean) {
   const ft = Math.floor(Math.round(inches) / 12);
   const inch = Math.round(inches) - ft * 12;
   return ft ? `${ft}'${inch ? ` ${inch}"` : ""}` : `${inch}"`;
+}
+
+/** Everything the truck planner keeps: the truck, the case list and where each case sits. */
+export interface TruckPlan {
+  truck: TruckSize;
+  types: CaseType[];
+  placed: Placed[];
+  metric: boolean;
+  /** case #1 at the doors (first out) rather than at the front (first in) */
+  fromDoors?: boolean;
+  /** your logo, printed on the plan and the case labels */
+  logo?: string | null;
+  /** departments: lighting, audio, video, rigging… each with its color */
+  groups?: Group[];
+}
+
+/** Case numbers: load order from the front, or counted from the doors (#1 comes out first). */
+export function caseNumbers(placed: Placed[], types: Map<string, CaseType>, fromDoors: boolean) {
+  const order = loadOrder(placed, types);
+  return new Map(order.map((uid, i) => [uid, fromDoors ? order.length - i : i + 1]));
+}
+
+export interface Group {
+  id: string;
+  name: string;
+  color: string;
+}
+
+/** The usual departments, to start from. */
+export const GROUP_PRESETS: Omit<Group, "id">[] = [
+  { name: "Lighting", color: "#e53935" },
+  { name: "Audio", color: "#1e88e5" },
+  { name: "Video", color: "#43a047" },
+  { name: "Rigging", color: "#fdd835" },
+  { name: "Power", color: "#fb8c00" },
+  { name: "Backline", color: "#8e24aa" },
+  { name: "Staging", color: "#6d4c41" },
+];
+
+/** Per department: cases loaded and listed, weight, and space taken, for the load summary. */
+export function groupSummary(plan: TruckPlan) {
+  const types = new Map(plan.types.map((x) => [x.id, x]));
+  const rows = [...(plan.groups ?? []), { id: "", name: "", color: "#9e9e9e" }].map((g) => ({ ...g, loaded: 0, listed: 0, weight: 0, volume: 0 }));
+  const of = (groupId: string | null | undefined) => rows.find((r) => r.id === (groupId ?? "")) ?? rows[rows.length - 1];
+  for (const ty of plan.types) of(ty.group).listed += ty.qty;
+  for (const p of plan.placed) {
+    const ty = types.get(p.type);
+    if (!ty) continue;
+    const r = of(ty.group);
+    r.loaded++;
+    r.weight += ty.wt ?? 0;
+    r.volume += ty.l * ty.w * ty.h;
+  }
+  return rows.filter((r) => r.listed || r.loaded);
 }

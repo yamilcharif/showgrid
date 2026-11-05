@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ToolsDisclaimer } from "@/components/ToolsDisclaimer";
 import { getDictionary } from "@/lib/i18n/server";
 import { LabelTool } from "./LabelTool";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const t = (await getDictionary()).labels;
+  const dict = await getDictionary();
+  const t = dict.labels;
   return { title: t.metaTitle, description: t.lede };
 }
 
 export default async function LabelsPage() {
-  const t = (await getDictionary()).labels;
+  const dict = await getDictionary();
+  const t = dict.labels;
   return (
     <main>
       <section className="co-hero">
@@ -24,6 +27,7 @@ export default async function LabelsPage() {
       </section>
       <div className="wrap co-page">
         <LabelTool />
+        <ToolsDisclaimer t={dict.tools} compact />
       </div>
     </main>
   );

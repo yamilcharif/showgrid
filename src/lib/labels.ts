@@ -88,3 +88,158 @@ export async function readTable(file: File): Promise<string[][]> {
   }
   return parseTable(await file.text());
 }
+
+// ---------- the label maker's settings ----------
+
+export const BAND_COLORS = ["#e4572e", "#4c9be8", "#f2c14e", "#59c9a5", "#b07fe0", "#ff8fab", "#90be6d", "#f3a712", "#5dd9c1", "#8d99ae"];
+export const MAX_ROWS = 3000;
+
+export type Band = "none" | "left" | "top";
+/** "general": the columns you pick, in lines. "fixture": a lighting sticker, big ID, position, type, U: and A:. */
+export type Template = "general" | "fixture";
+/** Which column holds each part of a fixture sticker; -1 when there's none. */
+export interface FixtureCols {
+  id: number;
+  pos: number;
+  type: number;
+  mode: number;
+  uni: number;
+  addr: number;
+}
+export type LabelSide = "left" | "right" | "top";
+
+export interface LabelSettings {
+  rows: string[][];
+  headers: boolean;
+  /** column indexes printed, in order; the first is the big line */
+  fields: number[];
+  extra: string;
+  copies: number;
+  /** column holding a copy count, or -1 */
+  qtyCol: number;
+  bg: string;
+  ink: string;
+  accent: string;
+  band: Band;
+  /** column whose values pick the band color, or -1 for one color */
+  colorBy: number;
+  align: "left" | "center";
+  logo: string | null;
+  logoSide: LabelSide;
+  sheetId: string;
+  custom: Omit<Sheet, "id" | "name" | "cols" | "rows">;
+  metric: boolean;
+  startAt: number;
+  outline: boolean;
+  template?: Template;
+  fx?: FixtureCols;
+  /** fixture stickers colored all over (by position), with black or white text to suit */
+  fxFill?: boolean;
+  /** a chosen color for some values of the color-by column: {"LX1": "#e53935"} */
+  valueColors?: Record<string, string>;
+}
+
+export const LABELS_START: LabelSettings = {
+  rows: [],
+  headers: true,
+  fields: [],
+  extra: "",
+  copies: 1,
+  qtyCol: -1,
+  bg: "#ffffff",
+  ink: "#0b0b0c",
+  accent: "#ff3b3b",
+  band: "left",
+  colorBy: -1,
+  align: "left",
+  logo: null,
+  logoSide: "right",
+  sheetId: "5163",
+  custom: { paper: "letter", w: 4, h: 2, top: 0.5, left: 0.25, gapX: 0.125, gapY: 0.125 },
+  metric: false,
+  startAt: 1,
+  outline: false,
+};
+
+export interface Label {
+  key: string;
+  lines: string[];
+  band: string;
+  /** the parts of a fixture sticker */
+  fx?: { id: string; pos: string; type: string; mode: string; u: string; a: string };
+}
+
+const NO_FX: FixtureCols = { id: -1, pos: -1, type: -1, mode: -1, uni: -1, addr: -1 };
+
+/**
+ * Finds the fixture columns of a patch list or plot report by their names: Unit Number / Fixture ID / Channel,
+ * Position, Instrument Type, Mode, Universe and Address (or "Universe/Address" in one column).
+ */
+export function detectFixture(head: string[]): FixtureCols {
+  const find = (re: RegExp, not?: RegExp) => head.findIndex((h) => re.test(h.trim()) && !(not && not.test(h.trim())));
+  const fx: FixtureCols = {
+    id: find(/^(unit ?(number|no|#)|fixture ?(id|#|no|number)|id|#|ch(an(nel)?)?|channel ?#?|purpose ?id|fid)$/i),
+    pos: find(/position|^pos\b|location|truss|pipe|posici[oó]n|ubicaci[oó]n/i),
+    type: find(/instrument ?type|fixture ?type|^type$|^fixture$|model|^device|equipo|tipo|aparato/i, /id|#|number/i),
+    mode: find(/mode|personality|modo/i),
+    uni: find(/universe|^univ|^u$|universo/i),
+    addr: find(/address|^addr|^dmx|^a$|direcci[oó]n/i),
+  };
+  return fx;
+}
+
+/** "1/506", "1.506", "1:506" → universe 1, address 506; an absolute 2048 → universe 4, address 512. */
+export function splitPatch(u: string, a: string): { u: string; a: string } {
+  const both = (a || u).match(/^\s*(\d+)\s*[/.:\-]\s*(\d+)\s*$/);
+  if (both) return { u: both[1], a: both[2] };
+  const n = Number(a);
+  if (!u && Number.isInteger(n) && n > 512) return { u: String(Math.floor((n - 1) / 512) + 1), a: String(((n - 1) % 512) + 1) };
+  return { u: u.trim(), a: a.trim() };
+}
+
+/** Black or white, whichever reads better on a background color. */
+export function inkFor(bg: string) {
+  const m = bg.replace("#", "").match(/^([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+  if (!m) return "#000000";
+  const [r, g, b] = m.slice(1).map((x) => parseInt(x, 16) / 255);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.55 ? "#000000" : "#ffffff";
+}
+
+/** Every label to print, in order: one per row (or per copy), with its lines and band color. */
+export function buildLabels(s: LabelSettings): Label[] {
+  const body = s.headers ? s.rows.slice(1) : s.rows;
+  const values = s.colorBy >= 0 ? [...new Set(body.map((r) => r[s.colorBy] ?? ""))] : [];
+  const out: Label[] = [];
+  body.forEach((r, i) => {
+    const v = r[s.colorBy] ?? "";
+    const band = s.colorBy >= 0 ? s.valueColors?.[v] ?? BAND_COLORS[values.indexOf(v) % BAND_COLORS.length] : s.accent;
+    const n = s.qtyCol >= 0 ? Math.max(0, Math.min(500, Math.round(Number(String(r[s.qtyCol]).replace(/[^\d.]/g, "")) || 0))) : s.copies;
+    if (s.template === "fixture") {
+      const fx = s.fx ?? NO_FX;
+      const cell = (c: number) => (c >= 0 ? (r[c] ?? "").trim() : "");
+      const id = cell(fx.id);
+      if (!id && !cell(fx.type)) return;
+      const patch = splitPatch(fx.uni === fx.addr ? "" : cell(fx.uni), cell(fx.addr));
+      const f = { id, pos: cell(fx.pos), type: cell(fx.type), mode: cell(fx.mode), u: patch.u, a: patch.a };
+      for (let k = 0; k < n; k++) out.push({ key: `${i}-${k}`, lines: [id, f.type, f.mode].filter(Boolean), band, fx: f });
+      return;
+    }
+    const lines = s.fields.map((c) => r[c] ?? "").filter((v) => v.trim());
+    if (!lines.length) return;
+    for (let k = 0; k < n; k++) out.push({ key: `${i}-${k}`, lines, band });
+  });
+  return out;
+}
+
+/** The sheet a label maker setting prints on. */
+export function sheetOf(s: LabelSettings): Sheet {
+  return s.sheetId === "custom" ? customSheet(s.custom) : SHEETS.find((x) => x.id === s.sheetId) ?? SHEETS[1];
+}
+
+/** The values of the color-by column, each with the color its labels get. */
+export function colorKey(s: LabelSettings): { value: string; color: string }[] {
+  if (s.colorBy < 0) return [];
+  const body = s.headers ? s.rows.slice(1) : s.rows;
+  const values = [...new Set(body.map((r) => r[s.colorBy] ?? ""))];
+  return values.map((value, i) => ({ value, color: s.valueColors?.[value] ?? BAND_COLORS[i % BAND_COLORS.length] }));
+}

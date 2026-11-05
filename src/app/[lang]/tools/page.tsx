@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ToolsDisclaimer } from "@/components/ToolsDisclaimer";
 import { getDictionary } from "@/lib/i18n/server";
+import { ProjectsPanel } from "./ProjectsPanel";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = (await getDictionary()).tools;
@@ -28,6 +30,8 @@ export default async function ToolsPage() {
         </div>
       </section>
       <div className="wrap co-page">
+        <ToolsDisclaimer t={t} />
+        <ProjectsPanel />
         <div className="tool-grid">
           {tools.map((tool) => (
             <Link key={tool.href} href={tool.href} className="auth-form tool-card">

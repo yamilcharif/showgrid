@@ -7,11 +7,19 @@ import { useApp } from "@/components/AppState";
 import { useI18n } from "@/components/I18n";
 import { useListings } from "@/components/Listings";
 import { LocationBox } from "@/components/LocationBox";
+import { ProjectBar, useToolState } from "@/components/Projects";
 import { fmt, plural } from "@/lib/i18n/config";
 import { estimateRider, parseRider, pdfText, quoteRider, summarize, type CompanyQuote, type RentalMode, type RiderLine, type SubChoice } from "@/lib/rider";
 import { RADII, dayCount, fmtDist, isoIn, money, rangeLabel, unitFor } from "@/lib/search";
 
 const MAX_BYTES = 300 * 1024 * 1024;
+
+interface RiderSaved {
+  lines: RiderLine[];
+  source: string;
+  mode: RentalMode;
+}
+const RIDER_START: RiderSaved = { lines: [], source: "", mode: "show" };
 
 /** Upload a rider (or paste one), check the gear it lists, and see which rental houses nearby have it and for how much. */
 export function RiderTool() {
@@ -22,13 +30,18 @@ export function RiderTool() {
   const unit = unitFor(place);
 
   const fileRef = useRef<HTMLInputElement>(null);
-  const [source, setSource] = useState("");
   const [reading, setReading] = useState("");
   const [error, setError] = useState("");
   const [paste, setPaste] = useState("");
-  const [lines, setLines] = useState<RiderLine[]>([]);
   const [drag, setDrag] = useState(false);
-  const [mode, setMode] = useState<RentalMode>("show");
+  // the list, its file name and the kind of rental are kept in the open project, or on this device
+  const { state: saved, setState: setSaved, project, saving } = useToolState<RiderSaved>("rider", "sg_rider", RIDER_START, (v) =>
+    v && typeof v === "object" && Array.isArray((v as RiderSaved).lines) ? { ...RIDER_START, ...(v as RiderSaved) } : RIDER_START,
+  );
+  const { lines, source, mode } = saved;
+  const setLines = (fn: RiderLine[] | ((ls: RiderLine[]) => RiderLine[])) => setSaved((x) => ({ ...x, lines: typeof fn === "function" ? fn(x.lines) : fn }));
+  const setSource = (name: string) => setSaved((x) => ({ ...x, source: name }));
+  const setMode = (m: RentalMode) => setSaved((x) => ({ ...x, mode: m }));
 
   const read = (text: string, name: string) => {
     const found = parseRider(text);
@@ -169,6 +182,7 @@ export function RiderTool() {
       </section>
 
       <div className="wrap co-page rider-page">
+        <ProjectBar project={project} saving={saving} />
         <div className="rider-cols">
           <section className="auth-form rider-list">
             {lines.length > 0 ? (

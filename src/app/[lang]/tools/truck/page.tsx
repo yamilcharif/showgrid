@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ToolsDisclaimer } from "@/components/ToolsDisclaimer";
 import { getDictionary } from "@/lib/i18n/server";
 import { TruckPlanner } from "./TruckPlanner";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const t = (await getDictionary()).truck;
+  const dict = await getDictionary();
+  const t = dict.truck;
   return { title: t.metaTitle, description: t.lede };
 }
 
 export default async function TruckPage() {
-  const t = (await getDictionary()).truck;
+  const dict = await getDictionary();
+  const t = dict.truck;
   return (
     <main>
       <section className="co-hero">
@@ -24,6 +27,7 @@ export default async function TruckPage() {
       </section>
       <div className="wrap co-page">
         <TruckPlanner />
+        <ToolsDisclaimer t={dict.tools} compact />
       </div>
     </main>
   );
