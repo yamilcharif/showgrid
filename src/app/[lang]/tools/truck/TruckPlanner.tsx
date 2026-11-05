@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AccountNeeded, useSignedIn } from "@/components/AccountGate";
 import { useT } from "@/components/I18n";
 import { fmt, plural } from "@/lib/i18n/config";
 import {
@@ -9,6 +10,7 @@ import {
   CASE_PRESETS,
   TRUCKS,
   fmtLen,
+  fmtWeight,
   footprint,
   restingZ,
   settle,
@@ -18,6 +20,7 @@ import {
   type Placed,
   type TruckSize,
 } from "@/lib/truck";
+import { TruckPrint, caseNumbers, type PrintMode } from "./TruckPrint";
 
 // three.js is only loaded in the browser, and only on this page
 const Truck3D = dynamic(() => import("./Truck3D").then((m) => m.Truck3D), { ssr: false });
@@ -31,6 +34,8 @@ interface Saved {
   types: CaseType[];
   placed: Placed[];
   metric: boolean;
+  /** case #1 at the doors (first out) rather than at the front (first in) */
+  fromDoors?: boolean;
 }
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -61,6 +66,15 @@ export function TruckPlanner() {
   const [loaded, setLoaded] = useState(false);
   const [sel, setSel] = useState<string | null>(null);
   const [drag, setDragState] = useState<Drag | null>(null);
+  const [printing, setPrinting] = useState<{ mode: PrintMode; shot: string | null } | null>(null);
+  // using the planner is open to everyone; printing needs an account
+  const signedIn = useSignedIn();
+  const [askAccount, setAskAccount] = useState(false);
+  const print = (mode: PrintMode) => {
+    if (!signedIn) return setAskAccount(true);
+    setPrinting({ mode, shot: mode === "plan" ? (shotRef.current?.() ?? null) : null });
+  };
+  const shotRef = useRef<(() => string | null) | null>(null);
   // the pointer handlers read the drag from here, so a drop is handled once
   const dragRef = useRef<Drag | null>(null);
   const setDrag = useCallback((d: Drag | null) => {
@@ -69,7 +83,22 @@ export function TruckPlanner() {
   }, []);
   const svgRef = useRef<SVGSVGElement>(null);
   const { truck, types, placed, metric } = state;
+  const fromDoors = state.fromDoors ?? true;
   const typeMap = useMemo(() => new Map(types.map((ty) => [ty.id, ty])), [types]);
+
+  // print what was asked for, then put the page back
+  useEffect(() => {
+    if (!printing) return;
+    document.body.dataset.print = printing.mode;
+    const done = () => setPrinting(null);
+    window.addEventListener("afterprint", done);
+    const id = setTimeout(() => window.print(), 150);
+    return () => {
+      clearTimeout(id);
+      window.removeEventListener("afterprint", done);
+      delete document.body.dataset.print;
+    };
+  }, [printing]);
 
   // the plan is kept per device
   useEffect(() => {
@@ -100,6 +129,11 @@ export function TruckPlanner() {
   const len = (n: number) => fmtLen(n, metric);
   // inputs show inches or centimetres; the plan is kept in inches
   const toShown = (n: number) => (metric ? Math.round(n * 2.54) : Math.round(n));
+  const toShownWt = (lb: number | undefined) => (lb ? (metric ? Math.round(lb * 0.4536) : Math.round(lb)) : "");
+  const fromShownWt = (v: string) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? Math.min(100000, metric ? n / 0.4536 : n) : 0;
+  };
   const fromShown = (v: string) => {
     const n = Number(v);
     return Number.isFinite(n) && n > 0 ? Math.min(2000, metric ? n / 2.54 : n) : 1;
@@ -230,6 +264,7 @@ export function TruckPlanner() {
   const vbH = truck.w;
   const selCase = sel ? placed.find((p) => p.uid === sel) : null;
   const sorted = [...shown].sort((a, b) => a.z - b.z);
+  const nums = caseNumbers(placed, typeMap, fromDoors);
 
   return (
     <div className="truck-tool">
@@ -270,6 +305,17 @@ export function TruckPlanner() {
               <option value="cm">cm</option>
             </select>
           </label>
+          <label className="field truck-payload">
+            <span>
+              {t.payload} ({metric ? "kg" : "lb"})
+            </span>
+            <input
+              type="number"
+              min={0}
+              value={toShownWt(truck.payload)}
+              onChange={(e) => update((s) => ({ ...s, truck: { ...s.truck, payload: fromShownWt(e.target.value) } }))}
+            />
+          </label>
         </div>
         <p className="muted small">
           {t.inside}: {len(truck.l)} × {len(truck.w)} × {len(truck.h)}
@@ -284,6 +330,7 @@ export function TruckPlanner() {
               <th>{metric ? "L cm" : "L in"}</th>
               <th>{metric ? "W cm" : "W in"}</th>
               <th>{metric ? "H cm" : "H in"}</th>
+              <th>{metric ? "kg" : "lb"}</th>
               <th>{t.qty}</th>
               <th />
             </tr>
@@ -304,6 +351,9 @@ export function TruckPlanner() {
                       <input type="number" min={1} aria-label={k} value={toShown(ty[k])} onChange={(e) => set({ [k]: fromShown(e.target.value) })} />
                     </td>
                   ))}
+                  <td>
+                    <input type="number" min={0} aria-label={t.weight} value={toShownWt(ty.wt)} onChange={(e) => set({ wt: fromShownWt(e.target.value) })} />
+                  </td>
                   <td>
                     <input type="number" min={0} max={500} aria-label={t.qty} value={ty.qty} onChange={(e) => set({ qty: Math.max(0, Math.min(500, Math.round(Number(e.target.value) || 0))) })} />
                   </td>
@@ -357,6 +407,14 @@ export function TruckPlanner() {
             <strong className="num">{len(st.depth)}</strong>
             {t.depth}
           </div>
+          <div>
+            <strong className="num">
+              {fmtWeight(st.weight, metric)}
+              {truck.payload ? <small> / {fmtWeight(truck.payload, metric)}</small> : null}
+            </strong>
+            {st.weight ? fmt(t.split, { f: Math.round(st.frontShare * 100), b: 100 - Math.round(st.frontShare * 100) }) : t.totalWeight}
+          </div>
+          {st.over > 0 && <div className="bad">{fmt(t.overPayload, { n: fmtWeight(st.over, metric) })}</div>}
           {st.tooTall > 0 && <div className="bad">{plural(st.tooTall, t.tooTall)}</div>}
           <button
             type="button"
@@ -407,6 +465,12 @@ export function TruckPlanner() {
           {Array.from({ length: Math.floor(truck.l / 12) }, (_, i) => (
             <line key={i} className={(i + 1) % 4 ? "ft" : "ft four"} x1={CAB + (i + 1) * 12} x2={CAB + (i + 1) * 12} y1={0} y2={truck.w} />
           ))}
+          <text className="lbl" x={CAB + truck.l / 2} y={-4} textAnchor="middle">
+            {t.passengerSide}
+          </text>
+          <text className="lbl" x={CAB + truck.l / 2} y={truck.w + 9} textAnchor="middle">
+            {t.driverSide}
+          </text>
           <text className="lbl" x={CAB + truck.l + 6} y={truck.w / 2} dominantBaseline="middle" transform={`rotate(90 ${CAB + truck.l + 6} ${truck.w / 2})`} textAnchor="middle">
             {t.doors}
           </text>
@@ -439,7 +503,7 @@ export function TruckPlanner() {
                 <rect x={CAB + f.x} y={f.y} width={f.l} height={f.w} fill={ty.color} />
                 {!covered && f.l > 14 && f.w > 8 && (
                   <text x={CAB + f.x + f.l / 2} y={f.y + f.w / 2} textAnchor="middle" dominantBaseline="middle" style={{ fontSize: Math.min(9, f.w / 2.6, f.l / 6) }}>
-                    {level ? `▲${height > 1 ? ` ×${height}` : ""} ${ty.name}` : ty.name}
+                    #{nums.get(p.uid)} {level ? `▲${height > 1 ? ` ×${height}` : ""} ${ty.name}` : ty.name}
                   </text>
                 )}
               </g>
@@ -473,8 +537,29 @@ export function TruckPlanner() {
           )}
         </div>
 
+        <div className="truck-print-bar">
+          <label className="truck-numbering">
+            {t.numbering}
+            <select value={fromDoors ? "doors" : "front"} onChange={(e) => update((s) => ({ ...s, fromDoors: e.target.value === "doors" }))}>
+              <option value="doors">{t.numberDoors}</option>
+              <option value="front">{t.numberFront}</option>
+            </select>
+          </label>
+          <button type="button" className="btn primary" disabled={!placed.length} onClick={() => print("plan")}>
+            🖨 {t.printPlan}
+          </button>
+          <button type="button" className="btn" disabled={!placed.length} onClick={() => print("labels")}>
+            🏷 {t.printLabels}
+          </button>
+          {!placed.length && <span className="muted small">{t.nothingToPrint}</span>}
+        </div>
+        {askAccount && !signedIn && <AccountNeeded />}
+
         <h2 className="truck-3d-title">{t.view3d}</h2>
-        <Truck3D truck={truck} boxes={boxes3d} hint={t.orbit} reset={t.resetView} />
+        <Truck3D truck={truck} boxes={boxes3d} hint={t.orbit} reset={t.resetView} shotRef={shotRef} />
+        {printing && (
+          <TruckPrint mode={printing.mode} truck={truck} placed={placed} types={typeMap} metric={metric} fromDoors={fromDoors} shot={printing.shot} />
+        )}
       </section>
     </div>
   );

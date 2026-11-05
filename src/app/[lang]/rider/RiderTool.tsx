@@ -8,7 +8,7 @@ import { useI18n } from "@/components/I18n";
 import { useListings } from "@/components/Listings";
 import { LocationBox } from "@/components/LocationBox";
 import { fmt, plural } from "@/lib/i18n/config";
-import { estimateRider, parseRider, pdfText, quoteRider, summarize, type CompanyQuote, type RiderLine, type SubChoice } from "@/lib/rider";
+import { estimateRider, parseRider, pdfText, quoteRider, summarize, type CompanyQuote, type RentalMode, type RiderLine, type SubChoice } from "@/lib/rider";
 import { RADII, dayCount, fmtDist, isoIn, money, rangeLabel, unitFor } from "@/lib/search";
 
 const MAX_BYTES = 300 * 1024 * 1024;
@@ -28,6 +28,7 @@ export function RiderTool() {
   const [paste, setPaste] = useState("");
   const [lines, setLines] = useState<RiderLine[]>([]);
   const [drag, setDrag] = useState(false);
+  const [mode, setMode] = useState<RentalMode>("show");
 
   const read = (text: string, name: string) => {
     const found = parseRider(text);
@@ -61,10 +62,10 @@ export function RiderTool() {
   const addLine = () => setLines((ls) => [...ls, { key: Math.max(-1, ...ls.map((l) => l.key)) + 1, name: "", qty: 1, on: true }]);
 
   const quotes = useMemo(
-    () => (ready ? quoteRider(lines, { place, radiusIdx, dates, listings }) : []),
-    [ready, lines, place, radiusIdx, dates, listings],
+    () => (ready ? quoteRider(lines, { place, radiusIdx, dates, listings, mode }) : []),
+    [ready, lines, place, radiusIdx, dates, listings, mode],
   );
-  const est = useMemo(() => estimateRider(quotes, lines, dates), [quotes, lines, dates]);
+  const est = useMemo(() => estimateRider(quotes, lines, dates, mode), [quotes, lines, dates, mode]);
   const days = dayCount(dates);
 
   return (
@@ -233,15 +234,60 @@ export function RiderTool() {
           {lines.some((l) => l.on) && (
             <section className="rider-results">
               <div className="auth-form rider-est">
-                <p className="eyebrow muted">{t.estimate}</p>
-                {est.priced ? (
+                <div className="rider-est-head">
+                  <p className="eyebrow muted">{t.estimate}</p>
+                  <div className="seg seg2" role="radiogroup" aria-label={t.mode}>
+                    {(["show", "tour"] as const).map((k) => (
+                      <button key={k} type="button" role="radio" aria-checked={mode === k} className={mode === k ? "on" : undefined} onClick={() => setMode(k)}>
+                        {k === "show" ? t.modeShow : t.modeTour}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {est.total > 0 ? (
                   <>
-                    <strong className="num rider-total">
-                      {est.low === est.mid ? money(est.mid, est.cur) : fmt(t.estimateRange, { low: money(est.low, est.cur), mid: money(est.mid, est.cur) })}
-                    </strong>
+                    <strong className="num rider-total">{money(est.total, est.cur)}</strong>
                     <p className="muted small">
-                      {fmt(t.estimateNote, { days: plural(days, t.days), priced: est.priced, total: est.total })}
+                      {fmt(mode === "tour" ? t.estimateNoteTour : t.estimateNote, {
+                        days: plural(days, t.days),
+                        published: est.published,
+                        estimated: est.estimated,
+                        total: est.lines,
+                      })}
                     </p>
+                    <details className="rider-how">
+                      <summary>{t.how}</summary>
+                      <table>
+                        <tbody>
+                          {est.rows.map((r) => (
+                            <tr key={r.line.key} className={r.source}>
+                              <td className="num">{r.line.qty}×</td>
+                              <td>
+                                {r.line.name}
+                                <small>
+                                  {r.source === "published"
+                                    ? fmt(t.howPublished, { rate: money(r.rate, est.cur), co: r.co ?? "" })
+                                    : r.source === "estimated"
+                                      ? fmt(t.howEstimated, { value: money(r.value ?? 0, est.cur), rate: money(r.rate, est.cur) })
+                                      : t.howNone}
+                                </small>
+                              </td>
+                              <td className="num">
+                                {r.source !== "none" && (
+                                  <>
+                                    <small>
+                                      {r.line.qty} × {money(r.rate, est.cur)} × {+r.factor.toFixed(2)}
+                                    </small>
+                                    {money(r.subtotal, est.cur)}
+                                  </>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <p className="muted small">{mode === "tour" ? fmt(t.howFactorTour, { days: plural(days, t.days) }) : fmt(t.howFactorShow, { days: plural(days, t.days) })}</p>
+                    </details>
                   </>
                 ) : (
                   <p className="muted small">{t.estimateNone}</p>
@@ -250,7 +296,7 @@ export function RiderTool() {
 
               <h2>{t.resultsTitle}</h2>
               {quotes.length ? (
-                quotes.map((q) => <QuoteCard key={q.co.id} q={q} total={est.total} dates={dates} unit={unit} locale={locale} />)
+                quotes.map((q) => <QuoteCard key={q.co.id} q={q} total={est.lines} dates={dates} unit={unit} locale={locale} />)
               ) : (
                 <p className="muted">{t.noResults}</p>
               )}
@@ -317,6 +363,7 @@ function QuoteCard({ q, total, dates, unit, locale }: { q: CompanyQuote; total: 
           {sum.used.length > 0 && <span className="small rider-with">{fmt(t.withContra, { pct: Math.round(sum.coverage * 100) })}</span>}
           <span className="muted small">
             {sum.cost > 0 ? fmt(t.costFor, { cost: money(sum.cost, q.co.cur) }) : t.allOnRequest}
+            {sum.cost > 0 && sum.estimated > 0 && ` · ${plural(sum.estimated, t.inclEstimated)}`}
             {sum.cost > 0 && sum.onRequest > 0 && ` ${plural(sum.onRequest, t.plusOnRequest)}`}
           </span>
         </div>

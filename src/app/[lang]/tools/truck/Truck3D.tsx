@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { TruckSize } from "@/lib/truck";
@@ -23,7 +23,7 @@ export interface Box3 {
 const FT = 1 / 12;
 
 /** The truck and its load in 3D. Drag or hold the mouse wheel to orbit, scroll to zoom, right-drag to pan. */
-export function Truck3D({ truck, boxes, hint, reset }: { truck: TruckSize; boxes: Box3[]; hint: string; reset: string }) {
+export function Truck3D({ truck, boxes, hint, reset, shotRef }: { truck: TruckSize; boxes: Box3[]; hint: string; reset: string; shotRef?: RefObject<(() => string | null) | null> }) {
   const host = useRef<HTMLDivElement>(null);
   const api = useRef<{ load: (b: Box3[]) => void; frame: (t: TruckSize) => void } | null>(null);
 
@@ -31,7 +31,8 @@ export function Truck3D({ truck, boxes, hint, reset }: { truck: TruckSize; boxes
   useEffect(() => {
     const el = host.current;
     if (!el) return;
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    // keeps the last frame so it can be saved as an image for printing
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     el.appendChild(renderer.domElement);
     const scene = new THREE.Scene();
@@ -123,6 +124,11 @@ export function Truck3D({ truck, boxes, hint, reset }: { truck: TruckSize; boxes
     tick();
 
     api.current = { load: loadBoxes, frame };
+    if (shotRef)
+      shotRef.current = () => {
+        renderer.render(scene, camera);
+        return renderer.domElement.toDataURL("image/png");
+      };
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
@@ -132,8 +138,9 @@ export function Truck3D({ truck, boxes, hint, reset }: { truck: TruckSize; boxes
       renderer.dispose();
       renderer.domElement.remove();
       api.current = null;
+      if (shotRef) shotRef.current = null;
     };
-  }, []);
+  }, [shotRef]);
 
   // reframe when the truck changes size; reload the cases whenever the plan changes
   useEffect(() => api.current?.frame(truck), [truck]);

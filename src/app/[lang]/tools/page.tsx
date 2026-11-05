@@ -13,6 +13,7 @@ export default async function ToolsPage() {
     { href: "/rider", icon: "📄", name: t.riderName, desc: t.riderDesc },
     { href: "/tools/truck", icon: "🚚", name: t.truckName, desc: t.truckDesc },
     { href: "/tools/pattern", icon: "▦", name: t.patternName, desc: t.patternDesc },
+    { href: "/tools/labels", icon: "🏷", name: t.labelsName, desc: t.labelsDesc },
   ];
   return (
     <main>

@@ -1,5 +1,6 @@
 import { STANDS_IN, gearKind, type GearKind } from "./gearKind";
-import { rentalFactor } from "./pricing";
+import { estimatedRate } from "./gearValue";
+import { rentalFactor, type PriceRule } from "./pricing";
 import { ccOf, coords } from "./places";
 import { RADII, dayCount, freeFor, isAccessory, miles, parseQuery, unitFor, type DateRange } from "./search";
 import type { Company, Item, Place, Tech } from "./types";
@@ -113,10 +114,45 @@ export interface CompanyQuote {
   linesFound: number;
   /** estimated cost of the covered gear that has a public price */
   cost: number;
-  /** covered lines whose price is on request */
+  /** covered lines with no published price and no estimate */
   onRequest: number;
-  /** day rates charged for the rental length, from the company's rule */
+  /** covered lines priced at 4% of an estimated purchase value */
+  estimated: number;
+  /** day rates charged for the rental length: the company's rule, or one day a week on tour */
   factor: number;
+}
+
+/** A show is charged by the company's rule; tour gear is charged one day per week. */
+export type RentalMode = "show" | "tour";
+
+/** The usual rule when a company hasn't set one: 1-3 days cost a day, a week costs a day and a half. */
+const COMMON_RULE: PriceRule = { tiers: [{ upTo: 3, factor: 1 }, { upTo: 7, factor: 1.5 }], weekly: true };
+
+export function factorFor(mode: RentalMode, rule: PriceRule | null | undefined, days: number) {
+  return mode === "tour" ? Math.max(1, Math.ceil(days / 7)) : rentalFactor(rule ?? COMMON_RULE, days);
+}
+
+/** An item's day rate: the published one, else 4% of what it costs to buy, else unknown. */
+export function dayRate(it: Item): { rate: number; est: boolean } | null {
+  if (it.pub && it.rate > 0) return { rate: it.rate, est: false };
+  const e = estimatedRate(it.name);
+  return e ? { rate: e.rate, est: true } : null;
+}
+
+/** Cost, count of estimated prices and count of unknown ones, for item lines at a company. */
+function costOf(lines: { it: Item; qty: number }[], factor: number) {
+  let cost = 0;
+  let estimated = 0;
+  let onRequest = 0;
+  for (const l of lines) {
+    const r = dayRate(l.it);
+    if (!r) onRequest++;
+    else {
+      cost += r.rate * l.qty * factor;
+      if (r.est) estimated++;
+    }
+  }
+  return { cost, estimated, onRequest };
 }
 
 /**
@@ -167,7 +203,7 @@ function sizesIn(s: string) {
 
 export function quoteRider(
   lines: RiderLine[],
-  { place, radiusIdx, dates, listings }: { place: Place; radiusIdx: number; dates: DateRange; listings: { companies: Company[]; items: Item[]; techs: Tech[] } },
+  { place, radiusIdx, dates, listings, mode = "show" }: { place: Place; radiusIdx: number; dates: DateRange; listings: { companies: Company[]; items: Item[]; techs: Tech[] }; mode?: RentalMode },
 ): CompanyQuote[] {
   const want = lines.filter((l) => l.on && l.qty > 0 && l.name.trim());
   if (!want.length) return [];
@@ -200,16 +236,15 @@ export function quoteRider(
     });
     const found = matches.filter((m) => m.it && m.have > 0);
     if (!found.length && !matches.some((m) => m.subs.length)) continue;
-    const factor = rentalFactor(co.priceRule, days);
+    const factor = factorFor(mode, co.priceRule, days);
     out.push({
       factor,
+      ...costOf(found.map((m) => ({ it: m.it!, qty: m.have })), factor),
       co,
       d,
       matches,
       coverage: found.reduce((a, m) => a + m.have, 0) / want.reduce((a, l) => a + l.qty, 0),
       linesFound: found.length,
-      cost: found.reduce((a, m) => a + (m.it!.pub ? m.it!.rate * m.have * factor : 0), 0),
-      onRequest: found.filter((m) => !m.it!.pub || !m.it!.rate).length,
     });
   }
   // most of the rider first; a company that could cover more with its contrarider wins a tie
@@ -268,34 +303,58 @@ export function summarize(q: CompanyQuote, choice: SubChoice) {
     lines,
     used,
     coverage: wantUnits ? Math.min(1, covered / wantUnits) : 0,
-    cost: lines.reduce((a, l) => a + (l.it.pub ? l.it.rate * l.qty * q.factor : 0), 0),
-    onRequest: lines.filter((l) => !l.it.pub || !l.it.rate).length,
+    ...costOf(lines, q.factor),
   };
 }
 
+/** How one rider line was priced in the estimate. */
+export interface EstimateRow {
+  line: RiderLine;
+  /** day rate used; 0 when nothing is known */
+  rate: number;
+  /** day rates charged for the rental length */
+  factor: number;
+  subtotal: number;
+  source: "published" | "estimated" | "none";
+  /** the company whose published price was used */
+  co?: string;
+  /** estimated purchase value behind a 4% rate */
+  value?: number;
+}
+
 /**
- * A ballpark for the whole rider: for each line, the lowest and the median cost among the companies nearby
- * that publish a price for it, for the full quantity and the rental days. Lines nobody nearby prices publicly are counted, not guessed.
+ * A ballpark for the whole rider. Each line takes the lowest day rate published by a company nearby, with that
+ * company's rental-length rule (or one day a week on tour). Lines nobody prices take 4% of an estimated purchase value.
  */
-export function estimateRider(quotes: CompanyQuote[], lines: RiderLine[], dates: DateRange) {
+export function estimateRider(quotes: CompanyQuote[], lines: RiderLine[], dates: DateRange, mode: RentalMode = "show") {
   const want = lines.filter((l) => l.on && l.qty > 0 && l.name.trim());
   const cur = quotes[0]?.co.cur ?? "USD";
   const days = dayCount(dates);
-  let low = 0;
-  let mid = 0;
-  let priced = 0;
-  for (const line of want) {
-    // what the line costs at each company that prices it, with that company's rental-length rule
-    const costs = quotes
+  const rows: EstimateRow[] = want.map((line) => {
+    const offers = quotes
       .filter((q) => q.co.cur === cur)
-      .map((q) => ({ it: q.matches.find((m) => m.line.key === line.key)?.it, rule: q.co.priceRule }))
+      .map((q) => ({ q, it: q.matches.find((m) => m.line.key === line.key)?.it }))
       .filter((x) => x.it && x.it.pub && x.it.rate > 0)
-      .map((x) => x.it!.rate * line.qty * rentalFactor(x.rule, days))
-      .sort((a, b) => a - b);
-    if (!costs.length) continue;
-    priced++;
-    low += costs[0];
-    mid += costs[Math.floor(costs.length / 2)];
-  }
-  return { cur, low, mid, priced, total: want.length };
+      .map((x) => ({ rate: x.it!.rate, factor: factorFor(mode, x.q.co.priceRule, days), co: x.q.co.name }))
+      .sort((a, b) => a.rate * a.factor - b.rate * b.factor);
+    if (offers.length) {
+      const o = offers[0];
+      return { line, rate: o.rate, factor: o.factor, subtotal: o.rate * line.qty * o.factor, source: "published", co: o.co };
+    }
+    // nobody publishes it: 4% of what it costs to buy, read from the rider line or the closest match
+    const matched = quotes.map((q) => q.matches.find((m) => m.line.key === line.key)?.it).find(Boolean);
+    const e = estimatedRate(line.name) ?? (matched ? estimatedRate(matched.name) : null);
+    const factor = factorFor(mode, null, days);
+    return e
+      ? { line, rate: e.rate, factor, subtotal: e.rate * line.qty * factor, source: "estimated", value: e.value }
+      : { line, rate: 0, factor, subtotal: 0, source: "none" };
+  });
+  return {
+    cur,
+    rows,
+    total: rows.reduce((a, r) => a + r.subtotal, 0),
+    published: rows.filter((r) => r.source === "published").length,
+    estimated: rows.filter((r) => r.source === "estimated").length,
+    lines: want.length,
+  };
 }
