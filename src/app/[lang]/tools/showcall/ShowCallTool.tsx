@@ -218,7 +218,23 @@ export function ShowCallTool() {
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  // ---------- songs ----------
+  // ---------- songs (show moments) ----------
+
+  const firstMoment = () => ({ id: newId(), name: `${t.songWord} 1` });
+  const clearSetList = () => {
+    if (!window.confirm(fmt(t.confirmClearSetList, { n: s.songs.length, c: s.cues.length }))) return;
+    const first = firstMoment();
+    set({ songs: [first], current: first.id, cues: [] });
+    setSelected(null);
+  };
+  const startOver = () => {
+    if (!window.confirm(t.confirmStartOver)) return;
+    const first = firstMoment();
+    setS({ ...SHOWCALL_START, songs: [first], current: first.id });
+    setSelected(null);
+    setMa3(null);
+    setMsg(null);
+  };
 
   const addSongs = (names: string[]) => {
     if (!names.length) return setMsg({ ok: false, text: t.errNoSongs });
@@ -564,6 +580,12 @@ export function ShowCallTool() {
                 <button type="button" className="btn sm" disabled={!!busy} onClick={() => setListRef.current?.click()}>
                   📄 {t.setList}
                 </button>
+                <button type="button" className="link small sc-danger" onClick={clearSetList}>
+                  {t.clearSetList}
+                </button>
+                <button type="button" className="link small sc-danger" onClick={startOver}>
+                  {t.startOver}
+                </button>
               </div>
             </div>
             <p className="muted small">{t.songsHint}</p>
@@ -594,11 +616,12 @@ export function ShowCallTool() {
                       className="sc-song-act"
                       aria-label={t.remove}
                       title={t.remove}
-                      disabled={s.songs.length < 2}
                       onClick={() => {
                         if (count && !window.confirm(fmt(t.confirmSong, { name: x.name, n: count }))) return;
-                        const songs = s.songs.filter((y) => y.id !== x.id);
-                        set({ songs, cues: s.cues.filter((c) => c.song !== x.id), current: x.id === s.current ? songs[0].id : s.current });
+                        // the last one goes too, replaced by an empty first moment
+                        const rest = s.songs.filter((y) => y.id !== x.id);
+                        const songs = rest.length ? rest : [firstMoment()];
+                        set({ songs, cues: s.cues.filter((c) => c.song !== x.id), current: x.id === s.current || !rest.length ? songs[0].id : s.current });
                       }}
                     >
                       ✕
