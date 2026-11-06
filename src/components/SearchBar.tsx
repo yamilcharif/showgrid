@@ -95,23 +95,6 @@ export function SearchBar() {
         </button>
       </form>
 
-      <div className="chips">
-        <span className="lbl">{t.search.try}</span>
-        {t.search.chips.map((c) => (
-          <button
-            key={c}
-            type="button"
-            className="chip"
-            onClick={() => {
-              setText(c);
-              setQ(c);
-            }}
-          >
-            {c}
-          </button>
-        ))}
-      </div>
-
       <div className="stats">
         <Link href="/companies" className="stat-link">
           <strong className="num">{STATS.companies}</strong>

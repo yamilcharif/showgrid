@@ -9,7 +9,7 @@ import { CrewCards } from "./directory/CrewCards";
 import { useT } from "./I18n";
 import { useListings } from "./Listings";
 
-/** The home page before anyone searches: what ShowGrid is, who it's for, and a taste of what's on it. */
+/** The home page before anyone searches: who it's for, and a taste of what's on it. */
 export function Landing() {
   const t = useT();
   const L = t.landing;
@@ -32,10 +32,7 @@ export function Landing() {
       {strip.length > 0 && (
         <section className="l-strip">
           <div className="l-head">
-            <div>
-              <h2>{L.nowTitle}</h2>
-              <p className="muted">{L.nowText}</p>
-            </div>
+            <h2>{L.nowTitle}</h2>
             <button type="button" className="link" onClick={() => setQ(" ")}>
               {L.seeAllGear} →
             </button>
@@ -93,19 +90,6 @@ export function Landing() {
         </div>
       </section>
 
-      <section className="l-why">
-        <h2>{L.whyTitle}</h2>
-        <div className="why-grid">
-          {(L.why as unknown as [string, string][]).map(([h, p]) => (
-            <div key={h}>
-              <span className="tally" />
-              <h3>{h}</h3>
-              <p className="muted">{p}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
       {companies.length > 0 && (
         <section className="l-dir">
           <div className="l-head">
@@ -135,15 +119,6 @@ export function Landing() {
         </Link>
       </aside>
 
-      <aside className="ad-strip">
-        <div>
-          <b>{L.adTitle}</b>
-          <span className="muted small">{L.adText}</span>
-        </div>
-        <a className="btn sm" href="mailto:hello@show-grid.com?subject=Advertising%20on%20ShowGrid">
-          {L.adCta}
-        </a>
-      </aside>
     </div>
   );
 }
