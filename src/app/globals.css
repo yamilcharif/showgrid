@@ -1091,3 +1091,10 @@ a.co:hover { text-decoration-color: currentColor; }
 .route-road.skip { opacity: 0.5; }
 .route-grand { border-top: 1px solid var(--line); padding-top: 6px; }
 @media (max-width: 560px) { .route-road { grid-template-columns: minmax(0, 1fr) 100px; } .route-road > .muted { display: none; } }
+
+.route-airlines { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 10px; max-height: 220px; overflow: auto; padding: 8px; border: 1px solid var(--line); border-radius: 10px; }
+.route-airlines .num { display: inline-block; min-width: 2.2em; }
+.route-multi ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.route-multi li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 8px; }
+.route-multi-links { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.route-row input.bad { border-color: #e53935; color: #e53935; }

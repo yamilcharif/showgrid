@@ -3,6 +3,7 @@
  * Fares are estimates from the distance, the cabin and how soon the flight is; each one can be replaced by a real fare.
  */
 import { AIRPORTS, findAirport, miles, type Airport } from "./airports";
+import { allowedCodes, type AirlinePrefs } from "./airlines";
 
 export type Cabin = "eco" | "prem" | "biz";
 
@@ -67,6 +68,8 @@ export interface Routing {
   ground?: Vehicle[];
   /** road miles per leg, where the member knows them better than the estimate */
   roadMiles?: Record<string, number>;
+  /** which airlines the tour accepts */
+  airlines?: AirlinePrefs;
 }
 
 export const PARTY_COLORS = ["#e53935", "#1e88e5", "#43a047", "#fb8c00", "#8e24aa", "#00897b", "#6d4c41", "#3949ab"];
@@ -276,12 +279,66 @@ export function totals(r: Routing) {
   return { legs, per, all, ground, groundAll, grand: all + groundAll, own, est, unknown, seats: legs.length * r.parties.reduce((a, p) => a + p.pax, 0) };
 }
 
-/** A search for real fares on this leg and date, to check the estimate. */
-export function fareSearchUrl(leg: Leg, date: string, cabin: Cabin) {
-  const from = leg.from?.code ?? leg.fromText;
-  const to = leg.to?.code ?? leg.toText;
-  const cls = cabin === "eco" ? "economy" : cabin === "prem" ? "premium economy" : "business";
-  return `https://www.google.com/travel/flights?q=${encodeURIComponent(`Flights from ${from} to ${to} on ${date} one way ${cls}`)}`;
+// ---------- Google Flights links ----------
+// Google Flights reads its search from "tfs": a small protobuf, base64-encoded. Each flight carries its date, its two
+// airports and the airlines allowed; then the passengers, the cabin and the kind of trip.
+
+const varint = (n: number) => {
+  const out: number[] = [];
+  while (n > 127) {
+    out.push((n & 127) | 128);
+    n >>>= 7;
+  }
+  out.push(n);
+  return out;
+};
+const bytesOf = (no: number, b: number[]) => [...varint((no << 3) | 2), ...varint(b.length), ...b];
+const textOf = (no: number, v: string) => bytesOf(no, [...new TextEncoder().encode(v)]);
+const numOf = (no: number, v: number) => [...varint(no << 3), ...varint(v)];
+const SEAT: Record<Cabin, number> = { eco: 1, prem: 2, biz: 3 };
+
+/** Google Flights caps a search at 9 passengers and a multi-city search at 5 flights. */
+export const GF_MAX_PAX = 9;
+export const GF_MAX_LEGS = 5;
+
+function flightsUrl(flights: { date: string; from: string; to: string }[], pax: number, cabin: Cabin, airlines: string[]) {
+  const info = [
+    ...flights.flatMap((f) =>
+      bytesOf(3, [...textOf(2, f.date), ...airlines.flatMap((a) => textOf(6, a)), ...bytesOf(13, textOf(2, f.from)), ...bytesOf(14, textOf(2, f.to))]),
+    ),
+    ...Array.from({ length: Math.max(1, Math.min(GF_MAX_PAX, pax)) }, () => numOf(8, 1)).flat(),
+    ...numOf(9, SEAT[cabin]),
+    ...numOf(19, flights.length > 1 ? 3 : 2),
+  ];
+  const tfs = btoa(String.fromCharCode(...info));
+  return `https://www.google.com/travel/flights/search?tfs=${encodeURIComponent(tfs)}&curr=USD`;
+}
+
+/** A search for real fares on this leg, date and cabin, for the party's people and the airlines the tour accepts. */
+export function fareSearchUrl(r: Routing, leg: Leg, date: string, cabin: Cabin, pax: number) {
+  if (!leg.from || !leg.to) {
+    const cls = cabin === "eco" ? "economy" : cabin === "prem" ? "premium economy" : "business";
+    return `https://www.google.com/travel/flights?q=${encodeURIComponent(`Flights from ${leg.fromText} to ${leg.toText} on ${date} one way ${cls}`)}`;
+  }
+  return flightsUrl([{ date, from: leg.from.code, to: leg.to.code }], pax, cabin, allowedCodes(r.airlines));
+}
+
+/**
+ * The whole routing as multi-city searches for one party: the flights it takes, in order, with its dates and class.
+ * Split in parts when the tour has more flights than one search holds.
+ */
+export function multiCityUrls(r: Routing, party: Party) {
+  const mine = legsOf(r)
+    .map((leg) => ({ leg, f: flightOf(r, leg, party) }))
+    .filter(({ leg, f }) => !f.skip && leg.from && leg.to)
+    .map(({ leg, f }) => ({ date: f.date, from: leg.from!.code, to: leg.to!.code }));
+  const parts: { url: string; from: string; to: string; n: number }[] = [];
+  for (let i = 0; i < mine.length; i += GF_MAX_LEGS) {
+    const chunk = mine.slice(i, i + GF_MAX_LEGS);
+    // one class per search: the party's own
+    parts.push({ url: flightsUrl(chunk, party.pax, party.cabin, allowedCodes(r.airlines)), from: chunk[0].from, to: chunk[chunk.length - 1].to, n: chunk.length });
+  }
+  return parts;
 }
 
 /** The routing as CSV: one row per party per flight. */

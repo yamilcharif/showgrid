@@ -4,14 +4,17 @@ import { useMemo, useRef, useState } from "react";
 import { useI18n } from "@/components/I18n";
 import { ProjectBar, useToolState } from "@/components/Projects";
 import { ToolFiles } from "@/components/ToolFiles";
+import { AIRLINES, ANY_AIRLINE, allowedCodes, turnedDown, type AirlineMode } from "@/lib/airlines";
 import { findAirport } from "@/lib/airports";
 import { fmt, plural } from "@/lib/i18n/config";
 import { parseTable, readTable } from "@/lib/labels";
 import {
   PARTY_COLORS,
   ROUTING_START,
+  GF_MAX_PAX,
   fareSearchUrl,
   flightOf,
+  multiCityUrls,
   newId,
   newVehicle,
   roadMilesOf,
@@ -64,6 +67,9 @@ export function RoutingTool() {
       return { ...x, edits: { ...x.edits, [k]: { ...x.edits[k], ...patch } } };
     });
   const ground = r.ground ?? [];
+  const air = r.airlines ?? ANY_AIRLINE;
+  const okCodes = allowedCodes(air);
+  const okAirlines = okCodes.length ? AIRLINES.filter((a) => okCodes.includes(a.code)) : AIRLINES;
   const setVehicle = (id: string, patch: Partial<Vehicle>) => set({ ground: ground.map((v) => (v.id === id ? { ...v, ...patch } : v)) });
   const money0 = (v: string) => Math.max(0, Number(v) || 0);
   const dayLabel = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString(locale, { weekday: "short", month: "short", day: "numeric" });
@@ -196,6 +202,43 @@ export function RoutingTool() {
           {t.addParty}
         </button>
 
+        <h2>✈️ {t.airlinesTitle}</h2>
+        <div className="seg seg3" role="radiogroup" aria-label={t.airlinesTitle}>
+          {(["any", "only", "except"] as AirlineMode[]).map((m) => (
+            <button key={m} type="button" role="radio" aria-checked={air.mode === m} className={air.mode === m ? "on" : undefined} onClick={() => set({ airlines: { ...air, mode: m } })}>
+              {t.airlineModes[m]}
+            </button>
+          ))}
+        </div>
+        <p className="muted small">{t.airlineHints[air.mode]}</p>
+        {air.mode !== "any" && (
+          <>
+            <div className="route-airlines">
+              {AIRLINES.map((a) => (
+                <label key={a.code} className="pat-check small">
+                  <input
+                    type="checkbox"
+                    checked={air.list.includes(a.code)}
+                    onChange={(e) => set({ airlines: { ...air, list: e.target.checked ? [...air.list, a.code] : air.list.filter((c) => c !== a.code) } })}
+                  />
+                  <span className="num muted">{a.code}</span> {a.name}
+                </label>
+              ))}
+            </div>
+            <p className="muted small">
+              {fmt(t.airlinesPicked, { n: air.list.length })}
+              {air.list.length > 0 && (
+                <>
+                  {" · "}
+                  <button type="button" className="link small" onClick={() => set({ airlines: { ...air, list: [] } })}>
+                    {t.clear}
+                  </button>
+                </>
+              )}
+            </p>
+          </>
+        )}
+
         <h2>🚌 {t.ground}</h2>
         <p className="muted small">{t.groundHint}</p>
         {ground.map((v) => (
@@ -307,6 +350,35 @@ export function RoutingTool() {
 
         <h2>{t.flights}</h2>
         {!sum.legs.length && <p className="muted">{t.noFlights}</p>}
+        {sum.legs.length > 0 && (
+          <div className="auth-form route-multi">
+            <strong>🔎 {t.multiTitle}</strong>
+            <p className="muted small">{t.multiHint}</p>
+            <ul>
+              {r.parties.map((p) => {
+                const parts = multiCityUrls(r, p);
+                return (
+                  <li key={p.id}>
+                    <span className="route-who">
+                      <span className="swatch" style={{ background: p.color }} />
+                      {p.name} <span className="muted small">· {p.pax} · {t.cabins[p.cabin]}</span>
+                    </span>
+                    <span className="route-multi-links">
+                      {!parts.length && <span className="muted small">{t.multiNone}</span>}
+                      {parts.map((x, i) => (
+                        <a key={i} className="btn sm" href={x.url} target="_blank" rel="noopener noreferrer">
+                          {parts.length > 1 ? `${fmt(t.part, { n: i + 1 })}: ` : ""}
+                          {x.from} → {x.to} · {plural(x.n, t.legs)} ↗
+                        </a>
+                      ))}
+                      {p.pax > GF_MAX_PAX && <span className="muted small">{fmt(t.multiPax, { n: GF_MAX_PAX })}</span>}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
         {sum.legs.map((leg) => (
           <article key={leg.key} className="auth-form route-leg">
             <header>
@@ -337,7 +409,15 @@ export function RoutingTool() {
                       ))}
                     </select>
                     <input type="date" value={f.date} aria-label={t.date} onChange={(ev) => e({ date: ev.target.value })} />
-                    <input value={f.airline ?? ""} placeholder={t.airline} aria-label={t.airline} onChange={(ev) => e({ airline: ev.target.value })} />
+                    <input
+                      list="sg-airlines"
+                      className={f.airline && turnedDown(f.airline, air) ? "bad" : undefined}
+                      title={f.airline && turnedDown(f.airline, air) ? t.notAccepted : undefined}
+                      value={f.airline ?? ""}
+                      placeholder={t.airline}
+                      aria-label={t.airline}
+                      onChange={(ev) => e({ airline: ev.target.value })}
+                    />
                     <input className="sm" value={f.flight ?? ""} placeholder={t.flightNo} aria-label={t.flightNo} onChange={(ev) => e({ flight: ev.target.value })} />
                     <input className="sm" type="time" value={f.time ?? ""} aria-label={t.time} onChange={(ev) => e({ time: ev.target.value })} />
                     <label className="route-fare">
@@ -355,7 +435,7 @@ export function RoutingTool() {
                       {usd(f.total)}
                       {!f.own && f.estimate != null && <small className="muted">{fmt(t.estimate, { v: usd(f.estimate) })}</small>}
                     </span>
-                    <a className="link small" href={fareSearchUrl(leg, f.date, f.cabin)} target="_blank" rel="noopener noreferrer">
+                    <a className="link small" href={fareSearchUrl(r, leg, f.date, f.cabin, p.pax)} target="_blank" rel="noopener noreferrer">
                       {t.checkFares}
                     </a>
                     <label className="pat-check small">
@@ -436,6 +516,11 @@ export function RoutingTool() {
           </article>
         ))}
       </section>
+      <datalist id="sg-airlines">
+        {okAirlines.map((a) => (
+          <option key={a.code} value={a.name} />
+        ))}
+      </datalist>
     </div>
   );
 }

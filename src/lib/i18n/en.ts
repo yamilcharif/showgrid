@@ -1122,6 +1122,17 @@ export const en = {
     costDrivers: "Drivers: {d} days × {k} × {rate}",
     costVehicle: "Bus: {d} days × {n} × {rate}",
     pdfGround: "Ground",
+    airlinesTitle: "Airlines",
+    airlineModes: { any: "Any", only: "Only these", except: "All but these" },
+    airlineHints: { any: "Searches show every airline.", only: "Tick the airlines the tour accepts: Google Flights searches show only those.", except: "Tick the ones the tour turns down: searches use the other airlines on this list." },
+    airlinesPicked: "{n} ticked",
+    clear: "Untick all",
+    notAccepted: "Airline not accepted for this tour",
+    multiTitle: "The whole routing on Google Flights",
+    multiHint: "One multi-city search per party, with its dates, class, people and the accepted airlines. Bus legs and legs it doesn't fly are left out. Google Flights takes up to 5 flights per search; more are split in parts.",
+    multiNone: "Doesn't fly any leg",
+    multiPax: "Google searches up to {n} people at a time",
+    part: "Part {n}",
   },
 };
 
