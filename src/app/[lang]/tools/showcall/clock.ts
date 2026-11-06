@@ -13,17 +13,20 @@ export interface Detected {
   dropFrame: boolean;
 }
 
-// the audio thread hands its samples over in small blocks, from the input channel picked
+// the audio thread hands every input channel over in small blocks, so LTC is found on whichever channel it's on
 const WORKLET = `
 class SgLtc extends AudioWorkletProcessor {
-  constructor() { super(); this.ch = 0; this.buf = new Float32Array(512); this.i = 0; this.port.onmessage = (e) => { this.ch = e.data.ch | 0; }; }
+  constructor() { super(); this.bufs = []; this.i = 0; }
   process(inputs) {
     const input = inputs[0];
-    if (input && input.length) {
-      const d = input[Math.min(this.ch, input.length - 1)];
-      for (let k = 0; k < d.length; k++) {
-        this.buf[this.i++] = d[k];
-        if (this.i === this.buf.length) { this.port.postMessage(this.buf.slice(0)); this.i = 0; }
+    if (!input || !input.length) return true;
+    while (this.bufs.length < input.length) this.bufs.push(new Float32Array(512));
+    const n = input[0].length;
+    for (let k = 0; k < n; k++) {
+      for (let c = 0; c < input.length; c++) this.bufs[c][this.i] = input[c][k];
+      if (++this.i === 512) {
+        this.port.postMessage(this.bufs.slice(0, input.length).map((b) => b.slice(0)));
+        this.i = 0;
       }
     }
     return true;
@@ -31,6 +34,11 @@ class SgLtc extends AudioWorkletProcessor {
 }
 registerProcessor("sg-ltc", SgLtc);
 `;
+
+/** Audio interfaces by name, to pick one over the computer's own microphone. */
+export const INTERFACE = /focusrite|scarlett|clarett|motu|rme|fireface|babyface|apollo|universal audio|audient|presonus|steinberg|behringer|zoom|tascam|roland|digico|dante|avb|soundcraft|allen|midas|x32|interface|usb audio/i;
+const BUILT_IN = /macbook|built-in|integrad|internal|default|predeterminad/i;
+export const isBuiltIn = (label: string) => BUILT_IN.test(label) && !INTERFACE.test(label);
 
 /** How long the clock keeps running on its own between timecode frames, and when the signal counts as lost. */
 const FREEWHEEL = 0.12;
@@ -47,8 +55,17 @@ export class ShowClock {
   private ext = 0;
   private extAt = 0;
   detected: Detected | null = null;
-  /** input level, 0–1, for the meter */
+  /** input level, 0–1, for the meter (of the channel in use, or the loudest) */
   level = 0;
+  /** each input channel's level */
+  levels: number[] = [];
+  /** the channel LTC is read from: picked, or found (-1 while searching) */
+  ltcChannel = -1;
+  /** the input in use, as the system names it */
+  deviceLabel = "";
+  sampleRate = 0;
+  /** audio is held back by the browser until the page is clicked */
+  audioWaiting: () => boolean = () => false;
   private stopExt: (() => void) | null = null;
 
   now() {
@@ -99,55 +116,96 @@ export class ShowClock {
     this.extAt = 0;
     this.detected = null;
     this.level = 0;
+    this.levels = [];
+    this.ltcChannel = -1;
+    this.deviceLabel = "";
   }
 
   /**
-   * Reads LTC from an audio input: browser processing off, so the signal arrives as it is. With `test`, a made-up
-   * LTC from 01:00:00:00 goes through the same reader instead, to try it without a timecode source.
+   * Reads LTC from an audio input: browser processing off, so the signal arrives as it is. Every channel is read;
+   * `channel` -1 locks onto whichever one carries timecode. With `test`, a made-up LTC from 01:00:00:00 goes
+   * through the same reader instead, to try it without a timecode source.
    */
   async startLtc(deviceId: string, channel: number, test = false) {
     await this.stop();
-    const stream = test
-      ? null
-      : await navigator.mediaDevices.getUserMedia({
-          audio: { deviceId: deviceId ? { exact: deviceId } : undefined, echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: { ideal: 2 } },
-        });
+    // made before waiting on the microphone, while the click still counts, so the browser lets it run
     const ctx = new AudioContext({ latencyHint: "interactive" });
-    const url = URL.createObjectURL(new Blob([WORKLET], { type: "text/javascript" }));
-    await ctx.audioWorklet.addModule(url);
-    URL.revokeObjectURL(url);
+    let stream: MediaStream | null = null;
+    try {
+      stream = test
+        ? null
+        : await navigator.mediaDevices.getUserMedia({
+            audio: { deviceId: deviceId ? { exact: deviceId } : undefined, echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: { ideal: 8 } },
+          });
+      const url = URL.createObjectURL(new Blob([WORKLET], { type: "text/javascript" }));
+      await ctx.audioWorklet.addModule(url);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      ctx.close();
+      stream?.getTracks().forEach((t) => t.stop());
+      throw e;
+    }
     let src: AudioNode;
-    if (stream) src = ctx.createMediaStreamSource(stream);
-    else {
+    let channels = 1;
+    if (stream) {
+      src = ctx.createMediaStreamSource(stream);
+      const track = stream.getAudioTracks()[0];
+      this.deviceLabel = track?.label ?? "";
+      channels = Math.max(1, track?.getSettings().channelCount ?? 2);
+    } else {
+      // on the second channel, the first one quiet: the way LTC often sits on an interface's input 2
       const sig = ltcSamples(3600, 120, this.fps, ctx.sampleRate, 0.3);
-      const buf = ctx.createBuffer(1, sig.length, ctx.sampleRate);
-      buf.copyToChannel(sig, 0);
+      const buf = ctx.createBuffer(2, sig.length, ctx.sampleRate);
+      buf.copyToChannel(sig, 1);
       const play = ctx.createBufferSource();
       play.buffer = buf;
       play.start();
       src = play;
+      this.deviceLabel = "LTC test";
+      channels = 2;
     }
-    const node = new AudioWorkletNode(ctx, "sg-ltc");
-    node.port.postMessage({ ch: channel });
+    this.sampleRate = ctx.sampleRate;
+    const node = new AudioWorkletNode(ctx, "sg-ltc", { channelCount: Math.min(32, channels), channelCountMode: "explicit", channelInterpretation: "discrete" });
     // keep the node pulled by the graph without sending anything out
     const mute = ctx.createGain();
     mute.gain.value = 0;
     src.connect(node).connect(mute).connect(ctx.destination);
-    const dec = new LtcDecoder(ctx.sampleRate);
-    node.port.onmessage = (e: MessageEvent<Float32Array>) => {
-      const buf = e.data;
-      let peak = 0;
-      for (let i = 0; i < buf.length; i++) peak = Math.max(peak, Math.abs(buf[i]));
-      this.level = Math.max(peak, this.level * 0.9);
-      const frames = dec.push(buf);
-      const f = frames[frames.length - 1];
-      if (!f) return;
-      this.detected = { fps: Math.round(f.fps * 100) / 100, dropFrame: f.dropFrame };
-      // a frame is decoded once it has fully gone by: the time now is the next frame (labels read at the show's rate)
-      this.take(f, 1, this.fps);
+    const decs: LtcDecoder[] = [];
+    const lastFrame: number[] = [];
+    this.ltcChannel = channel;
+    node.port.onmessage = (e: MessageEvent<Float32Array[]>) => {
+      const now = performance.now();
+      e.data.forEach((buf, c) => {
+        let peak = 0;
+        for (let i = 0; i < buf.length; i++) peak = Math.max(peak, Math.abs(buf[i]));
+        this.levels[c] = Math.max(peak, (this.levels[c] ?? 0) * 0.9);
+        // a picked channel is the only one read; searching, every one is
+        if (channel >= 0 && c !== channel) return;
+        decs[c] ??= new LtcDecoder(ctx.sampleRate);
+        const frames = decs[c].push(buf);
+        const f = frames[frames.length - 1];
+        if (!f) return;
+        lastFrame[c] = now;
+        // searching: lock onto the first channel with timecode, and let go after it's been quiet a while
+        if (channel < 0 && this.ltcChannel >= 0 && this.ltcChannel !== c && now - (lastFrame[this.ltcChannel] ?? 0) < 1500) return;
+        this.ltcChannel = c;
+        this.detected = { fps: Math.round(f.fps * 100) / 100, dropFrame: f.dropFrame };
+        // a frame is decoded once it has fully gone by: the time now is the next frame (labels read at the show's rate)
+        this.take(f, 1, this.fps);
+      });
+      this.level = this.ltcChannel >= 0 ? (this.levels[this.ltcChannel] ?? 0) : Math.max(0, ...this.levels);
     };
     this.source = "ltc";
+    // the browser holds audio back until the page has been clicked: start on the next click if it's waiting
+    const wake = () => ctx.resume();
+    if (ctx.state !== "running") {
+      ctx.resume().catch(() => {});
+      document.addEventListener("pointerdown", wake);
+    }
+    this.audioWaiting = () => ctx.state === "suspended";
     this.stopExt = () => {
+      document.removeEventListener("pointerdown", wake);
+      this.audioWaiting = () => false;
       node.port.onmessage = null;
       stream?.getTracks().forEach((t) => t.stop());
       ctx.close();

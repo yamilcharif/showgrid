@@ -1174,3 +1174,9 @@ a.co:hover { text-decoration-color: currentColor; }
   .sc-lane { grid-template-columns: 70px minmax(0, 1fr); }
   .sc-lane-name { font-size: 11px; }
 }
+.sc-diag { display: grid; gap: 6px; }
+.sc-chans { display: flex; gap: 4px; }
+.sc-chans span { position: relative; width: 22px; height: 36px; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; display: flex; align-items: flex-end; justify-content: center; }
+.sc-chans span.on { border-color: #35d07f; }
+.sc-chans i { position: absolute; left: 0; right: 0; bottom: 0; background: #35d07f; opacity: 0.5; }
+.sc-chans b { position: relative; font-size: 10px; }

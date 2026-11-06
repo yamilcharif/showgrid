@@ -31,7 +31,7 @@ import {
   type ShowCall,
 } from "@/lib/showcall";
 import { FPS_LIST, fmtTc, parseTc, type Fps } from "@/lib/timecode";
-import { ShowClock, audioInputs, midiInputs, type Source } from "./clock";
+import { INTERFACE, ShowClock, audioInputs, isBuiltIn, midiInputs, type Source } from "./clock";
 import { beep, canTranslate, hush, speak, translate, voicesFor } from "./voice";
 
 const ZOOMS = [20, 60, 300];
@@ -57,7 +57,8 @@ export function ShowCallTool() {
   const [source, setSource] = useState<Source>("internal");
   const [inputs, setInputs] = useState<{ id: string; name: string }[]>([]);
   const [inputId, setInputId] = useState("");
-  const [channel, setChannel] = useState(0);
+  // -1: find the channel with timecode on its own
+  const [channel, setChannel] = useState(-1);
   const [armed, setArmed] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [zoom, setZoom] = useState(60);
@@ -152,7 +153,16 @@ export function ShowCallTool() {
       if (src === "ltc") {
         await c.startLtc(id, ch, test);
         // device names show once the browser has been allowed the microphone
-        if (!test) setInputs(await audioInputs());
+        if (!test) {
+          const list = await audioInputs();
+          setInputs(list);
+          // the computer's own microphone was opened: switch to an audio interface if one is plugged in
+          const iface = list.find((d) => INTERFACE.test(d.name));
+          if (!id && iface && isBuiltIn(c.deviceLabel) && req === sourceReq.current) {
+            setInputId(iface.id);
+            await c.startLtc(iface.id, ch);
+          }
+        }
       } else {
         const list = await midiInputs();
         if (!list) throw new Error("no-midi-api");
@@ -404,14 +414,14 @@ export function ShowCallTool() {
           <h2>⏱ {t.source}</h2>
           <div className="seg seg3 sc-seg" role="radiogroup" aria-label={t.source}>
             {(["internal", "ltc", "mtc"] as Source[]).map((k) => (
-              <button key={k} type="button" role="radio" aria-checked={source === k} className={source === k ? "on" : undefined} onClick={() => pickSource(k, "", 0)}>
+              <button key={k} type="button" role="radio" aria-checked={source === k} className={source === k ? "on" : undefined} onClick={() => pickSource(k, "", -1)}>
                 {t.sources[k]}
               </button>
             ))}
           </div>
           <p className="muted small">{t.sourceHints[source]}</p>
           {/* works even where the microphone isn't allowed */}
-          <button type="button" className="link small sc-test" onClick={() => pickSource("ltc", "", 0, true)}>
+          <button type="button" className="link small sc-test" onClick={() => pickSource("ltc", "", -1, true)}>
             {t.testLtc}
           </button>
           {source === "internal" && (
@@ -466,6 +476,7 @@ export function ShowCallTool() {
                       pickSource("ltc", inputId, Number(e.target.value));
                     }}
                   >
+                    <option value={-1}>{t.channelAuto}</option>
                     {[0, 1, 2, 3, 4, 5, 6, 7].map((c) => (
                       <option key={c} value={c}>
                         {fmt(t.channelN, { n: c + 1 })}
@@ -477,6 +488,30 @@ export function ShowCallTool() {
               <div className="sc-meter" aria-label={t.level}>
                 <span ref={meterRef} />
               </div>
+              {source === "ltc" && clock.deviceLabel && (
+                <div className="sc-diag small">
+                  <span className="muted">{fmt(t.listening, { name: clock.deviceLabel, n: clock.levels.length || 1, hz: Math.round(clock.sampleRate / 100) / 10 })}</span>
+                  <div className="sc-chans">
+                    {clock.levels.map((l, c) => (
+                      <span key={c} className={c === clock.ltcChannel && clock.status() === "locked" ? "on" : undefined} title={fmt(t.channelN, { n: c + 1 })}>
+                        <i style={{ height: `${Math.round(Math.min(1, l) * 100)}%` }} />
+                        <b>{c + 1}</b>
+                      </span>
+                    ))}
+                  </div>
+                  <span className={clock.status() === "locked" ? "tf-ok" : "auth-err"}>
+                    {clock.audioWaiting()
+                      ? t.diagWaiting
+                      : clock.status() === "locked"
+                      ? fmt(t.diagLocked, { n: clock.ltcChannel + 1 })
+                      : Math.max(0, ...clock.levels) < 0.01
+                        ? t.diagSilent
+                        : Math.max(0, ...clock.levels) > 0.98
+                          ? t.diagClip
+                          : t.diagNoLtc}
+                  </span>
+                </div>
+              )}
               {clock.detected && (
                 <p className={Math.abs(clock.detected.fps - s.fps) > 0.6 || clock.detected.dropFrame !== (s.fps === 29.97) ? "auth-err small" : "muted small"}>
                   {fmt(t.detected, { fps: clock.detected.dropFrame ? "29.97 DF" : clock.detected.fps })}
