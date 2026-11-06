@@ -265,6 +265,21 @@ export interface TruckPlan {
   groups?: Group[];
 }
 
+/**
+ * How many trucks of the plan's size the whole case list takes: by space, since cases never fill a truck (about 70% of
+ * it, after the low bar), and by weight. A rough count to plan with, not a load plan for each truck.
+ */
+export function trucksNeeded(plan: TruckPlan) {
+  const { truck, types } = plan;
+  const cases = types.reduce((a, t) => a + Math.max(0, t.qty), 0);
+  const vol = types.reduce((a, t) => a + Math.max(0, t.qty) * t.l * t.w * t.h, 0);
+  const weight = types.reduce((a, t) => a + Math.max(0, t.qty) * (t.wt ?? 0), 0);
+  const usable = Math.max(1, (truck.l * truck.w * truck.h - barLoss(truck)) * 0.7);
+  const byVolume = Math.ceil(vol / usable);
+  const byWeight = truck.payload ? Math.ceil(weight / truck.payload) : 0;
+  return { n: Math.max(cases ? 1 : 0, byVolume, byWeight), cases, size: truck.key, byWeight: byWeight > byVolume };
+}
+
 /** Case numbers: load order from the front, or counted from the doors (#1 comes out first). */
 export function caseNumbers(placed: Placed[], types: Map<string, CaseType>, fromDoors: boolean) {
   const order = loadOrder(placed, types);

@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@/components/I18n";
-import { ProjectBar, useToolState } from "@/components/Projects";
+import { ProjectBar, useToolPart, useToolState } from "@/components/Projects";
 import { ToolFiles } from "@/components/ToolFiles";
 import { AIRLINES, ANY_AIRLINE, allowedCodes, turnedDown, type AirlineMode } from "@/lib/airlines";
 import { findAirport } from "@/lib/airports";
@@ -16,6 +17,7 @@ import {
   flightOf,
   multiCityUrls,
   newId,
+  newTruck,
   newVehicle,
   roadMilesOf,
   readStops,
@@ -27,6 +29,7 @@ import {
   type Vehicle,
 } from "@/lib/routing";
 import { money } from "@/lib/search";
+import { trucksNeeded, type TruckPlan } from "@/lib/truck";
 
 const CABINS: Cabin[] = ["eco", "prem", "biz"];
 
@@ -68,10 +71,96 @@ export function RoutingTool() {
     });
   const ground = r.ground ?? [];
   const air = r.airlines ?? ANY_AIRLINE;
+  // the truck pack, from the open project or this device: how many trucks the case list takes
+  const packData = useToolPart("truck", "sg_truck") as TruckPlan | null;
+  const pack = packData?.truck && Array.isArray(packData.types) && packData.types.length ? trucksNeeded(packData) : null;
+  useEffect(() => {
+    if (!pack) return;
+    // trucks that follow the pack take its count
+    setR((x) =>
+      (x.ground ?? []).some((v) => v.kind === "truck" && v.fromPack && v.count !== pack.n)
+        ? { ...x, ground: (x.ground ?? []).map((v) => (v.kind === "truck" && v.fromPack ? { ...v, count: pack.n } : v)) }
+        : x,
+    );
+  }, [pack?.n]); // eslint-disable-line react-hooks/exhaustive-deps -- only when the pack's count changes
   const okCodes = allowedCodes(air);
   const okAirlines = okCodes.length ? AIRLINES.filter((a) => okCodes.includes(a.code)) : AIRLINES;
   const setVehicle = (id: string, patch: Partial<Vehicle>) => set({ ground: ground.map((v) => (v.id === id ? { ...v, ...patch } : v)) });
   const money0 = (v: string) => Math.max(0, Number(v) || 0);
+  const buses = ground.filter((v) => v.kind !== "truck");
+  const trucks = ground.filter((v) => v.kind === "truck");
+  const vehicleCard = (v: Vehicle) => (
+    <div key={v.id} className="route-bus">
+      <div className="route-bus-head">
+        <input value={v.name} aria-label={t.busName} onChange={(e) => setVehicle(v.id, { name: e.target.value })} />
+        <button type="button" className="link small" aria-label={t.remove} onClick={() => set({ ground: ground.filter((x) => x.id !== v.id) })}>
+          ✕
+        </button>
+      </div>
+      {v.kind === "truck" && (
+        <label className="pat-check small">
+          <input type="checkbox" checked={!!v.fromPack} disabled={!pack} onChange={(e) => setVehicle(v.id, { fromPack: e.target.checked, ...(e.target.checked && pack ? { count: pack.n } : {}) })} />
+          {t.fromPack}
+        </label>
+      )}
+      <div className="route-bus-grid">
+        <label className="field">
+          <span>{v.kind === "truck" ? t.truckCount : t.vehicles}</span>
+          <input
+            type="number"
+            min={1}
+            max={50}
+            value={v.count}
+            disabled={v.kind === "truck" && v.fromPack && !!pack}
+            onChange={(e) => setVehicle(v.id, { count: Math.max(1, Math.min(50, Math.round(Number(e.target.value) || 1))) })}
+          />
+        </label>
+        <label className="field">
+          <span>{t.perMile}</span>
+          <input type="number" min={0} step={0.1} value={v.perMile} onChange={(e) => setVehicle(v.id, { perMile: money0(e.target.value) })} />
+        </label>
+        <label className="field">
+          <span>{t.drivers}</span>
+          <input type="number" min={0} max={10} value={v.drivers} onChange={(e) => setVehicle(v.id, { drivers: Math.max(0, Math.min(10, Math.round(Number(e.target.value) || 0))) })} />
+        </label>
+        <label className="field">
+          <span>{t.driverDay}</span>
+          <input type="number" min={0} value={v.driverDay} onChange={(e) => setVehicle(v.id, { driverDay: money0(e.target.value) })} />
+        </label>
+        <label className="field">
+          <span>{t.dayRate}</span>
+          <input type="number" min={0} value={v.dayRate || ""} placeholder="0" onChange={(e) => setVehicle(v.id, { dayRate: money0(e.target.value) })} />
+        </label>
+        <label className="field">
+          <span>{t.days}</span>
+          <input
+            type="number"
+            min={0}
+            max={400}
+            value={v.days ?? ""}
+            placeholder={fmt(t.daysAuto, { n: sum.ground.find((g) => g.v.id === v.id)?.autoDays ?? 0 })}
+            onChange={(e) => setVehicle(v.id, { days: e.target.value === "" ? null : Math.max(0, Math.min(400, Math.round(Number(e.target.value)))) })}
+          />
+        </label>
+      </div>
+      {v.kind !== "truck" && r.parties.length > 0 && (
+        <fieldset className="route-onboard">
+          <legend className="small">{t.onBoard}</legend>
+          {r.parties.map((p) => (
+            <label key={p.id} className="pat-check small">
+              <input
+                type="checkbox"
+                checked={v.rides.includes(p.id)}
+                onChange={(e) => setVehicle(v.id, { rides: e.target.checked ? [...v.rides, p.id] : v.rides.filter((x) => x !== p.id) })}
+              />
+              <span className="swatch" style={{ background: p.color }} />
+              {p.name}
+            </label>
+          ))}
+        </fieldset>
+      )}
+    </div>
+  );
   const dayLabel = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString(locale, { weekday: "short", month: "short", day: "numeric" });
 
   return (
@@ -241,67 +330,37 @@ export function RoutingTool() {
 
         <h2>🚌 {t.ground}</h2>
         <p className="muted small">{t.groundHint}</p>
-        {ground.map((v) => (
-          <div key={v.id} className="route-bus">
-            <div className="route-bus-head">
-              <input value={v.name} aria-label={t.busName} onChange={(e) => setVehicle(v.id, { name: e.target.value })} />
-              <button type="button" className="link small" aria-label={t.remove} onClick={() => set({ ground: ground.filter((x) => x.id !== v.id) })}>
-                ✕
-              </button>
-            </div>
-            <div className="route-bus-grid">
-              <label className="field">
-                <span>{t.vehicles}</span>
-                <input type="number" min={1} max={50} value={v.count} onChange={(e) => setVehicle(v.id, { count: Math.max(1, Math.min(50, Math.round(Number(e.target.value) || 1))) })} />
-              </label>
-              <label className="field">
-                <span>{t.perMile}</span>
-                <input type="number" min={0} step={0.1} value={v.perMile} onChange={(e) => setVehicle(v.id, { perMile: money0(e.target.value) })} />
-              </label>
-              <label className="field">
-                <span>{t.drivers}</span>
-                <input type="number" min={0} max={10} value={v.drivers} onChange={(e) => setVehicle(v.id, { drivers: Math.max(0, Math.min(10, Math.round(Number(e.target.value) || 0))) })} />
-              </label>
-              <label className="field">
-                <span>{t.driverDay}</span>
-                <input type="number" min={0} value={v.driverDay} onChange={(e) => setVehicle(v.id, { driverDay: money0(e.target.value) })} />
-              </label>
-              <label className="field">
-                <span>{t.dayRate}</span>
-                <input type="number" min={0} value={v.dayRate || ""} placeholder="0" onChange={(e) => setVehicle(v.id, { dayRate: money0(e.target.value) })} />
-              </label>
-              <label className="field">
-                <span>{t.days}</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={400}
-                  value={v.days ?? ""}
-                  placeholder={fmt(t.daysAuto, { n: sum.ground.find((g) => g.v.id === v.id)?.autoDays ?? 0 })}
-                  onChange={(e) => setVehicle(v.id, { days: e.target.value === "" ? null : Math.max(0, Math.min(400, Math.round(Number(e.target.value)))) })}
-                />
-              </label>
-            </div>
-            {r.parties.length > 0 && (
-              <fieldset className="route-onboard">
-                <legend className="small">{t.onBoard}</legend>
-                {r.parties.map((p) => (
-                  <label key={p.id} className="pat-check small">
-                    <input
-                      type="checkbox"
-                      checked={v.rides.includes(p.id)}
-                      onChange={(e) => setVehicle(v.id, { rides: e.target.checked ? [...v.rides, p.id] : v.rides.filter((x) => x !== p.id) })}
-                    />
-                    <span className="swatch" style={{ background: p.color }} />
-                    {p.name}
-                  </label>
-                ))}
-              </fieldset>
-            )}
-          </div>
-        ))}
-        <button type="button" className="btn sm" onClick={() => set({ ground: [...ground, newVehicle(ground.length ? `${t.busDefault} ${ground.length + 1}` : t.busDefault)] })}>
+        {buses.map(vehicleCard)}
+        <button type="button" className="btn sm" onClick={() => set({ ground: [...ground, newVehicle(buses.length ? `${t.busDefault} ${buses.length + 1}` : t.busDefault)] })}>
           {t.addBus}
+        </button>
+
+        <h2>🚛 {t.trucks}</h2>
+        <p className="muted small">{t.trucksHint}</p>
+        <p className="small route-pack">
+          {pack ? (
+            <>
+              {fmt(pack.byWeight ? t.packWeight : t.packSays, { n: pack.n, size: pack.size === "custom" ? "" : `${pack.size}'`, cases: pack.cases })}{" "}
+              <Link className="link small" href="/tools/truck">
+                {t.openPack}
+              </Link>
+            </>
+          ) : (
+            <>
+              {t.noPack}{" "}
+              <Link className="link small" href="/tools/truck">
+                {t.openPack}
+              </Link>
+            </>
+          )}
+        </p>
+        {trucks.map(vehicleCard)}
+        <button
+          type="button"
+          className="btn sm"
+          onClick={() => set({ ground: [...ground, newTruck(trucks.length ? `${t.truckDefault} ${trucks.length + 1}` : t.truckDefault, pack?.n ?? 1, !!pack)] })}
+        >
+          {t.addTruck}
         </button>
       </aside>
 
@@ -333,7 +392,7 @@ export function RoutingTool() {
               </li>
               {sum.ground.map((g) => (
                 <li key={g.v.id}>
-                  🚌 {g.v.name}
+                  {g.v.kind === "truck" ? "🚛" : "🚌"} {g.v.name}
                   {g.v.count > 1 && <span className="muted small"> ×{g.v.count}</span>}
                   <strong className="num">{usd(g.total)}</strong>
                 </li>
@@ -452,7 +511,10 @@ export function RoutingTool() {
         {sum.ground.map((g) => (
           <article key={g.v.id} className="auth-form route-leg route-ground">
             <header>
-              <strong>🚌 {g.v.name}</strong>
+              <strong>
+                {g.v.kind === "truck" ? "🚛" : "🚌"} {g.v.name}
+                {g.v.count > 1 && ` ×${g.v.count}`}
+              </strong>
               <span className="muted small">{t.roadNote}</span>
             </header>
             <div className="route-rows">
@@ -495,7 +557,7 @@ export function RoutingTool() {
             </div>
             <ul className="route-per">
               <li>
-                {fmt(t.costMiles, { mi: g.mi.toLocaleString("en-US"), rate: usd(g.v.perMile), n: g.v.count })}
+                {fmt(t.costMiles, { mi: g.mi.toLocaleString("en-US"), rate: `$${g.v.perMile.toFixed(2)}`, n: g.v.count })}
                 <strong className="num">{usd(g.miles)}</strong>
               </li>
               <li>

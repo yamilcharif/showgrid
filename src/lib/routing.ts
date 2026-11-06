@@ -41,6 +41,10 @@ export interface FlightEdit {
 export interface Vehicle {
   id: string;
   name: string;
+  /** a bus carries people; trucks carry the show */
+  kind?: "bus" | "truck";
+  /** trucks: the count comes from the truck pack */
+  fromPack?: boolean;
   /** how many of them */
   count: number;
   /** USD per mile driven */
@@ -224,6 +228,15 @@ export function estimateFare(mi: number | null, cabin: Cabin, date: string, toda
   const soon = days < 0 ? 1 : days <= 7 ? 1.6 : days <= 14 ? 1.35 : days <= 21 ? 1.15 : 1;
   return Math.round((eco * cabinFactor * soon) / 5) * 5;
 }
+
+export const newTruck = (name: string, count: number, fromPack: boolean): Vehicle => ({
+  ...newVehicle(name),
+  kind: "truck",
+  fromPack,
+  count: Math.max(1, count),
+  perMile: 3.5,
+  driverDay: 300,
+});
 
 /** Roads wind: driving is about a fifth longer than the straight line between two cities. */
 export const ROAD_FACTOR = 1.2;

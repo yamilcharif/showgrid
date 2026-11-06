@@ -514,7 +514,7 @@ export async function routingPdf(r: Routing, t: Dict["routing"], title: string, 
     }
     y += 0.08;
     const parts: [string, number][] = [
-      [fmt(t.costMiles, { mi: g.mi.toLocaleString("en-US"), rate: usd(g.v.perMile), n: g.v.count }), g.miles],
+      [fmt(t.costMiles, { mi: g.mi.toLocaleString("en-US"), rate: `$${g.v.perMile.toFixed(2)}`, n: g.v.count }), g.miles],
       [fmt(t.costDrivers, { d: g.days, k: g.v.drivers * g.v.count, rate: usd(g.v.driverDay) }), g.drivers],
       ...(g.v.dayRate > 0 ? [[fmt(t.costVehicle, { d: g.days, n: g.v.count, rate: usd(g.v.dayRate) }), g.vehicle] as [string, number]] : []),
     ];

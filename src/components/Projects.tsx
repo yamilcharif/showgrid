@@ -53,6 +53,37 @@ export function useCurrentProject() {
   return p;
 }
 
+/** Another tool's saved work, read only (the routing reads the truck pack): from the open project, or this device. */
+export function useToolPart(tool: ToolKey, localKey: string) {
+  const project = useCurrentProject();
+  const signedIn = useSignedIn();
+  const [part, setPart] = useState<unknown>(null);
+  const remote = project && signedIn ? project : null;
+  const ready = project !== undefined && (project === null || signedIn !== null);
+  useEffect(() => {
+    if (!ready) return;
+    let cancelled = false;
+    if (remote)
+      createClient()
+        .from("projects")
+        .select(`part:data->${tool}`)
+        .eq("id", remote.id)
+        .maybeSingle()
+        .then(({ data }) => !cancelled && setPart((data as { part?: unknown } | null)?.part ?? null));
+    else
+      try {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- read once from this device
+        setPart(JSON.parse(localStorage.getItem(localKey) ?? "null"));
+      } catch {
+        setPart(null);
+      }
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, remote?.id, tool, localKey]); // eslint-disable-line react-hooks/exhaustive-deps -- remote is read by id
+  return part;
+}
+
 /**
  * A tool's state, kept in the open project (in the member's account) or, with no project open, on this device.
  * Changes are saved a second after the last edit; each tool saves only its own part of the project.
