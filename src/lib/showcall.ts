@@ -56,6 +56,8 @@ export interface ShowCall {
   /** the word said on the frame */
   goWord: string;
   standbyWord: string;
+  /** words said in English in every language — the industry's own: Standby, GO, Cue… (comma-separated) */
+  english: string;
   /** say the department before the cue: "Pyro: standby 3" */
   sayDept: boolean;
   /** a short tone before standbys and notes, to get attention */
@@ -97,6 +99,7 @@ export const SHOWCALL_START: ShowCall = {
   callAhead: 1.2,
   goWord: "GO",
   standbyWord: "Standby",
+  english: "Standby, Stand by, GO, Cue, Cues, Blackout",
   sayDept: true,
   beep: true,
   rate: 1,
@@ -153,6 +156,39 @@ export function linesOf(s: ShowCall, c: Cue): Line[] {
 /** Every line of one song, in time order. */
 export const songLines = (s: ShowCall, song: string | null) =>
   s.cues.filter((c) => c.song === song).flatMap((c) => linesOf(s, c)).sort((a, b) => a.at - b.at);
+
+/** The English words to keep as a pattern: whole words only, longest first ("Stand by" before "Stand"). */
+export function englishWords(s: ShowCall): RegExp | null {
+  const words = (s.english ?? "")
+    .split(",")
+    .map((w) => w.trim())
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length)
+    .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+"));
+  return words.length ? new RegExp(`(?<![\\p{L}\\p{N}])(${words.join("|")})(?![\\p{L}\\p{N}])`, "giu") : null;
+}
+
+/** A line cut where the English words are: "Pyro. Standby Pyro 3" → "Pyro. ", "Standby" (English), " Pyro 3". */
+export function splitEnglish(text: string, re: RegExp | null): { text: string; en: boolean }[] {
+  if (!re) return [{ text, en: false }];
+  const out: { text: string; en: boolean }[] = [];
+  let at = 0;
+  for (const m of text.matchAll(re)) {
+    if (m.index! > at) out.push({ text: text.slice(at, m.index), en: false });
+    out.push({ text: m[0], en: true });
+    at = m.index! + m[0].length;
+  }
+  if (at < text.length) out.push({ text: text.slice(at), en: false });
+  // English words with only a space between them are said together: "Standby cue"
+  return out
+    .filter((p) => p.text.trim())
+    .reduce<{ text: string; en: boolean }[]>((acc, p) => {
+      const prev = acc[acc.length - 1];
+      if (prev?.en && p.en) prev.text += ` ${p.text}`;
+      else acc.push({ ...p });
+      return acc;
+    }, []);
+}
 
 /** The languages a cue's lines are spoken in. */
 export const langsFor = (s: ShowCall, c: Cue) => {

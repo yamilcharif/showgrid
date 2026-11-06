@@ -1131,6 +1131,8 @@ export const en = {
     callAhead: "Call before the GO (seconds)",
     standbyWord: "Standby word",
     goWord: "GO word",
+    englishWords: "Words always in English",
+    englishHint: "Comma-separated. Said in an English voice in every language and never translated: the industry's own words.",
     rate: "Voice speed ({n}×)",
     sayDept: "Say the department before the standby",
     beep: "Attention tone before the standby",

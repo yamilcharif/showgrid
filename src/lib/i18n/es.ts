@@ -1131,6 +1131,8 @@ export const es: Dict = {
     callAhead: "Aviso antes del GO (segundos)",
     standbyWord: "Palabra de standby",
     goWord: "Palabra del GO",
+    englishWords: "Palabras siempre en inglés",
+    englishHint: "Separadas por comas. Se dicen con voz en inglés en todos los idiomas y no se traducen: son las de la industria.",
     rate: "Velocidad de la voz ({n}×)",
     sayDept: "Decir el departamento antes del standby",
     beep: "Tono de aviso antes del standby",

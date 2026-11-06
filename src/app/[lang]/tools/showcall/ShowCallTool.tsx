@@ -16,12 +16,14 @@ import {
   readMa3,
   cuesFromRows,
   dueBetween,
+  englishWords,
   inLang,
   langsFor,
   linesOf,
   newId,
   songLines,
   songsFromSetList,
+  splitEnglish,
   sortCues,
   type Cue,
   type Line,
@@ -83,21 +85,27 @@ export function ShowCallTool() {
 
   useEffect(() => clock.setFps(s.fps), [clock, s.fps]);
 
+  const english = useMemo(() => englishWords(s), [s]);
+  /** Says a line in a language, with the industry's words (Standby, GO, Cue…) in an English voice so they sound right. */
+  const talk = (text: string, lang: string, now = false) =>
+    splitEnglish(text, lang === "en" ? null : english).forEach((p, i) => {
+      const l = p.en ? "en" : lang;
+      speak(p.text.trim(), l, { voice: s.voices[l], rate: s.rate, now: now && i === 0 });
+    });
+
   const say = (line: Line) => {
     const langs = langsFor(s, line.cue);
-    const voiceOf = (l: string) => s.voices[l];
-    if (line.role === "go") return speak(line.text, langs[0], { voice: voiceOf(langs[0]), rate: s.rate, now: true });
+    if (line.role === "go") return talk(line.text, langs[0], true);
     if (line.role === "call") {
-      const l = langs[0];
-      const text = inLang(s, line, l);
-      return text ? speak(text, l, { voice: voiceOf(l), rate: s.rate }) : speak(line.text, s.lang, { voice: voiceOf(s.lang), rate: s.rate });
+      const text = inLang(s, line, langs[0]);
+      return text ? talk(text, langs[0]) : talk(line.text, s.lang);
     }
     if (s.beep) beep();
     for (const l of langs) {
       const text = inLang(s, line, l);
       // not translated yet: said in the language it was written in
-      if (text) speak(text, l, { voice: voiceOf(l), rate: s.rate });
-      else speak(line.text, s.lang, { voice: voiceOf(s.lang), rate: s.rate });
+      if (text) talk(text, l);
+      else talk(line.text, s.lang);
     }
   };
 
@@ -316,7 +324,18 @@ export function ShowCallTool() {
         const lines = all.flatMap((c) => linesOf(s, c)).filter((l) => l.role !== "go" && langsFor(s, l.cue).includes(lang));
         const texts = [...new Set(lines.map((l) => l.text))];
         if (!texts.length) continue;
-        const done = await translate(texts, s.lang, lang);
+        // the industry's English words aren't sent to the translator: only the words around them are
+        const chunks = [...new Set(texts.flatMap((x) => splitEnglish(x, english).filter((p) => !p.en && /\p{L}/u.test(p.text)).map((p) => p.text.trim())))];
+        const tChunks = chunks.length ? await translate(chunks, s.lang, lang) : {};
+        const done = Object.fromEntries(
+          texts.map((x) => [
+            x,
+            splitEnglish(x, english)
+              // the spaces around each piece stay as they were
+              .map((p) => (p.en ? p.text : p.text.replace(p.text.trim(), tChunks[p.text.trim()] ?? p.text.trim())))
+              .join(""),
+          ]),
+        );
         all = all.map((c) => {
           const mine = linesOf(s, c).filter((l) => done[l.text] != null);
           if (!mine.length) return c;
@@ -894,6 +913,11 @@ export function ShowCallTool() {
                 <span>{t.goWord}</span>
                 <input value={s.goWord} onChange={(e) => set({ goWord: e.target.value })} />
               </label>
+              <label className="field sc-english">
+                <span>{t.englishWords}</span>
+                <input value={s.english ?? ""} placeholder="Standby, GO, Cue" onChange={(e) => set({ english: e.target.value })} />
+                <small className="muted">{t.englishHint}</small>
+              </label>
               <label className="field">
                 <span>{fmt(t.rate, { n: s.rate.toFixed(1) })}</span>
                 <input type="range" min={0.6} max={1.6} step={0.1} value={s.rate} onChange={(e) => set({ rate: Number(e.target.value) })} />
@@ -933,7 +957,7 @@ export function ShowCallTool() {
               </div>
             )}
             <div className="sc-voices">
-              {[...new Set([s.lang, ...s.langs, ...s.depts.flatMap((d) => d.langs)])].map((l) => (
+              {[...new Set([s.lang, ...s.langs, ...s.depts.flatMap((d) => d.langs), "en"])].map((l) => (
                 <label key={l} className="field">
                   <span>{fmt(t.voiceFor, { lang: LANGS.find((x) => x.code === l)?.name ?? l })}</span>
                   <select value={s.voices[l] ?? ""} onChange={(e) => set({ voices: { ...s.voices, [l]: e.target.value } })}>

@@ -1180,3 +1180,4 @@ a.co:hover { text-decoration-color: currentColor; }
 .sc-chans span.on { border-color: #35d07f; }
 .sc-chans i { position: absolute; left: 0; right: 0; bottom: 0; background: #35d07f; opacity: 0.5; }
 .sc-chans b { position: relative; font-size: 10px; }
+.sc-english { grid-column: 1 / -1; }
