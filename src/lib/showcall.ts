@@ -401,7 +401,7 @@ export function songsFromSetList(text: string): string[] {
     // lengths, keys, tempos at the end: "3:45", "(Am)", "120 bpm"
     line = line.replace(/\s+\(?\d{1,2}:\d{2}\)?\s*$/, "").replace(/\s+\d{2,3}\s*bpm\s*$/i, "").replace(/\s+\([A-G][#b]?m?\)\s*$/, "");
     line = line.replace(/\s{2,}/g, " ").trim();
-    if (line.length < 2 || line.length > 60 || !/[a-zà-ÿ]{2}/i.test(line)) continue;
+    if (line.length < 2 || line.length > 120 || !/[a-zà-ÿ]{2}/i.test(line)) continue;
     if (/^(set\s*list|setlist|show|encore\s*break|fecha|date|venue|lugar)\b\s*[:\-]?\s*$/i.test(line)) continue;
     // a header with the date: "MIAMI 20/11"
     if (/\b\d{1,2}[/.\-]\d{1,2}([/.\-]\d{2,4})?\b/.test(line)) continue;

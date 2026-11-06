@@ -541,75 +541,85 @@ export function ShowCallTool() {
           {msg && <p className={msg.ok ? "tf-ok small" : "auth-err small"}>{msg.text}</p>}
           {busy && <p className="muted small">{busy}</p>}
 
-          <h2>🎵 {t.songs}</h2>
-          <p className="muted small">{t.songsHint}</p>
-          <ol className="sc-songs">
-            {s.songs.map((x, i) => {
-              const count = s.cues.filter((c) => c.song === x.id).length;
-              return (
-                <li key={x.id} className={x.id === song?.id ? "on" : undefined}>
-                  <button type="button" className="sc-song" onClick={() => set({ current: x.id })}>
-                    <span className="num muted">{i + 1}</span> {x.name} <span className="muted small">· {plural(count, t.cues)}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="link small"
-                    aria-label={t.rename}
-                    onClick={() => {
-                      const n = window.prompt(t.rename, x.name)?.trim();
-                      if (n) set({ songs: s.songs.map((y) => (y.id === x.id ? { ...y, name: n } : y)) });
-                    }}
-                  >
-                    ✎
-                  </button>
-                  <button
-                    type="button"
-                    className="link small"
-                    aria-label={t.remove}
-                    disabled={s.songs.length < 2}
-                    onClick={() => {
-                      if (count && !window.confirm(fmt(t.confirmSong, { name: x.name, n: count }))) return;
-                      const songs = s.songs.filter((y) => y.id !== x.id);
-                      set({ songs, cues: s.cues.filter((c) => c.song !== x.id), current: x.id === s.current ? songs[0].id : s.current });
-                    }}
-                  >
-                    ✕
-                  </button>
-                </li>
-              );
-            })}
-          </ol>
-          <div className="inv-actions">
-            <button
-              type="button"
-              className="btn sm"
-              onClick={() => {
-                const name = window.prompt(t.songName, `${t.songWord} ${s.songs.length + 1}`)?.trim();
-                if (!name) return;
-                const id = newId();
-                set({ songs: [...s.songs, { id, name }], current: id });
-              }}
-            >
-              + {t.addSong}
-            </button>
-            <button type="button" className="btn sm" disabled={!!busy} onClick={() => setListRef.current?.click()}>
-              📄 {t.setList}
-            </button>
-          </div>
-          <input
-            ref={setListRef}
-            type="file"
-            hidden
-            accept=".pdf,.txt,image/*,application/pdf,text/plain"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              e.target.value = "";
-              if (f) readSetList(f);
-            }}
-          />
         </aside>
 
         <section className="sc-main">
+          {/* the set list: wide, so long song names fit and their edit and remove stay in view */}
+          <div className="auth-form sc-songs-box">
+            <div className="sc-songs-head">
+              <h2>🎵 {t.songs}</h2>
+              <div className="inv-actions">
+                <button
+                  type="button"
+                  className="btn sm"
+                  onClick={() => {
+                    const name = window.prompt(t.songName, `${t.songWord} ${s.songs.length + 1}`)?.trim();
+                    if (!name) return;
+                    const id = newId();
+                    set({ songs: [...s.songs, { id, name }], current: id });
+                  }}
+                >
+                  + {t.addSong}
+                </button>
+                <button type="button" className="btn sm" disabled={!!busy} onClick={() => setListRef.current?.click()}>
+                  📄 {t.setList}
+                </button>
+              </div>
+            </div>
+            <p className="muted small">{t.songsHint}</p>
+            <ol className="sc-songs">
+              {s.songs.map((x, i) => {
+                const count = s.cues.filter((c) => c.song === x.id).length;
+                return (
+                  <li key={x.id} className={x.id === song?.id ? "on" : undefined}>
+                    <button type="button" className="sc-song" onClick={() => set({ current: x.id })}>
+                      <span className="num muted">{i + 1}</span>
+                      <span className="sc-song-name">{x.name}</span>
+                      <span className="muted small">{plural(count, t.cues)}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="sc-song-act"
+                      aria-label={t.rename}
+                      title={t.rename}
+                      onClick={() => {
+                        const n = window.prompt(t.rename, x.name)?.trim();
+                        if (n) set({ songs: s.songs.map((y) => (y.id === x.id ? { ...y, name: n } : y)) });
+                      }}
+                    >
+                      ✎
+                    </button>
+                    <button
+                      type="button"
+                      className="sc-song-act"
+                      aria-label={t.remove}
+                      title={t.remove}
+                      disabled={s.songs.length < 2}
+                      onClick={() => {
+                        if (count && !window.confirm(fmt(t.confirmSong, { name: x.name, n: count }))) return;
+                        const songs = s.songs.filter((y) => y.id !== x.id);
+                        set({ songs, cues: s.cues.filter((c) => c.song !== x.id), current: x.id === s.current ? songs[0].id : s.current });
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+            <input
+              ref={setListRef}
+              type="file"
+              hidden
+              accept=".pdf,.txt,image/*,application/pdf,text/plain"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (f) readSetList(f);
+              }}
+            />
+          </div>
+
           {/* timeline of the song playing */}
           <div className="auth-form sc-timeline-box">
             <div className="sc-tl-head">

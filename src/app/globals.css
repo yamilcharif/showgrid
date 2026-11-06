@@ -1110,10 +1110,6 @@ a.co:hover { text-decoration-color: currentColor; }
 .sc-transport input { width: 120px; }
 .sc-meter { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
 .sc-meter span { display: block; height: 100%; width: 0; background: #35d07f; transition: width 0.08s; }
-.sc-songs { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: 340px; overflow: auto; }
-.sc-songs li { display: flex; align-items: center; gap: 6px; border-radius: 8px; padding: 2px 6px; }
-.sc-songs li.on { background: var(--surface-2); outline: 1px solid var(--line); }
-.sc-song { flex: 1; min-width: 0; text-align: left; background: none; border: 0; color: inherit; padding: 6px 0; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: inherit; }
 .sc-tl-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
 .sc-tl-head kbd { font-size: 11px; opacity: 0.7; border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; margin-left: 4px; }
 .sc-lanes { display: grid; margin-top: 10px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
@@ -1181,3 +1177,14 @@ a.co:hover { text-decoration-color: currentColor; }
 .sc-chans i { position: absolute; left: 0; right: 0; bottom: 0; background: #35d07f; opacity: 0.5; }
 .sc-chans b { position: relative; font-size: 10px; }
 .sc-english { grid-column: 1 / -1; }
+.sc-songs-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.sc-songs-head h2 { margin: 0; }
+.sc-songs { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 10px; }
+.sc-songs li { display: flex; align-items: center; gap: 2px; border: 1px solid var(--line); border-radius: 8px; padding: 2px 4px 2px 8px; min-width: 0; }
+.sc-songs li.on { background: var(--surface-2); border-color: var(--ink); }
+.sc-song { flex: 1; min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; text-align: left; background: none; border: 0; color: inherit; padding: 6px 0; cursor: pointer; font: inherit; }
+.sc-song .num { grid-row: 1 / 3; align-self: center; min-width: 1.6em; text-align: right; }
+.sc-song-name { font-weight: 600; overflow-wrap: anywhere; line-height: 1.25; }
+.sc-song-act { flex: none; width: 30px; height: 30px; border: 0; border-radius: 6px; background: none; color: var(--muted); cursor: pointer; font-size: 15px; }
+.sc-song-act:hover:not(:disabled) { background: var(--surface-2); color: var(--ink); }
+.sc-song-act:disabled { opacity: 0.3; cursor: default; }
