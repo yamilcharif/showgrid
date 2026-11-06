@@ -35,6 +35,7 @@ export function ToolFiles({
   onOpen,
   download,
   downloadLabel,
+  more,
 }: {
   tool: ToolKey;
   /** the file name, without extension */
@@ -44,6 +45,8 @@ export function ToolFiles({
   /** builds the result to download; omitted when the tool has nothing to download yet */
   download?: () => Promise<{ blob: Blob; name: string } | null>;
   downloadLabel: string;
+  /** other results to download, each with its own button (a PDF next to a CSV) */
+  more?: { label: string; build: () => Promise<{ blob: Blob; name: string } | null> }[];
 }) {
   const t = useT().files;
   const signedIn = useSignedIn();
@@ -71,12 +74,12 @@ export function ToolFiles({
     }
   };
 
-  const get = async () => {
+  const get = async (build = download) => {
     if (!signedIn) return setAsk(true);
-    if (!download) return;
+    if (!build) return;
     setBusy(true);
     try {
-      const out = await download();
+      const out = await build();
       if (out) saveBlob(out.blob, out.name);
     } catch {
       setMsg({ ok: false, text: t.downloadError });
@@ -105,10 +108,15 @@ export function ToolFiles({
         }}
       />
       {download && (
-        <button type="button" className="btn sm primary" disabled={busy} onClick={get}>
+        <button type="button" className="btn sm primary" disabled={busy} onClick={() => get()}>
           {busy ? t.preparing : `↓ ${downloadLabel}`}
         </button>
       )}
+      {more?.map((m) => (
+        <button key={m.label} type="button" className="btn sm primary" disabled={busy} onClick={() => get(m.build)}>
+          ↓ {m.label}
+        </button>
+      ))}
       {msg && <span className={msg.ok ? "tf-ok small" : "auth-err small"}>{msg.text}</span>}
       {ask && !signedIn && <AccountNeeded />}
     </div>

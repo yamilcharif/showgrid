@@ -1095,6 +1095,11 @@ export const en = {
     legs: ["{n} flight", "{n} flights"],
     disclaimer: "Fares are estimates for planning only, not quotes. ShowGrid doesn't sell or book flights.",
     download: "Download CSV",
+    pdf: "Download PDF",
+    pdfTitle: "Tour flights",
+    cabin: "Class",
+    estShort: "est.",
+    generated: "Made on {date} with ShowGrid.",
   },
 };
 

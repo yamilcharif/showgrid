@@ -72,6 +72,21 @@ export function RoutingTool() {
         onOpen={(v) => v && typeof v === "object" && Array.isArray((v as Routing).stops) && setR({ ...ROUTING_START, ...(v as Routing) })}
         downloadLabel={t.download}
         download={sum.legs.length ? async () => ({ blob: new Blob([routingCsv(r)], { type: "text/csv" }), name: `${project?.name ?? "routing"} - flights.csv` }) : undefined}
+        more={
+          sum.legs.length
+            ? [
+                {
+                  label: t.pdf,
+                  build: async () => {
+                    const { routingPdf } = await import("@/lib/projectExport");
+                    const date = new Date().toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" });
+                    const pdf = await routingPdf(r, t, project?.name ?? "", date);
+                    return { blob: new Blob([pdf], { type: "application/pdf" }), name: `${project?.name ?? "routing"} - flights.pdf` };
+                  },
+                },
+              ]
+            : undefined
+        }
       />
 
       <aside className="auth-form route-side">

@@ -4,10 +4,10 @@
  */
 import type { jsPDF as JsPDF } from "jspdf";
 import type { Dict } from "./i18n/en";
-import { fmt } from "./i18n/config";
+import { fmt, plural } from "./i18n/config";
 import { PAPER, buildLabels, inkFor, partSize, sheetOf, type LabelSettings } from "./labels";
 import { patternPng, type PatternSettings } from "./pattern";
-import { routingCsv, type Routing } from "./routing";
+import { flightOf, routingCsv, totals, type Routing } from "./routing";
 import type { EstimateRow, RiderLine } from "./rider";
 import { caseNumbers, fmtLen, fmtWeight, footprint, groupSummary, position, stats, type TruckPlan } from "./truck";
 
@@ -408,6 +408,95 @@ export async function labelsPdf(s: LabelSettings) {
   return doc.output("arraybuffer");
 }
 
+/** The routing on paper: totals per party, then every flight with each party's class, flight details and fare. */
+export async function routingPdf(r: Routing, t: Dict["routing"], title: string, date: string) {
+  const { jsPDF } = await import("jspdf");
+  const doc = new jsPDF({ unit: "in", format: "letter", orientation: "landscape" });
+  const usd = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
+  const sum = totals(r);
+  const [W, H] = [11, 8.5];
+  const left = 0.5;
+  let y = 0.65;
+  const footer = () => {
+    doc.setFont("helvetica", "normal").setFontSize(7.5).setTextColor("#666666");
+    doc.text(doc.splitTextToSize(`${t.disclaimer} ${fmt(t.generated, { date })}`, W - 1), left, H - 0.4);
+  };
+  const room = (need: number) => {
+    if (y + need < H - 0.65) return;
+    footer();
+    doc.addPage();
+    y = 0.6;
+  };
+
+  doc.setFont("helvetica", "bold").setFontSize(18).setTextColor("#000000").text(title || t.pdfTitle, left, y);
+  doc.setFont("helvetica", "normal").setFontSize(9).setTextColor("#555555");
+  y += 0.25;
+  doc.text(`${t.pdfTitle} · ${plural(sum.legs.length, t.legs)} · ${plural(sum.seats, t.seats)} · ${date}`, left, y);
+
+  // totals: one box per party, then the whole tour
+  y += 0.25;
+  const boxes = [...r.parties.map((p) => ({ name: p.name, sub: `${p.pax} · ${t.cabins[p.cabin]}`, v: sum.per.get(p.id) ?? 0, color: p.color })), { name: t.summary, sub: "", v: sum.all, color: "#000000" }];
+  const bw = Math.min(2.2, (W - 1 - 0.1 * (boxes.length - 1)) / boxes.length);
+  boxes.forEach((b, i) => {
+    const x = left + i * (bw + 0.1);
+    doc.setDrawColor(b.color).setLineWidth(0.03).rect(x, y, bw, 0.62);
+    doc.setFillColor(b.color).rect(x, y, 0.06, 0.62, "F");
+    doc.setTextColor("#000000").setFont("helvetica", "bold").setFontSize(9).text(doc.splitTextToSize(b.name, bw - 0.2)[0], x + 0.14, y + 0.18);
+    doc.setFont("helvetica", "normal").setFontSize(7.5).setTextColor("#555555").text(b.sub, x + 0.14, y + 0.32);
+    doc.setFont("helvetica", "bold").setFontSize(13).setTextColor("#000000").text(usd(b.v), x + 0.14, y + 0.53);
+  });
+  y += 0.85;
+  doc.setFont("helvetica", "normal").setFontSize(8).setTextColor("#555555");
+  doc.text(doc.splitTextToSize(fmt(t.summaryNote, { own: sum.own, est: sum.est, unknown: sum.unknown }), W - 1), left, y);
+  y += 0.4;
+
+  const cols = [
+    { at: left + 0.15, head: "Party" },
+    { at: left + 1.65, head: t.pax },
+    { at: left + 2.45, head: t.cabin },
+    { at: left + 3.6, head: t.date },
+    { at: left + 4.6, head: t.airline },
+    { at: left + 6.0, head: t.flightNo },
+    { at: left + 6.9, head: t.time },
+    { at: left + 7.6, head: t.fare },
+    { at: left + 8.9, head: t.total },
+  ];
+  for (const leg of sum.legs) {
+    room(0.55 + 0.22 * r.parties.length);
+    doc.setFillColor("#eeeeee").rect(left, y - 0.17, W - 1, 0.27, "F");
+    doc.setFont("helvetica", "bold").setFontSize(10).setTextColor("#000000");
+    doc.text(`${leg.from?.code ?? "?"} - ${leg.to?.code ?? "?"}`, left + 0.08, y);
+    doc.setFont("helvetica", "normal").setFontSize(8.5).setTextColor("#333333");
+    doc.text(`${leg.fromText} - ${leg.toText}${leg.miles != null ? ` · ${fmt(t.miles, { n: leg.miles.toLocaleString("en-US") })}` : ""}`, left + 1.2, y);
+    y += 0.26;
+    doc.setFont("helvetica", "bold").setFontSize(7).setTextColor("#777777");
+    cols.forEach((c) => doc.text(c.head.toUpperCase(), c.at, y));
+    y += 0.2;
+    doc.setFont("helvetica", "normal").setFontSize(9).setTextColor("#000000");
+    for (const p of r.parties) {
+      const f = flightOf(r, leg, p);
+      doc.setFillColor(p.color).rect(left + 0.02, y - 0.1, 0.08, 0.12, "F");
+      doc.setTextColor(f.skip ? "#999999" : "#000000");
+      const cells = [
+        p.name,
+        String(p.pax),
+        t.cabins[f.cabin],
+        f.date,
+        f.airline ?? "",
+        f.flight ?? "",
+        f.time ?? "",
+        f.skip ? t.skip : f.price == null ? "-" : `${usd(f.price)}${f.own ? "" : ` (${t.estShort})`}`,
+        f.skip ? "-" : usd(f.total),
+      ];
+      cells.forEach((v, i) => doc.text(doc.splitTextToSize(v, (cols[i + 1]?.at ?? W - 0.5) - cols[i].at - 0.08)[0] ?? "", cols[i].at, y));
+      y += 0.22;
+    }
+    y += 0.15;
+  }
+  footer();
+  return doc.output("arraybuffer");
+}
+
 /** Builds the zip: Project name/rider, truck, pattern and labels, plus the project data for backup. */
 export async function projectZip(
   name: string,
@@ -431,7 +520,10 @@ export async function projectZip(
     if (png) add(`Pattern/${safeName(data.pattern.name || "led-test-pattern")}-${data.pattern.cols * data.pattern.pw}x${data.pattern.rows * data.pattern.ph}.png`, new Uint8Array(await png.arrayBuffer()));
   }
   if (data.labels && buildLabels(data.labels).length) add("Labels/labels.pdf", await labelsPdf(data.labels));
-  if (data.routing?.stops?.length) add("Routing/flights.csv", routingCsv(data.routing));
+  if (data.routing?.stops?.length) {
+    add("Routing/flights.csv", routingCsv(data.routing));
+    add("Routing/flights.pdf", await routingPdf(data.routing, dict.routing, name, opts.date));
+  }
   add("project.json", JSON.stringify({ name, exported: new Date().toISOString(), data }, null, 2));
   return zipSync(files, { level: 6 });
 }

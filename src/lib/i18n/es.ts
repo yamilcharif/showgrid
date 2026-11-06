@@ -1095,5 +1095,10 @@ export const es: Dict = {
     legs: ["{n} vuelo", "{n} vuelos"],
     disclaimer: "Las tarifas son estimados para planificar, no cotizaciones. ShowGrid no vende ni reserva vuelos.",
     download: "Descargar CSV",
+    pdf: "Descargar PDF",
+    pdfTitle: "Vuelos de la gira",
+    cabin: "Clase",
+    estShort: "est.",
+    generated: "Hecho el {date} con ShowGrid.",
   },
 };
