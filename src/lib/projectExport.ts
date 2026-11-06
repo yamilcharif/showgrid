@@ -7,6 +7,7 @@ import type { Dict } from "./i18n/en";
 import { fmt } from "./i18n/config";
 import { PAPER, buildLabels, inkFor, partSize, sheetOf, type LabelSettings } from "./labels";
 import { patternPng, type PatternSettings } from "./pattern";
+import { routingCsv, type Routing } from "./routing";
 import type { EstimateRow, RiderLine } from "./rider";
 import { caseNumbers, fmtLen, fmtWeight, footprint, groupSummary, position, stats, type TruckPlan } from "./truck";
 
@@ -15,6 +16,7 @@ export interface ProjectData {
   truck?: TruckPlan;
   pattern?: PatternSettings;
   labels?: LabelSettings;
+  routing?: Routing;
 }
 
 /** A name that works as a file or folder name on any computer. */
@@ -429,6 +431,7 @@ export async function projectZip(
     if (png) add(`Pattern/${safeName(data.pattern.name || "led-test-pattern")}-${data.pattern.cols * data.pattern.pw}x${data.pattern.rows * data.pattern.ph}.png`, new Uint8Array(await png.arrayBuffer()));
   }
   if (data.labels && buildLabels(data.labels).length) add("Labels/labels.pdf", await labelsPdf(data.labels));
+  if (data.routing?.stops?.length) add("Routing/flights.csv", routingCsv(data.routing));
   add("project.json", JSON.stringify({ name, exported: new Date().toISOString(), data }, null, 2));
   return zipSync(files, { level: 6 });
 }

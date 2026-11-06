@@ -20,8 +20,8 @@ interface Row {
   parts: ToolKey[];
 }
 
-const PARTS: ToolKey[] = ["rider", "truck", "pattern", "labels"];
-const HREF: Record<ToolKey, string> = { rider: "/rider", truck: "/tools/truck", pattern: "/tools/pattern", labels: "/tools/labels" };
+const PARTS: ToolKey[] = ["rider", "truck", "pattern", "labels", "routing"];
+const HREF: Record<ToolKey, string> = { rider: "/rider", truck: "/tools/truck", pattern: "/tools/pattern", labels: "/tools/labels", routing: "/tools/routing" };
 
 /** On the Tools page: the member's projects, to create, open, rename, delete or download in one zip. */
 export function ProjectsPanel() {
@@ -41,7 +41,7 @@ export function ProjectsPanel() {
     // only the keys of each part, not the parts themselves: the list stays light
     const { data, error: err } = await createClient()
       .from("projects")
-      .select("id, name, updated_at, rider:data->rider->lines, truck:data->truck->placed, pattern:data->pattern->cols, labels:data->labels->rows")
+      .select("id, name, updated_at, rider:data->rider->lines, truck:data->truck->placed, pattern:data->pattern->cols, labels:data->labels->rows, routing:data->routing->stops")
       .order("updated_at", { ascending: false })
       .limit(100);
     if (err) {
