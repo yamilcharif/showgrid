@@ -11,7 +11,8 @@ import { ProjectBar, useToolState } from "@/components/Projects";
 import { ToolsBack } from "@/components/ToolsBack";
 import { ToolFiles } from "@/components/ToolFiles";
 import { fmt, plural } from "@/lib/i18n/config";
-import { estimateRider, parseRider, pdfText, quoteRider, summarize, type CompanyQuote, type RentalMode, type RiderLine, type SubChoice } from "@/lib/rider";
+import { readTable } from "@/lib/labels";
+import { estimateRider, parseRider, parseRiderRows, pdfText, readPlotGear, quoteRider, summarize, type CompanyQuote, type RentalMode, type RiderLine, type SubChoice } from "@/lib/rider";
 import { RADII, dayCount, fmtDist, isoIn, money, rangeLabel, unitFor } from "@/lib/search";
 
 const MAX_BYTES = 300 * 1024 * 1024;
@@ -45,27 +46,47 @@ export function RiderTool() {
   const setSource = (name: string) => setSaved((x) => ({ ...x, source: name }));
   const setMode = (m: RentalMode) => setSaved((x) => ({ ...x, mode: m }));
 
-  const read = (text: string, name: string) => {
-    const found = parseRider(text);
+  const show = (found: RiderLine[], name: string, text = "") => {
     setSource(name);
     setLines(found);
     setError(found.length ? "" : t.errNone);
-    if (!found.length) setPaste(text.slice(0, 20000));
+    if (!found.length && text) setPaste(text.slice(0, 20000));
   };
+  const read = (text: string, name: string) => show(parseRider(text), name, text);
 
   const open = async (f: File) => {
     setError("");
-    const kind = f.type === "application/pdf" || /\.pdf$/i.test(f.name) ? "pdf" : /\.(txt|csv|tsv)$/i.test(f.name) || f.type.startsWith("text/") ? "text" : "";
+    const kind =
+      f.type === "application/pdf" || /\.pdf$/i.test(f.name)
+        ? "pdf"
+        : /\.xlsx$/i.test(f.name)
+          ? "table"
+          : /\.(csv|tsv)$/i.test(f.name)
+            ? "table"
+            : /\.txt$/i.test(f.name) || f.type.startsWith("text/")
+              ? "text"
+              : "";
+    if (/\.xls$/i.test(f.name)) return setError(T.labels.errOldExcel);
     if (!kind) return setError(t.errType);
     if (f.size > MAX_BYTES) return setError(t.errSize);
     setReading(f.name);
     try {
-      // csv/tsv columns become wide gaps, the way table rows read out of a PDF
-      const text = kind === "pdf" ? await pdfText(f) : (await f.text()).replace(/[;,\t]/g, "  ");
-      if (kind === "pdf" && text.replace(/\s/g, "").length < 20) {
-        setLines([]);
-        setError(t.errScan);
-      } else read(text, f.name);
+      if (kind === "table") show(parseRiderRows(await readTable(f)), f.name);
+      else if (kind === "text") read(await f.text(), f.name);
+      else {
+        // a rider's gear list, and on a plot also what is drawn: fixtures by their legend, motors, truss
+        const text = await pdfText(f);
+        const listed = parseRider(text);
+        const drawn = await readPlotGear(f, listed).catch(() => ({ lines: [] as RiderLine[], unknown: 0 }));
+        const found = [...listed, ...drawn.lines].map((l, i) => ({ ...l, key: i }));
+        if (!found.length && text.replace(/\s/g, "").length < 20) {
+          setLines([]);
+          setError(t.errScan);
+        } else {
+          show(found, f.name, text);
+          if (found.length && drawn.unknown) setError(fmt(t.plotUnknown, { n: drawn.unknown }));
+        }
+      }
     } catch {
       setError(t.errRead);
     } finally {
@@ -126,7 +147,7 @@ export function RiderTool() {
               ref={fileRef}
               type="file"
               hidden
-              accept=".pdf,.txt,.csv,.tsv,application/pdf,text/plain,text/csv"
+              accept=".pdf,.xlsx,.xls,.txt,.csv,.tsv,application/pdf,text/plain,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 e.target.value = "";

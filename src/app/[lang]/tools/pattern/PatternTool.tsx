@@ -5,20 +5,40 @@ import { useT } from "@/components/I18n";
 import { ProjectBar, useToolState } from "@/components/Projects";
 import { ToolFiles } from "@/components/ToolFiles";
 import { patternPng } from "@/lib/pattern";
+import { BRANDS, LED_PANELS, type LedPanel } from "@/lib/ledPanels";
+import { createClient } from "@/lib/supabase/browser";
 import { useI18n } from "@/components/I18n";
 import { fmt } from "@/lib/i18n/config";
 import { PATTERN_START as START, drawPattern as draw, wallLen, type Hits, type LogoAt, type PatternSettings as Settings, type Pip, type Rect } from "@/lib/pattern";
 
-/** Common LED panels: pixels and millimetres per cabinet. "Custom" covers the rest. */
-const PANELS = [
-  { name: "2.6 mm · 500 × 500", w: 192, h: 192, mw: 500, mh: 500 },
-  { name: "2.9 mm · 500 × 500", w: 168, h: 168, mw: 500, mh: 500 },
-  { name: "ROE BP2 · 500 × 500", w: 176, h: 176, mw: 500, mh: 500 },
-  { name: "3.9 mm · 500 × 500", w: 128, h: 128, mw: 500, mh: 500 },
-  { name: "3.9 mm · 500 × 1000", w: 128, h: 256, mw: 500, mh: 1000 },
-  { name: "4.8 mm · 500 × 500", w: 104, h: 104, mw: 500, mh: 500 },
-  { name: "5.9 mm · 600 × 1200", w: 104, h: 208, mw: 600, mh: 1200 },
-];
+const MINE_KEY = "sg_led_panels";
+
+/** The member's own panels: kept with their account (and on this device), since a company keeps using the same ones. */
+function useMyPanels() {
+  const [mine, setMine] = useState<LedPanel[]>([]);
+  useEffect(() => {
+    try {
+      const local = JSON.parse(localStorage.getItem(MINE_KEY) ?? "[]");
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- read once from this device
+      if (Array.isArray(local)) setMine(local);
+    } catch {}
+    createClient()
+      .auth.getUser()
+      .then(({ data }) => {
+        const saved = data.user?.user_metadata?.led_panels;
+        if (Array.isArray(saved) && saved.length) setMine(saved);
+      });
+  }, []);
+  const save = (list: LedPanel[]) => {
+    setMine(list);
+    try {
+      localStorage.setItem(MINE_KEY, JSON.stringify(list));
+    } catch {}
+    // signed out, this fails quietly and the panels stay on this device
+    createClient().auth.updateUser({ data: { led_panels: list } });
+  };
+  return [mine, save] as const;
+}
 
 const MAX_SIDE = 16384;
 const STORE_KEY = "sg_pattern";
@@ -61,7 +81,12 @@ export function PatternTool() {
   const tooBig = W > MAX_SIDE || H > MAX_SIDE;
   const set = (patch: Partial<Settings>) => setS((x) => ({ ...x, ...patch }));
   const setPip = (id: string, patch: Partial<Pip>) => setS((x) => ({ ...x, pips: x.pips.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
-  const preset = PANELS.findIndex((p) => p.w === s.pw && p.h === s.ph && p.mw === s.mw && p.mh === s.mh);
+  const [mine, saveMine] = useMyPanels();
+  const [panelName, setPanelName] = useState("");
+  const same = (p: LedPanel) => p.w === s.pw && p.h === s.ph && p.mw === s.mw && p.mh === s.mh;
+  const mineAt = mine.findIndex(same);
+  const libAt = LED_PANELS.findIndex(same);
+  const preset = mineAt >= 0 ? `mine:${mineAt}` : libAt >= 0 ? `lib:${libAt}` : "custom";
   const wm = wallLen(s.cols * s.mw);
   const hm = wallLen(s.rows * s.mh);
   const pm = { w: wallLen(s.mw), h: wallLen(s.mh) };
@@ -192,16 +217,35 @@ export function PatternTool() {
         </div>
         <label className="field">
           <span>{t.preset}</span>
-          <select value={preset} onChange={(e) => {
-              const p = PANELS[Number(e.target.value)];
+          <select
+            value={preset}
+            onChange={(e) => {
+              const [from, i] = e.target.value.split(":");
+              const p = (from === "mine" ? mine : LED_PANELS)[Number(i)];
               if (p) set({ pw: p.w, ph: p.h, mw: p.mw, mh: p.mh });
-            }}>
-            {PANELS.map((p, i) => (
-              <option key={p.name} value={i}>
-                {p.name} → {p.w} × {p.h} px
-              </option>
+            }}
+          >
+            {mine.length > 0 && (
+              <optgroup label={t.myPanels}>
+                {mine.map((p, i) => (
+                  <option key={i} value={`mine:${i}`}>
+                    {p.name} → {p.w} × {p.h} px
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {BRANDS.map((b) => (
+              <optgroup key={b} label={b === "Generic" ? t.generic : b}>
+                {LED_PANELS.map((p, i) =>
+                  p.brand === b ? (
+                    <option key={i} value={`lib:${i}`}>
+                      {p.name} → {p.w} × {p.h} px
+                    </option>
+                  ) : null,
+                )}
+              </optgroup>
             ))}
-            <option value={-1}>{t.custom}</option>
+            <option value="custom">{t.custom}</option>
           </select>
         </label>
         <div className="pat-two">
@@ -222,6 +266,28 @@ export function PatternTool() {
             <input type="number" min={1} max={5000} value={s.mh} onChange={(e) => set({ mh: num(e.target.value, 5000) })} />
           </label>
         </div>
+        {mineAt >= 0 ? (
+          <button type="button" className="link small" onClick={() => saveMine(mine.filter((_, i) => i !== mineAt))}>
+            {fmt(t.removePanel, { name: mine[mineAt].name })}
+          </button>
+        ) : (
+          <form
+            className="pat-save-panel"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const name = panelName.trim();
+              if (!name) return;
+              saveMine([...mine, { brand: "", name: name.slice(0, 60), w: s.pw, h: s.ph, mw: s.mw, mh: s.mh }]);
+              setPanelName("");
+            }}
+          >
+            <input value={panelName} maxLength={60} placeholder={t.panelName} aria-label={t.panelName} onChange={(e) => setPanelName(e.target.value)} />
+            <button className="btn sm" disabled={!panelName.trim()}>
+              ★ {t.savePanel}
+            </button>
+          </form>
+        )}
+        <p className="muted small">{t.panelsNote}</p>
         <p className="muted small pat-sizes">
           {fmt(t.panelSize, { m: `${pm.w.m} × ${pm.h.m}`, ft: `${pm.w.ft} × ${pm.h.ft}` })}
           <br />

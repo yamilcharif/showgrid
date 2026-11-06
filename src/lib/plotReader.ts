@@ -136,7 +136,7 @@ async function readShapes(page: { getOperatorList: () => Promise<{ fnArray: numb
 }
 
 /** Words with their page position, rebuilt from the PDF's text pieces (a label can come in several pieces), and the drawn shapes. */
-async function readPage(file: File): Promise<{ words: Word[]; shapes: Shape[] }> {
+export async function readPage(file: File): Promise<{ words: Word[]; shapes: Shape[] }> {
   const { getDocumentProxy, getResolvedPDFJS } = await import("unpdf");
   const pdf = await getDocumentProxy(new Uint8Array(await file.arrayBuffer()));
   const { OPS } = (await getResolvedPDFJS()) as unknown as { OPS: Record<string, number> };
@@ -251,8 +251,8 @@ function nearestPosition(w: Word, positions: Word[]) {
   return best?.s.toUpperCase() ?? "";
 }
 
-export async function readPlot(file: File): Promise<PlotResult> {
-  const { words, shapes } = await readPage(file);
+export async function readPlot(file: File, page?: Awaited<ReturnType<typeof readPage>>): Promise<PlotResult> {
+  const { words, shapes } = page ?? (await readPage(file));
   const patches = words.filter((w) => {
     const m = w.s.match(PATCH);
     return m && Number(m[2]) >= 1 && Number(m[2]) <= 512 && Number(m[1]) >= 1;

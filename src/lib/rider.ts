@@ -16,7 +16,7 @@ export interface RiderLine {
 // ---------- reading the text ----------
 
 // contact details, page furniture and headings that carry no gear
-const NOISE = /(@|https?:|www\.|\bpage\s*\d|\bp[aá]gina\s*\d|\btel\b|\bphone\b|\bfax\b|\+\d{6,}|\b(date|fecha|venue|lugar|contact|contacto|rider|input list|stage plot|version|rev\.?)\s*:)/i;
+const NOISE = /(@|https?:|www\.|\bpage\s*\d|\bp[aá]gina\s*\d|\btel\b|\bphone\b|\bfax\b|\+\d{6,}|\b(date|fecha|venue|lugar|contact|contacto|rider|input list|stage plot|version|rev\.?)\s*:|\b(scale|escala|sheet|hoja|drawn by|dibujado|dwg|plot date|revision)\b|\b1\s*:\s*\d{2,3}\b)/i;
 const BULLET = /^[\s\-–•*·▪►✓☐□]+/;
 const UNIT = String.raw`(?:x|×|pcs?\.?|units?|ea\.?|u\.?|uds?\.?|unidades|piezas|pzs?\.?)`;
 
@@ -57,6 +57,81 @@ export function parseRider(text: string): RiderLine[] {
     else out.set(id, { key: key++, name, qty, on: true });
   }
   return [...out.values()];
+}
+
+/** Adds up gear by name: the same model in two places is one line. */
+function collect(pairs: [string, number][]): RiderLine[] {
+  const out = new Map<string, RiderLine>();
+  let key = 0;
+  for (const [raw, qty] of pairs) {
+    const name = cleanName(raw);
+    if (!qty || qty > 500 || !/[a-z]{2}/i.test(name)) continue;
+    const id = name.toLowerCase();
+    const ex = out.get(id);
+    if (ex) ex.qty += qty;
+    else out.set(id, { key: key++, name, qty, on: true });
+  }
+  return [...out.values()];
+}
+
+const QTY_HEAD = /^(qty|qt[ye]?\.?|quantity|cant(idad)?\.?|count|units?|uds?\.?|#|pcs)$/i;
+// the column that names the gear, best first: a fixture schedule's type before a general description
+const NAME_HEADS = [/^(instrument|fixture|device)\s*type$|^(model|modelo|tipo)$/i, /^(description|descripci[oó]n|equipment|equipo|gear|product|producto)$/i, /^(item|name|nombre|type)$/i];
+
+/**
+ * Gear from a table (Excel, CSV): by its headers when it has them — a quantity column, or one row per unit as in a
+ * fixture schedule exported from Vectorworks — and otherwise row by row, like the lines of a rider.
+ */
+export function parseRiderRows(rows: string[][]): RiderLine[] {
+  for (let h = 0; h < Math.min(rows.length, 15); h++) {
+    const head = rows[h].map((c) => c.trim());
+    const ni = NAME_HEADS.map((re) => head.findIndex((c) => re.test(c))).find((i) => i >= 0) ?? -1;
+    if (ni < 0) continue;
+    const qi = head.findIndex((c) => QTY_HEAD.test(c));
+    const pairs: [string, number][] = [];
+    for (const r of rows.slice(h + 1)) {
+      const name = (r[ni] ?? "").trim();
+      if (!name) continue;
+      const qty = qi < 0 ? 1 : Number.parseInt((r[qi] ?? "").replace(/[^\d]/g, ""), 10);
+      pairs.push([name, qty]);
+    }
+    const lines = collect(pairs);
+    if (lines.length) return lines;
+  }
+  return parseRider(rows.map((r) => r.map((c) => c.trim()).filter(Boolean).join("  ")).join("\n"));
+}
+
+// a truss run labelled on a plot: "40' Box Truss", "TRUSS 12\" x 30'", "Truss 6m"
+const TRUSS = /truss/i;
+const LENGTH = /(\d+(?:[.,]\d+)?)\s*(?:'|’|ft|feet|pies|m\b)/i;
+
+/**
+ * Gear drawn on a plot: fixtures counted by the legend symbol they match, motors by their tags, and truss runs
+ * by the labels that give a length. Lines the plot's own gear list already has are left to it.
+ */
+export async function readPlotGear(file: File, have: RiderLine[]): Promise<{ lines: RiderLine[]; unknown: number }> {
+  const { readPlot, readPage } = await import("./plotReader");
+  const page = await readPage(file);
+  const plot = await readPlot(file, page);
+  const pairs: [string, number][] = [];
+  const count = new Map<string, number>();
+  let unknown = 0;
+  for (const f of plot.fixtures) {
+    if (f.type) count.set(f.type, (count.get(f.type) ?? 0) + 1);
+    else unknown++;
+  }
+  for (const [type, n] of count) pairs.push([type, n]);
+  if (plot.motors.length) pairs.push(["Chain motor 1 ton", plot.motors.length]);
+  for (const w of page.words) {
+    if (!TRUSS.test(w.s) || w.s.length > 60) continue;
+    const m = w.s.match(LENGTH);
+    if (!m) continue;
+    const feet = /m\b/i.test(m[0]) && !/'|ft|feet|pies/i.test(m[0]) ? Number(m[1].replace(",", ".")) * 3.28 : Number(m[1].replace(",", "."));
+    if (feet >= 2 && feet <= 200) pairs.push([`Truss ${Math.round(feet)}'`, 1]);
+  }
+  const known = have.map((l) => l.name.toLowerCase());
+  const lines = collect(pairs).filter((l) => !known.some((k) => k.includes(l.name.toLowerCase()) || l.name.toLowerCase().includes(k)));
+  return { lines, unknown };
 }
 
 /** Text of a PDF, rebuilt line by line from the positions of its words. Empty for scans and drawings. */
