@@ -7,7 +7,7 @@ import type { Dict } from "./i18n/en";
 import { fmt, plural } from "./i18n/config";
 import { PAPER, buildLabels, inkFor, partSize, sheetOf, type LabelSettings } from "./labels";
 import { patternPng, type PatternSettings } from "./pattern";
-import { flightOf, routingCsv, totals, type Routing } from "./routing";
+import { flightOf, roadMilesOf, routingCsv, totals, type Routing } from "./routing";
 import type { EstimateRow, RiderLine } from "./rider";
 import { caseNumbers, fmtLen, fmtWeight, footprint, groupSummary, position, stats, type TruckPlan } from "./truck";
 
@@ -435,7 +435,11 @@ export async function routingPdf(r: Routing, t: Dict["routing"], title: string, 
 
   // totals: one box per party, then the whole tour
   y += 0.25;
-  const boxes = [...r.parties.map((p) => ({ name: p.name, sub: `${p.pax} · ${t.cabins[p.cabin]}`, v: sum.per.get(p.id) ?? 0, color: p.color })), { name: t.summary, sub: "", v: sum.all, color: "#000000" }];
+  const boxes = [
+    ...r.parties.map((p) => ({ name: p.name, sub: `${p.pax} · ${t.cabins[p.cabin]}`, v: sum.per.get(p.id) ?? 0, color: p.color })),
+    ...sum.ground.map((g) => ({ name: g.v.name, sub: `${t.pdfGround} · ${g.mi.toLocaleString("en-US")} mi · ${g.days} d`, v: g.total, color: "#777777" })),
+    { name: sum.ground.length ? t.tourTotal : t.summary, sub: sum.ground.length ? `${t.summary}: ${usd(sum.all)}` : "", v: sum.grand, color: "#000000" },
+  ];
   const bw = Math.min(2.2, (W - 1 - 0.1 * (boxes.length - 1)) / boxes.length);
   boxes.forEach((b, i) => {
     const x = left + i * (bw + 0.1);
@@ -485,13 +489,44 @@ export async function routingPdf(r: Routing, t: Dict["routing"], title: string, 
         f.airline ?? "",
         f.flight ?? "",
         f.time ?? "",
-        f.skip ? t.skip : f.price == null ? "-" : `${usd(f.price)}${f.own ? "" : ` (${t.estShort})`}`,
+        f.skip ? (f.bus ? t.onBus : t.skip) : f.price == null ? "-" : `${usd(f.price)}${f.own ? "" : ` (${t.estShort})`}`,
         f.skip ? "-" : usd(f.total),
       ];
       cells.forEach((v, i) => doc.text(doc.splitTextToSize(v, (cols[i + 1]?.at ?? W - 0.5) - cols[i].at - 0.08)[0] ?? "", cols[i].at, y));
       y += 0.22;
     }
     y += 0.15;
+  }
+
+  // ground: each vehicle's legs and road miles, then what it costs
+  for (const g of sum.ground) {
+    room(1.2 + 0.2 * g.legs.length);
+    doc.setFillColor("#eeeeee").rect(left, y - 0.17, W - 1, 0.27, "F");
+    doc.setFont("helvetica", "bold").setFontSize(10).setTextColor("#000000").text(`${t.pdfGround} · ${g.v.name}${g.v.count > 1 ? ` x${g.v.count}` : ""}`, left + 0.08, y);
+    y += 0.3;
+    doc.setFont("helvetica", "normal").setFontSize(9);
+    for (const leg of g.legs) {
+      const mi = roadMilesOf(r, leg);
+      doc.text(`${leg.date}   ${leg.from?.code ?? "?"} - ${leg.to?.code ?? "?"}   ${leg.fromText} - ${leg.toText}`, left + 0.15, y);
+      doc.text(mi == null ? "?" : `${mi.toLocaleString("en-US")} mi`, left + 6.9, y);
+      doc.text(mi == null ? "-" : usd(mi * g.v.perMile * g.v.count), left + 8.9, y);
+      y += 0.2;
+    }
+    y += 0.08;
+    const parts: [string, number][] = [
+      [fmt(t.costMiles, { mi: g.mi.toLocaleString("en-US"), rate: usd(g.v.perMile), n: g.v.count }), g.miles],
+      [fmt(t.costDrivers, { d: g.days, k: g.v.drivers * g.v.count, rate: usd(g.v.driverDay) }), g.drivers],
+      ...(g.v.dayRate > 0 ? [[fmt(t.costVehicle, { d: g.days, n: g.v.count, rate: usd(g.v.dayRate) }), g.vehicle] as [string, number]] : []),
+    ];
+    for (const [label, v] of parts) {
+      doc.setTextColor("#333333").text(label, left + 0.15, y);
+      doc.text(usd(v), left + 8.9, y);
+      y += 0.2;
+    }
+    doc.setFont("helvetica", "bold").setTextColor("#000000").text(t.groundTotal, left + 0.15, y);
+    doc.text(usd(g.total), left + 8.9, y);
+    doc.setFont("helvetica", "normal");
+    y += 0.35;
   }
   footer();
   return doc.output("arraybuffer");

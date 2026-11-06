@@ -1080,3 +1080,14 @@ a.co:hover { text-decoration-color: currentColor; }
 
 .pat-save-panel { display: flex; gap: 8px; }
 .pat-save-panel input { flex: 1; min-width: 0; }
+
+.route-bus { border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: grid; gap: 8px; }
+.route-bus-head { display: flex; gap: 8px; align-items: center; }
+.route-bus-head input { flex: 1; min-width: 0; font-weight: 600; }
+.route-bus-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.route-onboard { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.route-onboard legend { margin-bottom: 4px; color: var(--muted); }
+.route-road { display: grid; grid-template-columns: minmax(0, 1fr) auto 110px 90px; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+.route-road.skip { opacity: 0.5; }
+.route-grand { border-top: 1px solid var(--line); padding-top: 6px; }
+@media (max-width: 560px) { .route-road { grid-template-columns: minmax(0, 1fr) 100px; } .route-road > .muted { display: none; } }

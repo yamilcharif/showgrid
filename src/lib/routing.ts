@@ -36,6 +36,27 @@ export interface FlightEdit {
   skip?: boolean;
 }
 
+/** A tour bus (or van, or sprinter) on the road between cities: paid by the mile, by the day and for its drivers. */
+export interface Vehicle {
+  id: string;
+  name: string;
+  /** how many of them */
+  count: number;
+  /** USD per mile driven */
+  perMile: number;
+  /** USD per day for the vehicle itself, if it's leased by the day */
+  dayRate: number;
+  /** USD per day for each driver */
+  driverDay: number;
+  drivers: number;
+  /** days to pay; null counts them from the first leg it drives to the last */
+  days: number | null;
+  /** parties on board: they don't fly the legs it drives */
+  rides: string[];
+  /** keys of the legs it doesn't drive */
+  off: string[];
+}
+
 export interface Routing {
   /** where the tour leaves from and comes back to; empty for none */
   home: string;
@@ -43,6 +64,9 @@ export interface Routing {
   parties: Party[];
   /** "legKey:partyId" → changes */
   edits: Record<string, FlightEdit>;
+  ground?: Vehicle[];
+  /** road miles per leg, where the member knows them better than the estimate */
+  roadMiles?: Record<string, number>;
 }
 
 export const PARTY_COLORS = ["#e53935", "#1e88e5", "#43a047", "#fb8c00", "#8e24aa", "#00897b", "#6d4c41", "#3949ab"];
@@ -56,7 +80,22 @@ export const ROUTING_START: Routing = {
     { id: "c", name: "Party C", pax: 12, cabin: "eco", color: PARTY_COLORS[2] },
   ],
   edits: {},
+  ground: [],
+  roadMiles: {},
 };
+
+export const newVehicle = (name: string, rides: string[] = []): Vehicle => ({
+  id: newId(),
+  name,
+  count: 1,
+  perMile: 4,
+  dayRate: 0,
+  driverDay: 350,
+  drivers: 1,
+  days: null,
+  rides,
+  off: [],
+});
 
 // ---------- reading a routing ----------
 
@@ -183,14 +222,36 @@ export function estimateFare(mi: number | null, cabin: Cabin, date: string, toda
   return Math.round((eco * cabinFactor * soon) / 5) * 5;
 }
 
+/** Roads wind: driving is about a fifth longer than the straight line between two cities. */
+export const ROAD_FACTOR = 1.2;
+
+export const roadMilesOf = (r: Routing, leg: Leg) => r.roadMiles?.[leg.key] ?? (leg.miles == null ? null : Math.round(leg.miles * ROAD_FACTOR));
+
+/** A vehicle's cost over the tour: miles driven, days of the vehicle and of its drivers, times how many there are. */
+export function groundOf(r: Routing, v: Vehicle, legs = legsOf(r)) {
+  const on = legs.filter((l) => !v.off.includes(l.key));
+  const mi = on.reduce((a, l) => a + (roadMilesOf(r, l) ?? 0), 0);
+  const unknown = on.filter((l) => roadMilesOf(r, l) == null).length;
+  const dates = on.map((l) => l.date).sort();
+  const autoDays = dates.length ? Math.round((Date.parse(dates[dates.length - 1]) - Date.parse(dates[0])) / 864e5) + 1 : 0;
+  const days = v.days ?? autoDays;
+  const miles = mi * v.perMile * v.count;
+  const drivers = days * v.drivers * v.driverDay * v.count;
+  const vehicle = days * v.dayRate * v.count;
+  return { legs: on, mi, unknown, days, autoDays, miles, drivers, vehicle, total: miles + drivers + vehicle };
+}
+
+/** Whether a party rides a vehicle on this leg instead of flying. */
+const byRoad = (r: Routing, leg: Leg, party: Party) => (r.ground ?? []).some((v) => v.rides.includes(party.id) && !v.off.includes(leg.key));
+
 /** Each party's flight on a leg: the routing's suggestion with the member's changes on top. */
 export function flightOf(r: Routing, leg: Leg, party: Party) {
-  const e = r.edits[`${leg.key}:${party.id}`] ?? {};
+  const e = { skip: byRoad(r, leg, party) || undefined, ...(r.edits[`${leg.key}:${party.id}`] ?? {}) };
   const cabin = e.cabin ?? party.cabin;
   const date = e.date ?? leg.date;
   const estimate = estimateFare(leg.miles, cabin, date);
   const price = e.price ?? estimate;
-  return { ...e, cabin, date, estimate, price, own: e.price != null, total: e.skip || price == null ? 0 : price * party.pax };
+  return { ...e, cabin, date, estimate, price, own: e.price != null, bus: !!e.skip && byRoad(r, leg, party), total: e.skip || price == null ? 0 : price * party.pax };
 }
 
 /** Totals per party and for the whole routing; how many fares are real and how many estimated. */
@@ -209,7 +270,10 @@ export function totals(r: Routing) {
       else est++;
       per.set(p.id, (per.get(p.id) ?? 0) + f.total);
     }
-  return { legs, per, all: [...per.values()].reduce((a, b) => a + b, 0), own, est, unknown, seats: legs.length * r.parties.reduce((a, p) => a + p.pax, 0) };
+  const all = [...per.values()].reduce((a, b) => a + b, 0);
+  const ground = (r.ground ?? []).map((v) => ({ v, ...groundOf(r, v, legs) }));
+  const groundAll = ground.reduce((a, g) => a + g.total, 0);
+  return { legs, per, all, ground, groundAll, grand: all + groundAll, own, est, unknown, seats: legs.length * r.parties.reduce((a, p) => a + p.pax, 0) };
 }
 
 /** A search for real fares on this leg and date, to check the estimate. */
@@ -244,6 +308,12 @@ export function routingCsv(r: Routing) {
         String(f.total),
       ]);
     }
+  const ground = (r.ground ?? []).map((v) => ({ v, ...groundOf(r, v) }));
+  if (ground.length) {
+    out.push([], ["Ground", "Vehicles", "Legs", "Road miles", "USD per mile", "Days", "USD per day", "Drivers", "USD per driver per day", "Miles (USD)", "Vehicle days (USD)", "Drivers (USD)", "Total (USD)"]);
+    for (const g of ground)
+      out.push([g.v.name, String(g.v.count), g.legs.map((l) => `${l.from?.code ?? l.fromText}-${l.to?.code ?? l.toText}`).join(" "), String(g.mi), String(g.v.perMile), String(g.days), String(g.v.dayRate), String(g.v.drivers), String(g.v.driverDay), String(Math.round(g.miles)), String(Math.round(g.vehicle)), String(Math.round(g.drivers)), String(Math.round(g.total))]);
+  }
   return "﻿" + out.map((row) => row.map(cell).join(",")).join("\r\n");
 }
 
