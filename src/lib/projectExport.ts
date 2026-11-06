@@ -7,6 +7,8 @@ import type { Dict } from "./i18n/en";
 import { fmt, plural } from "./i18n/config";
 import { PAPER, buildLabels, inkFor, partSize, sheetOf, type LabelSettings } from "./labels";
 import { patternPng, type PatternSettings } from "./pattern";
+import { cuesCsv, type ShowCall } from "./showcall";
+import { fmtTc } from "./timecode";
 import { flightOf, roadMilesOf, routingCsv, totals, type Routing } from "./routing";
 import type { EstimateRow, RiderLine } from "./rider";
 import { caseNumbers, fmtLen, fmtWeight, footprint, groupSummary, position, stats, type TruckPlan } from "./truck";
@@ -17,6 +19,7 @@ export interface ProjectData {
   pattern?: PatternSettings;
   labels?: LabelSettings;
   routing?: Routing;
+  showcall?: ShowCall;
 }
 
 /** A name that works as a file or folder name on any computer. */
@@ -559,6 +562,7 @@ export async function projectZip(
     add("Routing/flights.csv", routingCsv(data.routing));
     add("Routing/flights.pdf", await routingPdf(data.routing, dict.routing, name, opts.date));
   }
+  if (data.showcall?.cues?.length) add("Show Call/cues.csv", cuesCsv(data.showcall, (x) => fmtTc(x, data.showcall!.fps)));
   add("project.json", JSON.stringify({ name, exported: new Date().toISOString(), data }, null, 2));
   return zipSync(files, { level: 6 });
 }

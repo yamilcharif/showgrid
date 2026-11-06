@@ -7,7 +7,7 @@ import { useSignedIn } from "./AccountGate";
 import { fmt } from "@/lib/i18n/config";
 import { useT } from "./I18n";
 
-export type ToolKey = "rider" | "truck" | "pattern" | "labels" | "routing";
+export type ToolKey = "rider" | "truck" | "pattern" | "labels" | "routing" | "showcall";
 
 export interface ProjectRef {
   id: string;
