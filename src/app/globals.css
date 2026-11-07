@@ -1246,3 +1246,22 @@ a.co:hover { text-decoration-color: currentColor; }
 .lab-patch { display: grid; gap: 8px; justify-items: start; padding: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface-2); }
 .lab-patch p { margin: 0; }
 .lab-patch.on { border-color: var(--tally); }
+
+/* LED pattern: signal flow and rack */
+.pat-views.seg2 { grid-template-columns: repeat(3, auto); max-width: 420px; }
+.sig-dev .pat-pip-head input { flex: 1; min-width: 0; }
+.sig-acts { display: flex; gap: 4px; flex: none; }
+.sig-kind { margin-top: -4px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; font-size: 11px; }
+.sig-load { align-self: end; padding-bottom: 8px; }
+.sig-links { display: grid; gap: 4px; }
+.sig-link { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto 52px; gap: 4px; align-items: center; }
+.sig-link select, .sig-link input { padding: 4px 6px !important; font-size: 12.5px !important; }
+.sig-link.bad .sig-port { color: #e5484d; font-weight: 800; }
+.sig-port { font-size: 12px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sig-link:has(select:only-of-type) { grid-template-columns: 52px minmax(0, 1fr); }
+.sig-add { display: flex; flex-wrap: wrap; gap: 6px; }
+.sig-sheet { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+.sig-sheet svg { display: block; width: 100%; min-width: 720px; height: auto; }
+.sig-rack svg { width: auto; max-width: 100%; min-width: 0; margin: 0 auto; }
+.sig-warn { margin: 0; padding: 10px 12px; list-style: none; border: 1px solid #e5484d; border-radius: 6px; color: #e5484d; font-size: 13px; font-weight: 600; display: grid; gap: 4px; }
+.sig-ok { margin: 0; color: #35d07f; font-weight: 700; }

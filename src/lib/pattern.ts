@@ -1,5 +1,7 @@
 /** LED wall test patterns: the settings and the drawing, shared by the tool and the project download. */
 
+import type { SignalFlow } from "./signal";
+
 export type Style = "checker" | "grid" | "solid";
 export type LogoAt = "center" | "tl" | "tr" | "bl" | "br" | "each" | "custom";
 
@@ -62,7 +64,9 @@ export interface PatternSettings {
   current?: string | null;
   /** several screens placed on one output canvas (a 4K output feeding four walls…) */
   output?: OutputMap;
-  view?: "screen" | "output";
+  view?: "screen" | "output" | "signal";
+  /** the devices and cables from the media server to the walls, and the rack */
+  signal?: SignalFlow;
 }
 
 /** A screen kept in the list: its own settings, without the list or the output. */
@@ -98,7 +102,7 @@ export const OUTPUT_SIZES = [
 /** One screen's own settings: the list, the output and the view left out. */
 export function screenOf(s: PatternSettings): PatternSettings {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- left out on purpose
-  const { library, current, output, view, ...rest } = s;
+  const { library, current, output, view, signal, ...rest } = s;
   return rest;
 }
 

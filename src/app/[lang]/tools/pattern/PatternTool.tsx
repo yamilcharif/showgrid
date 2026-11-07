@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "@/components/I18n";
 import { ProjectBar, useToolState } from "@/components/Projects";
 import { ToolFiles } from "@/components/ToolFiles";
+import { SignalView, signalFiles } from "./SignalView";
+import { SIGNAL_START } from "@/lib/signal";
 import { patternPng } from "@/lib/pattern";
 import { BRANDS, LED_PANELS, type LedPanel } from "@/lib/ledPanels";
 import { createClient } from "@/lib/supabase/browser";
@@ -130,12 +132,12 @@ export function PatternTool() {
     const name = now.name.trim() || `${t.screen} ${lib.length + 1}`;
     setS((x) => ({ ...x, library: [...(x.library ?? []), { id, name, s: { ...now, name: now.name || name } }], current: id, name: x.name || name }));
   };
-  const openScreen = (e: SavedScreen) => setS((x) => ({ ...START, ...e.s, library: x.library, output: x.output, view: "screen", current: e.id }));
+  const openScreen = (e: SavedScreen) => setS((x) => ({ ...START, ...e.s, library: x.library, output: x.output, signal: x.signal, view: "screen", current: e.id }));
   const duplicate = (e: SavedScreen) => {
     const id = uid();
     const name = `${e.name} (${t.copy})`;
     const copy = { ...e.s, name };
-    setS((x) => ({ ...START, ...copy, library: [...(x.library ?? []), { id, name, s: copy }], output: x.output, view: "screen", current: id }));
+    setS((x) => ({ ...START, ...copy, library: [...(x.library ?? []), { id, name, s: copy }], output: x.output, signal: x.signal, view: "screen", current: id }));
   };
   const removeScreen = (e: SavedScreen) =>
     setS((x) => ({
@@ -144,7 +146,7 @@ export function PatternTool() {
       current: x.current === e.id ? null : x.current,
       output: x.output ? { ...x.output, items: x.output.items.filter((it) => it.screen !== e.id) } : x.output,
     }));
-  const newScreen = () => setS((x) => ({ ...START, library: x.library, output: x.output, view: "screen", current: null }));
+  const newScreen = () => setS((x) => ({ ...START, library: x.library, output: x.output, signal: x.signal, view: "screen", current: null }));
   /** Places a saved screen on the output: right of the last one, or below when it doesn't fit. */
   const place = (e: SavedScreen) => {
     const { w } = screenSize(e.s);
@@ -164,7 +166,7 @@ export function PatternTool() {
     setS((xx) => ({ ...xx, output: { ...(xx.output ?? out), items: [...(xx.output ?? out).items, { id, screen: e.id, x, y }] } }));
     setSelItem(id);
   };
-  const showView = (v: "screen" | "output") => {
+  const showView = (v: "screen" | "output" | "signal") => {
     // the output starts the size of the screen being made, since most outputs carry one wall
     setS((x) => ({ ...x, view: v, output: x.output ?? { name: "Output 1", w: W, h: H, items: [] } }));
     setCutting(false);
@@ -366,17 +368,32 @@ export function PatternTool() {
     set({ pips: [...s.pips, { id: uid(), name: `PIP ${s.pips.length + 1}`, x: Math.round((W - w) / 2), y: Math.round((H - h) / 2), w, h, color: PIP_COLORS[s.pips.length % PIP_COLORS.length], img: null }] });
   };
 
+  const tabs = (
+    <div className="seg seg2 pat-views" role="tablist">
+      {(["screen", "output", "signal"] as const).map((v) => (
+        <button key={v} type="button" role="tab" aria-selected={view === v} className={view === v ? "on" : undefined} onClick={() => showView(v)}>
+          {v === "screen" ? t.viewScreen : v === "output" ? t.viewOutput : T.ledSignal.tab}
+        </button>
+      ))}
+    </div>
+  );
+  const sigTitle = project?.name ?? "";
+  const sigFiles = signalFiles(s.signal ?? SIGNAL_START, lib, s.output, T.ledSignal, sigTitle);
+
   return (
     <div className="pat-tool">
       <ProjectBar project={project} saving={saving} />
       <ToolFiles
         tool="pattern"
-        name={view === "output" ? `${out.name.trim() || "output"} ${out.w}x${out.h}` : `${s.name.trim() || project?.name || "led-test-pattern"} ${W}x${H}`}
+        name={view === "signal" ? `${project?.name || out.name.trim() || "signal"} signal` : view === "output" ? `${out.name.trim() || "output"} ${out.w}x${out.h}` : `${s.name.trim() || project?.name || "led-test-pattern"} ${W}x${H}`}
         data={s}
         onOpen={(v) => v && typeof v === "object" && setS({ ...START, ...(v as Partial<Settings>) })}
-        downloadLabel={T.files.patternPng}
+        downloadLabel={view === "signal" ? T.ledSignal.dlFlowPng : T.files.patternPng}
+        more={view === "signal" ? sigFiles.more : undefined}
         download={
-          view === "output"
+          view === "signal"
+            ? sigFiles.download
+            : view === "output"
             ? canvasTooBig || !out.items.length
               ? undefined
               : async () => {
@@ -391,7 +408,9 @@ export function PatternTool() {
               }
         }
       />
-      {view === "output" ? (
+      {view === "signal" ? (
+        <SignalView s={s} setS={setS} t={T.ledSignal} library={lib} output={s.output} tabs={tabs} title={sigTitle} />
+      ) : view === "output" ? (
         <aside className="auth-form pat-side">
           <h2>{t.outputTitle}</h2>
           <p className="muted small">{t.outputHint}</p>
@@ -893,14 +912,9 @@ export function PatternTool() {
       </aside>
       )}
 
+      {view !== "signal" && (
       <section className="pat-main">
-        <div className="seg seg2 pat-views" role="tablist">
-          {(["screen", "output"] as const).map((v) => (
-            <button key={v} type="button" role="tab" aria-selected={view === v} className={view === v ? "on" : undefined} onClick={() => showView(v)}>
-              {v === "screen" ? t.viewScreen : t.viewOutput}
-            </button>
-          ))}
-        </div>
+        {tabs}
         <div className="pat-head">
           {view === "output" ? (
             <div>
@@ -934,6 +948,7 @@ export function PatternTool() {
           />}
         {!canvasTooBig && <p className="muted small">{view === "output" ? t.outputDragHint : cutting ? t.shapeHint : t.dragHint}</p>}
       </section>
+      )}
 
       <aside className="auth-form pat-lib">
         <h2>{t.libTitle}</h2>
