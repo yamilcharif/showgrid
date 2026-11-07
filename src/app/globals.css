@@ -1239,7 +1239,8 @@ a.co:hover { text-decoration-color: currentColor; }
 .pat-lib-acts { display: flex; gap: 2px; flex: none; }
 .pat-views { max-width: 320px; }
 .pat-pip.on { border-color: #ffcc00; }
-@media (max-width: 1200px) { .pat-tool { grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); } .pat-lib { grid-column: 1 / -1; position: static; } }
+@media (max-width: 1200px) { .pat-tool { grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); } .pat-lib { grid-column: 1; position: static; } }
+@media (max-width: 900px) { .pat-lib { grid-column: auto; } }
 @media (max-width: 900px) { .pat-tool { grid-template-columns: 1fr; } }
 
 /* Labels: the way to the Patch tool */
