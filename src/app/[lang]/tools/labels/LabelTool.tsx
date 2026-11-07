@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import Link from "next/link";
 import { createPortal } from "react-dom";
 import { AccountNeeded, useSignedIn } from "@/components/AccountGate";
 import { useT } from "@/components/I18n";
@@ -290,6 +291,12 @@ export function LabelTool() {
         }
       />
       <aside className="auth-form lab-side">
+        <div className={`lab-patch${s.template === "fixture" ? " on" : ""}`}>
+          <p className="small">💡 {t.patchCallout}</p>
+          <Link href="/tools/patch" className="btn sm primary">
+            {t.patchOpen}
+          </Link>
+        </div>
         <h2>{t.data}</h2>
         <div className="inv-actions">
           <button type="button" className="btn primary" disabled={reading} onClick={() => fileRef.current?.click()}>

@@ -1229,3 +1229,8 @@ a.co:hover { text-decoration-color: currentColor; }
 .ptc-print-col { display: grid; gap: 12px; align-content: start; }
 .ptc-logo { height: 28px; width: auto; max-width: 140px; object-fit: contain; background: #fff; border-radius: 4px; padding: 2px; }
 @media (max-width: 800px) { .ptc-print-cols { grid-template-columns: 1fr; } .ptc-find { width: 100% !important; } }
+
+/* Labels: the way to the Patch tool */
+.lab-patch { display: grid; gap: 8px; justify-items: start; padding: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface-2); }
+.lab-patch p { margin: 0; }
+.lab-patch.on { border-color: var(--tally); }

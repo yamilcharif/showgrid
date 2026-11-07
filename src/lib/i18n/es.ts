@@ -1056,6 +1056,8 @@ export const es: Dict = {
     template: "Tipo de etiqueta",
     templateGeneral: "General",
     templateFixture: "Fixture (ID / patch)",
+    patchCallout: "¿Stickers para los fixtures de tu patch? Usa Patch y stickers: carga tu MVR, XML de grandMA, PDF o Excel, corrige el patch en una tabla e imprime un sticker por fixture y el reporte de patch.",
+    patchOpen: "Abrir Patch y stickers →",
     fxHint: "Stickers para fixtures de iluminación: ID grande, posición, tipo y modo, universo y dirección, y tu logo. Encontramos las columnas por su nombre; cámbialas aquí si hace falta.",
     fxFill: "Sticker entero del color de la posición",
     editData: "Editar los datos",

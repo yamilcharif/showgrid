@@ -1056,6 +1056,8 @@ export const en = {
     template: "Label type",
     templateGeneral: "General",
     templateFixture: "Fixture (ID / patch)",
+    patchCallout: "Stickers for the fixtures in your patch? Use Patch and fixture stickers: load your MVR, grandMA XML, PDF or Excel, fix the patch in a table, then print a sticker per fixture and the patch report.",
+    patchOpen: "Open Patch and fixture stickers →",
     fxHint: "Lighting fixture stickers: big ID, position, type and mode, universe and address, your logo. We found the columns by their names; change them here if needed.",
     fxFill: "Whole sticker in the position color",
     editData: "Edit the data",
