@@ -15,6 +15,7 @@ export default async function ToolsPage() {
     { href: "/rider", icon: "📄", name: t.riderName, desc: t.riderDesc },
     { href: "/tools/truck", icon: "🚚", name: t.truckName, desc: t.truckDesc },
     { href: "/tools/pattern", icon: "▦", name: t.patternName, desc: t.patternDesc },
+    { href: "/tools/patch", icon: "💡", name: t.patchName, desc: t.patchDesc },
     { href: "/tools/labels", icon: "🏷", name: t.labelsName, desc: t.labelsDesc },
     { href: "/tools/routing", icon: "✈️", name: t.routingName, desc: t.routingDesc },
     { href: "/tools/showcall", icon: "🎧", name: t.showcallName, desc: t.showcallDesc },

@@ -1194,3 +1194,38 @@ a.co:hover { text-decoration-color: currentColor; }
 .sc-song-act:hover:not(:disabled) { background: var(--surface-2); color: var(--ink); }
 .sc-song-act:disabled { opacity: 0.3; cursor: default; }
 .sc-danger { color: #e53935; }
+
+/* Patch tool */
+.ptc-tool { display: grid; gap: 18px; }
+.ptc-tool > * { min-width: 0; }
+.ptc-tool h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.12em; margin: 0; }
+.ptc-tool h3 { font-size: 15px; margin: 0; }
+.ptc-tool .field span { font-weight: 600; font-size: 12.5px; }
+.ptc-tool select, .ptc-print input:not([type="checkbox"]), .ptc-find, .ptc-bulk input { border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); color: var(--ink); padding: 7px 9px; font: inherit; font-size: 14px; width: 100%; min-width: 0; }
+.ptc-types { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ptc-chip { display: inline-flex; gap: 6px; align-items: center; border: 1px solid var(--line); border-radius: 999px; padding: 3px 6px 3px 10px; font-size: 13px; }
+.ptc-find { width: 180px !important; }
+.ptc-bad { color: #e5484d; }
+.ptc-bulk { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 10px; border: 1px solid var(--tally); border-radius: var(--r); background: var(--surface-2); }
+.ptc-bulk-field { display: flex; gap: 6px; align-items: center; }
+.ptc-bulk-field input { width: 150px; }
+.ptc-bulk-field .ptc-num { width: 72px; }
+.ptc-grid { max-height: 620px; }
+.ptc-grid td:first-child, .ptc-grid th:first-child { padding: 0 8px; text-align: center; }
+.ptc-grid input[type="checkbox"] { min-width: 0; width: auto; }
+.ptc-grid tr.on td { background: color-mix(in srgb, var(--tally) 10%, transparent); }
+.ptc-grid th { text-align: left; padding: 7px 8px; font-size: 12px; white-space: nowrap; }
+.ptc-grid .ptc-c-fid input { font-weight: 700; min-width: 64px; width: 72px; }
+.ptc-grid .ptc-c-type input { min-width: 180px; }
+.ptc-grid .ptc-c-mode input { min-width: 110px; }
+.ptc-grid .ptc-c-pos input { min-width: 100px; }
+.ptc-grid .ptc-c-u input, .ptc-grid .ptc-c-a input, .ptc-grid .ptc-c-foot input { min-width: 52px; width: 60px; text-align: center; }
+.ptc-grid .ptc-c-notes input { min-width: 140px; }
+.ptc-grid .ptc-c-color { display: flex; align-items: center; gap: 4px; padding-left: 6px; }
+.ptc-grid .ptc-c-color input { min-width: 80px; width: 90px; }
+.ptc-swatch { flex: none; width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--line); }
+.ptc-grid td.ptc-clash { background: color-mix(in srgb, #e5484d 22%, transparent); }
+.ptc-print-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.ptc-print-col { display: grid; gap: 12px; align-content: start; }
+.ptc-logo { height: 28px; width: auto; max-width: 140px; object-fit: contain; background: #fff; border-radius: 4px; padding: 2px; }
+@media (max-width: 800px) { .ptc-print-cols { grid-template-columns: 1fr; } .ptc-find { width: 100% !important; } }

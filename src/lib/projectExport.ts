@@ -7,6 +7,7 @@ import type { Dict } from "./i18n/en";
 import { fmt, plural } from "./i18n/config";
 import { PAPER, buildLabels, inkFor, partSize, sheetOf, type LabelSettings } from "./labels";
 import { patternPng, type PatternSettings } from "./pattern";
+import type { PatchSettings } from "./patch";
 import { cuesCsv, type ShowCall } from "./showcall";
 import { fmtTc } from "./timecode";
 import { flightOf, roadMilesOf, routingCsv, totals, type Routing } from "./routing";
@@ -18,6 +19,7 @@ export interface ProjectData {
   truck?: TruckPlan;
   pattern?: PatternSettings;
   labels?: LabelSettings;
+  patch?: PatchSettings;
   routing?: Routing;
   showcall?: ShowCall;
 }
@@ -558,6 +560,11 @@ export async function projectZip(
     if (png) add(`Pattern/${safeName(data.pattern.name || "led-test-pattern")}-${data.pattern.cols * data.pattern.pw}x${data.pattern.rows * data.pattern.ph}.png`, new Uint8Array(await png.arrayBuffer()));
   }
   if (data.labels && buildLabels(data.labels).length) add("Labels/labels.pdf", await labelsPdf(data.labels));
+  if (data.patch?.rows?.length) {
+    const { patchReportPdf, stickersPdf } = await import("./patchPdf");
+    add("Patch/Address Patch By Fixture.pdf", await patchReportPdf(data.patch));
+    add("Patch/Fixture Stickers.pdf", await stickersPdf(data.patch, data.patch.rows, (c) => (c ? `Load ${c} paper` : "No position color")));
+  }
   if (data.routing?.stops?.length) {
     add("Routing/flights.csv", routingCsv(data.routing));
     add("Routing/flights.pdf", await routingPdf(data.routing, dict.routing, name, opts.date));
