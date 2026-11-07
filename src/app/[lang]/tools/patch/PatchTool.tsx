@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { AccountNeeded, useSignedIn } from "@/components/AccountGate";
 import { useI18n, useT } from "@/components/I18n";
 import { ProjectBar, useToolState } from "@/components/Projects";
@@ -69,6 +69,8 @@ function withMode(r: PatchRow, v: string, types: FixtureType[]): PatchRow {
   return { ...r, mode: v, foot: m ? String(m.foot) : r.foot };
 }
 const OTHER = "\u0000other";
+/** Columns where a change on one selected fixture goes to every selected one. */
+const MULTI: Field[] = ["type", "mode", "pos", "color", "notes", "foot"];
 
 export function PatchTool() {
   const t = useT().patch;
@@ -88,6 +90,11 @@ export function PatchTool() {
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>(null);
   // the row last clicked, for shift-click ranges
   const anchor = useRef<string | null>(null);
+  // the right-click menu, where it opened
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
+  // fixtures a GDTF picked from the menu goes to
+  const gdtfFor = useRef<Set<string> | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const gdtfRef = useRef<HTMLInputElement>(null);
 
@@ -119,7 +126,8 @@ export function PatchTool() {
     }
   };
 
-  const addGdtf = async (files: FileList) => {
+  /** Adds GDTF types; given fixtures, the (first) type goes on them too, with its mode and channels. */
+  const addGdtf = async (files: FileList | File[], targets?: Set<string> | null) => {
     setBusy(true);
     const added: string[] = [];
     try {
@@ -129,8 +137,13 @@ export function PatchTool() {
           setMsg({ ok: false, text: `${f.name}: ${t.errRead}` });
           continue;
         }
-        setS((x) => ({ ...x, types: [...x.types.filter((y) => y.name !== ft.name), ft] }));
-        added.push(fmt(t.gdtfAdded, { name: ft.name, n: ft.modes.length }));
+        const on = targets?.size ? targets : null;
+        targets = null;
+        setS((x) => {
+          const types = [...x.types.filter((y) => y.name !== ft.name), ft];
+          return { ...x, types, rows: on ? x.rows.map((r) => (on.has(r.key) ? withType(r, ft.name, types) : r)) : x.rows };
+        });
+        added.push(on ? fmt(t.gdtfApplied, { name: ft.name, n: on.size }) : fmt(t.gdtfAdded, { name: ft.name, n: ft.modes.length }));
       }
       if (added.length) setMsg({ ok: true, text: added.join(" ") });
     } finally {
@@ -140,15 +153,20 @@ export function PatchTool() {
 
   // ---------- editing ----------
 
+  /** A cell change; on a selected fixture (with others selected) it goes to all of them, like a spreadsheet. */
   const edit = (key: string, k: Field, v: string) =>
     setS((x) => {
-      const row = x.rows.find((r) => r.key === key);
-      if (!row) return x;
+      const on = sel.has(key) && sel.size > 1 && MULTI.includes(k) ? sel : new Set([key]);
       // a position's color is the same on all its fixtures
-      if (k === "color" && row.pos) return { ...x, rows: x.rows.map((r) => (r.pos === row.pos ? { ...r, color: v } : r)) };
-      const next = k === "type" ? withType(row, v, x.types) : k === "mode" ? withMode(row, v, x.types) : { ...row, [k]: v };
-      return { ...x, rows: x.rows.map((r) => (r.key === key ? next : r)) };
+      if (k === "color") {
+        const poss = new Set(x.rows.filter((r) => on.has(r.key)).map((r) => r.pos).filter(Boolean));
+        return { ...x, rows: x.rows.map((r) => (on.has(r.key) || (r.pos && poss.has(r.pos)) ? { ...r, color: v } : r)) };
+      }
+      const change = (r: PatchRow) => (k === "type" ? withType(r, v, x.types) : k === "mode" ? withMode(r, v, x.types) : { ...r, [k]: v });
+      return { ...x, rows: x.rows.map((r) => (on.has(r.key) ? change(r) : r)) };
     });
+  /** Changes the chosen fixtures (all selected) with one function. */
+  const changeChosen = (f: (r: PatchRow, types: FixtureType[]) => PatchRow) => setS((x) => ({ ...x, rows: x.rows.map((r) => (sel.has(r.key) ? f(r, x.types) : r)) }));
 
   const applyBulk = (k: "pos" | "color" | "type" | "mode") => {
     const v = bulk[k].trim();
@@ -168,8 +186,8 @@ export function PatchTool() {
   };
 
   /** Selects or unselects fixtures; the first ones chosen set where a re-patch starts (their own patch). */
-  const choose = (keys: string[], on: boolean) => {
-    const n = new Set(sel);
+  const choose = (keys: string[], on: boolean, base: Set<string> = sel) => {
+    const n = new Set(base);
     for (const k of keys) {
       if (on) n.add(k);
       else n.delete(k);
@@ -192,6 +210,46 @@ export function PatchTool() {
       return choose(shown.slice(a, b + 1).map((r) => r.key), true);
     }
     choose([key], on);
+  };
+  /** Shift+click or Cmd/Ctrl+click anywhere on a row selects, without starting to edit the cell. */
+  const rowDown = (e: React.MouseEvent, key: string) => {
+    if (e.button !== 0 || !(e.shiftKey || e.metaKey || e.ctrlKey)) return;
+    e.preventDefault();
+    toggle(key, e.shiftKey);
+  };
+  /** Right click: the menu, for the selection (or just this fixture when it isn't selected). */
+  const rowMenu = (e: React.MouseEvent, key: string) => {
+    e.preventDefault();
+    if (!sel.has(key)) {
+      anchor.current = key;
+      choose([key], true, new Set());
+    }
+    setMenu({ x: Math.min(e.clientX, window.innerWidth - 300), y: Math.min(e.clientY, window.innerHeight - 380) });
+  };
+  useEffect(() => {
+    if (!menu) return;
+    const close = (e: KeyboardEvent) => e.key === "Escape" && setMenu(null);
+    const away = () => setMenu(null);
+    window.addEventListener("keydown", close);
+    window.addEventListener("scroll", away, true);
+    return () => {
+      window.removeEventListener("keydown", close);
+      window.removeEventListener("scroll", away, true);
+    };
+  }, [menu]);
+
+  /** Files dropped on the table: a GDTF on a fixture becomes its type (or the selection's); a patch file loads. */
+  const drop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (!files.length) return;
+    const key = (e.target as HTMLElement).closest("tr[data-key]")?.getAttribute("data-key");
+    const targets = key ? (sel.has(key) ? new Set(sel) : new Set([key])) : null;
+    const gdtf = files.filter((f) => /\.gdtf$/i.test(f.name));
+    if (gdtf.length) addGdtf(gdtf, targets);
+    const other = files.find((f) => !/\.gdtf$/i.test(f.name));
+    if (other) load(other);
   };
   /** Click a column's name: sorted up; click again: down. Rows stay in their console groups. */
   const sortBy = (key: SortKey) => {
@@ -228,6 +286,8 @@ export function PatchTool() {
   // the modes the chosen fixtures' GDTF types have (each once)
   const bulkModes = [...new Map(chosen.flatMap((r) => modesFor(r)).map((m) => [m.name, m])).values()];
   const allSel = shown.length > 0 && shown.every((r) => sel.has(r.key));
+  // the menu's modes, per fixture type among the chosen ones
+  const menuTypes = [...new Set(chosen.map((r) => r.type))].map((type) => ({ type, ft: typeFor(s.types, type), n: chosen.filter((r) => r.type === type).length }));
 
   return (
     <div className="ptc-tool">
@@ -291,7 +351,9 @@ export function PatchTool() {
           accept=".gdtf"
           onChange={(e) => {
             const f = e.target.files;
-            if (f?.length) addGdtf(f).finally(() => (e.target.value = ""));
+            const on = gdtfFor.current;
+            gdtfFor.current = null;
+            if (f?.length) addGdtf(f, on).finally(() => (e.target.value = ""));
           }}
         />
         {msg && <p className={msg.ok ? "small" : "auth-err"}>{msg.text}</p>}
@@ -311,7 +373,18 @@ export function PatchTool() {
         )}
       </section>
 
-      <section className="auth-form ptc-table">
+      <section
+        className={`auth-form ptc-table${dragging ? " ptc-drop" : ""}`}
+        onDragOver={(e) => {
+          if (!e.dataTransfer.types.includes("Files")) return;
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false);
+        }}
+        onDrop={drop}
+      >
         <div className="pat-head">
           <div>
             <h2>{t.table}</h2>
@@ -459,9 +532,15 @@ export function PatchTool() {
                           </td>
                         </tr>
                       )}
-                    <tr className={sel.has(r.key) ? "on" : undefined} style={r.gcolor ? { ["--g" as string]: r.gcolor } : undefined}>
+                    <tr
+                      data-key={r.key}
+                      className={sel.has(r.key) ? "on" : undefined}
+                      style={r.gcolor ? { ["--g" as string]: r.gcolor } : undefined}
+                      onMouseDown={(e) => rowDown(e, r.key)}
+                      onContextMenu={(e) => rowMenu(e, r.key)}
+                    >
                       <td className={r.gcolor ? "ptc-gbar" : undefined}>
-                        <input type="checkbox" checked={sel.has(r.key)} aria-label={r.fid} onChange={() => {}} onClick={(e) => toggle(r.key, e.shiftKey)} />
+                        <input type="checkbox" checked={sel.has(r.key)} aria-label={r.fid} onChange={() => {}} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => toggle(r.key, e.shiftKey)} />
                       </td>
                       {FIELDS.map((k) => {
                         const common = { value: r[k], "aria-label": `${t.cols[k]} ${r.fid}`, onChange: (e: React.ChangeEvent<HTMLInputElement>) => edit(r.key, k, e.target.value) };
@@ -534,7 +613,7 @@ export function PatchTool() {
             </table>
           </div>
         ) : (
-          <p className="muted">{t.empty}</p>
+          <p className="muted ptc-empty">{t.empty} {t.dropEmpty}</p>
         )}
         <div className="inv-actions">
           <button type="button" className="btn sm" onClick={() => setRows((r) => [...r, blankRow()])}>
@@ -556,6 +635,123 @@ export function PatchTool() {
           )}
         </div>
       </section>
+
+      {menu && chosen.length > 0 && (
+        <div
+          className="ptc-menu-back"
+          onMouseDown={() => setMenu(null)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setMenu(null);
+          }}
+        >
+          <div className="ptc-menu" role="menu" style={{ left: menu.x, top: menu.y }} onMouseDown={(e) => e.stopPropagation()}>
+            <strong className="small">{plural(chosen.length, t.fixtures)}</strong>
+            <form
+              className="ptc-menu-patch"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setS((x) => ({ ...x, rows: repatch(x.rows, sel, x.types, Number(bulk.u) || 1, Number(bulk.a) || 1) }));
+                setMenu(null);
+              }}
+            >
+              <span className="small">{t.menuPatch}</span>
+              <input className="ptc-num" type="number" min={1} max={32768} value={bulk.u} aria-label={t.cols.u} autoFocus onChange={(e) => setBulk({ ...bulk, u: e.target.value })} />
+              <span>.</span>
+              <input className="ptc-num" type="number" min={1} max={512} value={bulk.a} aria-label={t.cols.a} onChange={(e) => setBulk({ ...bulk, a: e.target.value })} />
+              <button className="btn sm primary">{t.repatchGo}</button>
+            </form>
+            {noFoot > 0 && <span className="small ptc-bad">{plural(noFoot, t.noFoot)}</span>}
+            {menuTypes.map(({ type, ft, n }) => (
+              <div key={type} className="ptc-menu-sec">
+                <span className="muted small">
+                  {t.menuModes} · {type || "—"}
+                  {menuTypes.length > 1 ? ` (${n})` : ""}
+                </span>
+                {ft?.modes.length ? (
+                  ft.modes.map((m) => {
+                    const on = chosen.filter((r) => r.type === type).every((r) => r.mode === m.name);
+                    return (
+                      <button
+                        key={m.name}
+                        type="button"
+                        role="menuitem"
+                        className={`ptc-menu-item${on ? " on" : ""}`}
+                        onClick={() => {
+                          changeChosen((r, types) => (r.type === type ? withMode(r, m.name, types) : r));
+                          setMenu(null);
+                        }}
+                      >
+                        {m.name} <span className="muted">{m.foot}ch</span>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <span className="small muted">
+                    {fmt(t.menuNoGdtf, { type: type || "—" })}{" "}
+                    <button
+                      type="button"
+                      className="link small"
+                      onClick={() => {
+                        gdtfFor.current = new Set(chosen.filter((r) => r.type === type).map((r) => r.key));
+                        setMenu(null);
+                        gdtfRef.current?.click();
+                      }}
+                    >
+                      {t.menuAddGdtf}
+                    </button>
+                  </span>
+                )}
+              </div>
+            ))}
+            {s.types.length > 0 && (
+              <div className="ptc-menu-sec">
+                <span className="muted small">{t.menuType}</span>
+                {s.types.map((ft) => (
+                  <button
+                    key={ft.name}
+                    type="button"
+                    role="menuitem"
+                    className="ptc-menu-item"
+                    onClick={() => {
+                      changeChosen((r, types) => withType(r, ft.name, types));
+                      setMenu(null);
+                    }}
+                  >
+                    {ft.maker ? `${ft.maker} · ` : ""}
+                    {ft.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="ptc-menu-sec">
+              <button
+                type="button"
+                role="menuitem"
+                className="ptc-menu-item"
+                onClick={() => {
+                  setMenu(null);
+                  pdf(() => stickersPdf(s, chosen, paperText), `${base} - Stickers (${chosen.length}).pdf`);
+                }}
+              >
+                🖨 {t.stickersSel}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="ptc-menu-item ptc-bad"
+                onClick={() => {
+                  setRows((r) => r.filter((x) => !sel.has(x.key)));
+                  setSel(new Set());
+                  setMenu(null);
+                }}
+              >
+                {t.delete}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <section className="auth-form ptc-print">
         <h2>{t.print}</h2>

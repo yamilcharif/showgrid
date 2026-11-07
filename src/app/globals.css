@@ -1237,6 +1237,19 @@ a.co:hover { text-decoration-color: currentColor; }
 .ptc-grid td.ptc-c-mode select { min-width: 160px; }
 .ptc-grid td select:focus { outline: 2px solid var(--tally); outline-offset: -2px; }
 .ptc-bulk select { border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); color: var(--ink); padding: 7px 9px; font: inherit; font-size: 14px; width: 170px; }
+.ptc-table { transition: box-shadow 0.15s; }
+.ptc-table.ptc-drop { box-shadow: 0 0 0 3px var(--tally); }
+.ptc-grid tbody tr:not(.ptc-group) { user-select: none; }
+.ptc-grid tbody tr input, .ptc-grid tbody tr select { user-select: text; }
+.ptc-menu-back { position: fixed; inset: 0; z-index: 60; }
+.ptc-menu { position: fixed; z-index: 61; width: 280px; max-height: min(70vh, 520px); overflow: auto; display: grid; gap: 8px; padding: 10px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: var(--r); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28); }
+.ptc-menu-patch { display: flex; align-items: center; gap: 6px; }
+.ptc-menu-patch > span { white-space: nowrap; }
+.ptc-menu-patch .ptc-num { width: 64px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); color: var(--ink); padding: 5px 6px; font: inherit; font-size: 13px; }
+.ptc-menu-sec { display: grid; gap: 2px; border-top: 1px solid var(--line); padding-top: 6px; }
+.ptc-menu-item { all: unset; display: flex; justify-content: space-between; gap: 8px; padding: 5px 8px; border-radius: 5px; font-size: 13.5px; cursor: pointer; }
+.ptc-menu-item:hover, .ptc-menu-item:focus-visible { background: var(--surface-2); }
+.ptc-menu-item.on { font-weight: 700; box-shadow: inset 3px 0 0 var(--tally); }
 .ptc-grid td.ptc-clash { background: color-mix(in srgb, #e5484d 22%, transparent); }
 .ptc-print-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 .ptc-print-col { display: grid; gap: 12px; align-content: start; }
