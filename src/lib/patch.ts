@@ -222,45 +222,53 @@ export function fromXml(xml: string, gdtf: FixtureType[] = []): PatchRow[] {
   for (const p of Array.from(doc.getElementsByTagName("*"))) {
     if (/^(position|class)$/i.test(p.localName) && p.getAttribute("uuid") && p.getAttribute("name")) names.set(p.getAttribute("uuid")!.toLowerCase(), p.getAttribute("name")!);
   }
+  const isFixture = (el: Element) => /^fixture$/i.test(el.localName);
+  const patchAttr = (el: Element) => attr(el, ["Patch", "Address", "DMX"]);
+  /**
+   * A group, not a fixture: grandMA3 "Grouping" fixtures (SPOTS, MK3 WASH…) are folders on a stage that hold
+   * the real fixtures. Also anything without a patch of its own whose children are patched fixtures.
+   */
+  const isGroup = (el: Element) =>
+    /grouping/i.test(attr(el, ["FixtureType", "Type"])) ||
+    (!patchAttr(el) && Array.from(el.getElementsByTagName("*")).some((c) => isFixture(c) && !!patchAttr(c)));
   const rows: PatchRow[] = [];
   for (const el of Array.from(doc.getElementsByTagName("*"))) {
-    if (!/^fixture$/i.test(el.localName)) continue;
-    // a sub-fixture (a cell of a multi-instance fixture) belongs to the fixture above it
+    if (!isFixture(el) || isGroup(el)) continue;
+    // inside another fixture that isn't a group: a cell of a multi-instance fixture, which belongs to it
     let up = el.parentElement;
-    let nested = false;
+    let cell = false;
     while (up) {
-      if (/^fixture$/i.test(up.localName)) nested = true;
+      if (isFixture(up) && !isGroup(up)) cell = true;
       up = up.parentElement;
     }
-    if (nested) continue;
+    if (cell) continue;
 
     const fid = attr(el, ["FID", "fixture_id", "FixtureID", "channel_id", "id"]) || text(child(el, ["FixtureID", "UnitNumber", "FixtureIDNumeric"])) || attr(el, ["CID"]);
     const unit = text(child(el, ["UnitNumber"]));
     const typeEl = child(el, ["FixtureType"]);
     const type = typeName(attr(el, ["FixtureType", "Type"]) || (typeEl ? attr(typeEl, ["name"]) : "") || text(child(el, ["GDTFSpec"])) || "");
-    const mode = attr(el, ["Mode", "DMXMode"]) || text(child(el, ["GDTFMode", "Mode", "DMXMode"])) || (typeEl ? attr(typeEl, ["mode"]) : "");
-    // MVR: <Addresses><Address break="0">1025</Address>; MA3: Patch="1.001"; MA2: <Patch><Address>1025</Address>
-    let patch = attr(el, ["Patch", "Address", "DMX"]);
+    // grandMA3 numbers its modes like its types: "4 Stand" → "Stand"
+    const mode = (attr(el, ["Mode", "DMXMode"]) || text(child(el, ["GDTFMode", "Mode", "DMXMode"])) || (typeEl ? attr(typeEl, ["mode"]) : "")).replace(/^\d+\s+(?=\D)/, "");
+    // MVR: <Addresses><Address break="0">1025</Address>; MA3: Patch="301.001"; MA2: <Patch><Address>1025</Address>
+    let patch = patchAttr(el);
     if (!patch) {
       const addrs = Array.from(el.getElementsByTagName("*")).filter((c) => /^address$/i.test(c.localName));
       const first = addrs.find((a) => (a.getAttribute("break") ?? "0") === "0") ?? addrs[0];
       patch = text(first ?? null);
     }
-    const posRef = text(child(el, ["Position"])) || attr(el, ["Position", "Layer"]);
+    // MVR: a position's uuid; MA3: its layer, "1 'Lighting - Floor'" → "Lighting - Floor"
+    const posRef = (text(child(el, ["Position"])) || attr(el, ["Position", "Layer"])).replace(/^\d+\s+(?=\D)/, "").replace(/^['"]|['"]$/g, "");
     const pos = names.get(posRef.toLowerCase()) ?? (/^[0-9a-f-]{36}$/i.test(posRef) ? "" : posRef);
-    const name = attr(el, ["name"]);
     const t = typeFor(gdtf, type);
     const m = t?.modes.find((x) => norm(x.name) === norm(mode));
     rows.push(
       finish({
         fid: unit && /^\d+$/.test(unit) && !fid ? unit : fid || unit,
-        type: type || name,
+        type: type || attr(el, ["name"]),
         mode: cleanMode(mode),
         pos,
         ...patchOf(patch),
         foot: m ? String(m.foot) : "",
-        // the fixture's own name only when it says more than its type ("Wash 1", not "MegaPointe")
-        notes: name && !/^\d+$/.test(name) && !norm(type).includes(norm(name)) && !norm(name).includes(norm(type)) && !/^(spot|wash|beam|profile|par|led|fixture)$/i.test(name) ? name : "",
       }),
     );
   }
