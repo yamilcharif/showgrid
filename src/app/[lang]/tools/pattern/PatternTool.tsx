@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "@/components/I18n";
 import { ProjectBar, useToolState } from "@/components/Projects";
 import { ToolFiles } from "@/components/ToolFiles";
@@ -9,7 +9,7 @@ import { BRANDS, LED_PANELS, type LedPanel } from "@/lib/ledPanels";
 import { createClient } from "@/lib/supabase/browser";
 import { useI18n } from "@/components/I18n";
 import { fmt } from "@/lib/i18n/config";
-import { PATTERN_START as START, colName, drawPattern as draw, offPanels, wallCurve, wallLen, type Hits, type LogoAt, type PatternSettings as Settings, type Pip, type Rect } from "@/lib/pattern";
+import { OUTPUT_SIZES, PATTERN_START as START, colName, drawOutput, drawPattern as draw, offPanels, outputPng, outputProblems, outputRects, screenImages, screenOf, screenSize, wallCurve, wallLen, type OutputMap, type SavedScreen, type Hits, type LogoAt, type PatternSettings as Settings, type Pip, type Rect } from "@/lib/pattern";
 
 const MINE_KEY = "sg_led_panels";
 
@@ -96,26 +96,109 @@ export function PatternTool() {
   const hm = wallLen(s.rows * s.mh);
   const pm = { w: wallLen(s.mw), h: wallLen(s.mh) };
 
+  // ---------- saved screens and the output map ----------
+  const lib = useMemo(() => s.library ?? [], [s.library]);
+  const view = s.view ?? "screen";
+  const out: OutputMap = useMemo(() => s.output ?? { name: "Output 1", w: W, h: H, items: [] }, [s.output, W, H]);
+  const setOut = (patch: Partial<OutputMap>) => setS((x) => ({ ...x, output: { ...(x.output ?? out), ...patch } }));
+  const CW = view === "output" ? out.w : W;
+  const CH = view === "output" ? out.h : H;
+  const canvasTooBig = view === "output" ? CW > MAX_SIDE || CH > MAX_SIDE : tooBig;
+  const problems = view === "output" ? outputProblems(out, lib) : new Map();
+  const [selItem, setSelItem] = useState<string | null>(null);
+
+  // the screen open in the editor stays in sync with its entry in the list
+  useEffect(() => {
+    if (!s.current) return;
+    const entry = lib.find((l) => l.id === s.current);
+    if (!entry) return;
+    const now = screenOf(s);
+    if (JSON.stringify(entry.s) === JSON.stringify(now)) return;
+    // keeps the saved copy current while editing
+    setS((x) => ({ ...x, library: (x.library ?? []).map((l) => (l.id === x.current ? { ...l, name: now.name.trim() || l.name, s: now } : l)) }));
+  }, [s, lib, setS]);
+
+  const saveScreen = () => {
+    const id = uid();
+    const now = screenOf(s);
+    const name = now.name.trim() || `${t.screen} ${lib.length + 1}`;
+    setS((x) => ({ ...x, library: [...(x.library ?? []), { id, name, s: { ...now, name: now.name || name } }], current: id, name: x.name || name }));
+  };
+  const openScreen = (e: SavedScreen) => setS((x) => ({ ...START, ...e.s, library: x.library, output: x.output, view: "screen", current: e.id }));
+  const duplicate = (e: SavedScreen) => {
+    const id = uid();
+    const name = `${e.name} (${t.copy})`;
+    const copy = { ...e.s, name };
+    setS((x) => ({ ...START, ...copy, library: [...(x.library ?? []), { id, name, s: copy }], output: x.output, view: "screen", current: id }));
+  };
+  const removeScreen = (e: SavedScreen) =>
+    setS((x) => ({
+      ...x,
+      library: (x.library ?? []).filter((l) => l.id !== e.id),
+      current: x.current === e.id ? null : x.current,
+      output: x.output ? { ...x.output, items: x.output.items.filter((it) => it.screen !== e.id) } : x.output,
+    }));
+  const newScreen = () => setS((x) => ({ ...START, library: x.library, output: x.output, view: "screen", current: null }));
+  /** Places a saved screen on the output: right of the last one, or below when it doesn't fit. */
+  const place = (e: SavedScreen) => {
+    const { w } = screenSize(e.s);
+    const rects = outputRects(out, lib);
+    let x = 0;
+    let y = 0;
+    if (rects.length) {
+      const last = rects[rects.length - 1];
+      x = last.x + last.w;
+      y = last.y;
+      if (x + w > out.w) {
+        x = 0;
+        y = Math.max(...rects.map((r) => r.y + r.h));
+      }
+    }
+    const id = uid();
+    setS((xx) => ({ ...xx, output: { ...(xx.output ?? out), items: [...(xx.output ?? out).items, { id, screen: e.id, x, y }] } }));
+    setSelItem(id);
+  };
+  const showView = (v: "screen" | "output") => {
+    // the output starts the size of the screen being made, since most outputs carry one wall
+    setS((x) => ({ ...x, view: v, output: x.output ?? { name: "Output 1", w: W, h: H, items: [] } }));
+    setCutting(false);
+  };
+
 
   // decode uploaded pictures once; redraw when one is ready
   useEffect(() => {
-    for (const src of [s.logo, ...s.pips.map((p) => p.img)]) {
+    for (const src of screenImages([s, ...lib.map((l) => l.s)])) {
       if (!src || images.current.has(src)) continue;
       const img = new Image();
       img.onload = () => setImgTick((n) => n + 1);
       img.src = src;
       images.current.set(src, img);
     }
-  }, [s.logo, s.pips]);
+  }, [s, lib]);
 
   useEffect(() => {
     const c = canvas.current;
-    if (!c || tooBig) return;
-    c.width = W;
-    c.height = H;
+    if (!c || canvasTooBig) return;
+    c.width = CW;
+    c.height = CH;
     const ready = new Map([...images.current].filter(([, img]) => img.complete && img.naturalWidth));
     const ctx = c.getContext("2d");
     if (!ctx) return;
+    if (view === "output") {
+      // each placed screen outlined: yellow when picked, red when it overlaps or runs off the output
+      const rects = drawOutput(ctx, out, lib, ready);
+      const lw = Math.max(3, Math.round(Math.min(CW, CH) / 300));
+      for (const r of rects) {
+        const bad = outputProblems(out, lib).get(r.item.id);
+        if (!bad && r.item.id !== selItem) continue;
+        ctx.strokeStyle = bad ? "#ff3b3b" : "#ffcc00";
+        ctx.lineWidth = lw;
+        ctx.setLineDash(bad ? [lw * 4, lw * 3] : []);
+        ctx.strokeRect(r.x + lw / 2, r.y + lw / 2, r.w - lw, r.h - lw);
+        ctx.setLineDash([]);
+      }
+      return;
+    }
     hits.current = draw(ctx, s, ready);
     if (cutting) {
       // only on screen: a red cross on every panel taken out, a faint outline on the rest
@@ -136,7 +219,7 @@ export function PatternTool() {
           }
         }
     }
-  }, [s, W, H, tooBig, imgTick, cutting]);
+  }, [s, W, H, CW, CH, canvasTooBig, imgTick, cutting, view, out, lib, selItem]);
 
 
 
@@ -145,7 +228,7 @@ export function PatternTool() {
   /** Pointer position in wall pixels. */
   const at = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
-    return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H };
+    return { x: ((e.clientX - r.left) / r.width) * CW, y: ((e.clientY - r.top) / r.height) * CH };
   };
   const inside = (p: { x: number; y: number }, r: Rect) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
   /** The topmost thing under the pointer: the logo, then the title, then windows from the top one down. */
@@ -177,8 +260,33 @@ export function PatternTool() {
     });
   };
 
+  /** A screen on the output dropped near the output's edges or another screen's lands on them. */
+  const snapOut = (id: string, x: number, y: number, w: number, h: number) => {
+    const others = outputRects(out, lib).filter((r) => r.item.id !== id);
+    const xs = [0, out.w, ...others.flatMap((r) => [r.x, r.x + r.w])];
+    const ys = [0, out.h, ...others.flatMap((r) => [r.y, r.y + r.h])];
+    const tol = Math.max(8, Math.round(Math.min(out.w, out.h) / 60));
+    const near = (v: number, size: number, lines: number[]) => {
+      for (const l of lines) {
+        if (Math.abs(v - l) < tol) return l;
+        if (Math.abs(v + size - l) < tol) return l - size;
+      }
+      return Math.round(v);
+    };
+    return { x: near(x, w, xs), y: near(y, h, ys) };
+  };
+
   const onDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const p = at(e);
+    if (view === "output") {
+      const hit = [...outputRects(out, lib)].reverse().find((r) => inside(p, r));
+      setSelItem(hit?.item.id ?? null);
+      if (!hit) return;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      grab.current = { what: hit.item.id, dx: p.x - hit.x, dy: p.y - hit.y };
+      setCursor("grabbing");
+      return;
+    }
     if (cutting) {
       const k = panelAt(p);
       if (!k) return;
@@ -196,6 +304,15 @@ export function PatternTool() {
   };
   const onMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const p = at(e);
+    if (view === "output") {
+      const g = grab.current;
+      if (!g) return setCursor(outputRects(out, lib).some((r) => inside(p, r)) ? "grab" : "default");
+      const r = outputRects(out, lib).find((x) => x.item.id === g.what);
+      if (!r) return;
+      const to = snapOut(r.item.id, p.x - g.dx, p.y - g.dy, r.w, r.h);
+      setOut({ items: out.items.map((it) => (it.id === r.item.id ? { ...it, ...to } : it)) });
+      return;
+    }
     if (cutting) {
       const k = paint.current && panelAt(p);
       if (k) cut(k);
@@ -248,12 +365,19 @@ export function PatternTool() {
       <ProjectBar project={project} saving={saving} />
       <ToolFiles
         tool="pattern"
-        name={`${s.name.trim() || project?.name || "led-test-pattern"} ${W}x${H}`}
+        name={view === "output" ? `${out.name.trim() || "output"} ${out.w}x${out.h}` : `${s.name.trim() || project?.name || "led-test-pattern"} ${W}x${H}`}
         data={s}
         onOpen={(v) => v && typeof v === "object" && setS({ ...START, ...(v as Partial<Settings>) })}
         downloadLabel={T.files.patternPng}
         download={
-          tooBig
+          view === "output"
+            ? canvasTooBig || !out.items.length
+              ? undefined
+              : async () => {
+                  const blob = await outputPng(out, lib);
+                  return blob ? { blob, name: `${(out.name.trim() || "output").replace(/[^\w-]+/g, "-")}-${out.w}x${out.h}.png` } : null;
+                }
+            : tooBig
             ? undefined
             : async () => {
                 const blob = await patternPng(s);
@@ -261,6 +385,108 @@ export function PatternTool() {
               }
         }
       />
+      {view === "output" ? (
+        <aside className="auth-form pat-side">
+          <h2>{t.outputTitle}</h2>
+          <p className="muted small">{t.outputHint}</p>
+          <label className="field">
+            <span>{t.outputName}</span>
+            <input value={out.name} maxLength={60} placeholder="Output 1" onChange={(e) => setOut({ name: e.target.value })} />
+          </label>
+          <label className="field">
+            <span>{t.outputSize}</span>
+            <select
+              value={OUTPUT_SIZES.find((z) => z.w === out.w && z.h === out.h)?.id ?? "custom"}
+              onChange={(e) => {
+                const z = OUTPUT_SIZES.find((x) => x.id === e.target.value);
+                if (z) setOut({ w: z.w, h: z.h });
+              }}
+            >
+              {OUTPUT_SIZES.map((z) => (
+                <option key={z.id} value={z.id}>
+                  {z.name}
+                </option>
+              ))}
+              <option value="custom">{t.custom}</option>
+            </select>
+          </label>
+          <div className="pat-two">
+            <label className="field">
+              <span>{t.outputW}</span>
+              <input type="number" min={16} max={MAX_SIDE} value={out.w} onChange={(e) => setOut({ w: num(e.target.value, MAX_SIDE, 16) })} />
+            </label>
+            <label className="field">
+              <span>{t.outputH}</span>
+              <input type="number" min={16} max={MAX_SIDE} value={out.h} onChange={(e) => setOut({ h: num(e.target.value, MAX_SIDE, 16) })} />
+            </label>
+          </div>
+          {out.items.length > 0 && (
+            <button
+              type="button"
+              className="link small pat-recenter"
+              onClick={() => {
+                const rects = outputRects(out, lib);
+                setOut({ w: Math.max(16, ...rects.map((r) => r.x + r.w)), h: Math.max(16, ...rects.map((r) => r.y + r.h)) });
+              }}
+            >
+              {t.outputFit}
+            </button>
+          )}
+
+          <h2>{t.outputScreens}</h2>
+          {!out.items.length && <p className="muted small">{lib.length ? t.outputEmpty : t.outputNoScreens}</p>}
+          {outputRects(out, lib).map((r) => {
+            const bad = problems.get(r.item.id);
+            return (
+              <div key={r.item.id} className={`pat-pip${selItem === r.item.id ? " on" : ""}`} style={{ borderColor: bad ? "#ff3b3b" : selItem === r.item.id ? "#ffcc00" : undefined }}>
+                <div className="pat-pip-head">
+                  <button type="button" className="pat-mine-use" onClick={() => setSelItem(r.item.id)}>
+                    {r.screen.name}
+                    <span className="muted">
+                      {r.w} × {r.h} px
+                    </span>
+                  </button>
+                  <button type="button" className="link small" onClick={() => setOut({ items: out.items.filter((it) => it.id !== r.item.id) })}>
+                    {t.remove}
+                  </button>
+                </div>
+                <div className="pat-two">
+                  {(["x", "y"] as const).map((k) => (
+                    <label key={k} className="field">
+                      <span>{k.toUpperCase()} px</span>
+                      <input
+                        type="number"
+                        value={r.item[k]}
+                        onChange={(e) => setOut({ items: out.items.map((it) => (it.id === r.item.id ? { ...it, [k]: Math.round(Number(e.target.value) || 0) } : it)) })}
+                      />
+                    </label>
+                  ))}
+                </div>
+                {bad && <p className="auth-err small">{bad === "overlap" ? t.outputOverlap : t.outputOutside}</p>}
+              </div>
+            );
+          })}
+          {lib.length > 0 && (
+            <label className="field">
+              <span>{t.outputAdd}</span>
+              <select
+                value=""
+                onChange={(e) => {
+                  const sc = lib.find((l) => l.id === e.target.value);
+                  if (sc) place(sc);
+                }}
+              >
+                <option value="">—</option>
+                {lib.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name} · {screenSize(l.s).w} × {screenSize(l.s).h}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </aside>
+      ) : (
       <aside className="auth-form pat-side">
         <h2>{t.wall}</h2>
         <div className="pat-two">
@@ -559,18 +785,39 @@ export function PatternTool() {
           {t.pipAdd}
         </button>
       </aside>
+      )}
 
       <section className="pat-main">
-        <div className="pat-head">
-          <div>
-            <strong className="num">{fmt(t.size, { w: W.toLocaleString("en-US"), h: H.toLocaleString("en-US") })}</strong>
-            <span className="muted small">
-              {" "}
-              · {fmt(t.panels, { n: s.cols * s.rows - off.size })} · {wm.m} × {hm.m} · {wm.ft} × {hm.ft}
-            </span>
-          </div>
+        <div className="seg seg2 pat-views" role="tablist">
+          {(["screen", "output"] as const).map((v) => (
+            <button key={v} type="button" role="tab" aria-selected={view === v} className={view === v ? "on" : undefined} onClick={() => showView(v)}>
+              {v === "screen" ? t.viewScreen : t.viewOutput}
+            </button>
+          ))}
         </div>
-        {tooBig ? <p className="auth-err">{t.tooBig}</p> : <canvas
+        <div className="pat-head">
+          {view === "output" ? (
+            <div>
+              <strong className="num">
+                {out.name.trim() || "Output"} · {fmt(t.size, { w: out.w.toLocaleString("en-US"), h: out.h.toLocaleString("en-US") })}
+              </strong>
+              <span className="muted small">
+                {" "}
+                · {fmt(t.outputCount, { n: out.items.length })}
+                {problems.size > 0 && <strong className="ptc-bad"> · {t.outputProblem}</strong>}
+              </span>
+            </div>
+          ) : (
+            <div>
+              <strong className="num">{fmt(t.size, { w: W.toLocaleString("en-US"), h: H.toLocaleString("en-US") })}</strong>
+              <span className="muted small">
+                {" "}
+                · {fmt(t.panels, { n: s.cols * s.rows - off.size })} · {wm.m} × {hm.m} · {wm.ft} × {hm.ft}
+              </span>
+            </div>
+          )}
+        </div>
+        {canvasTooBig ? <p className="auth-err">{t.tooBig}</p> : <canvas
             ref={canvas}
             className="pat-canvas"
             style={{ cursor }}
@@ -579,8 +826,60 @@ export function PatternTool() {
             onPointerUp={onUp}
             onPointerCancel={onUp}
           />}
-        {!tooBig && <p className="muted small">{cutting ? t.shapeHint : t.dragHint}</p>}
+        {!canvasTooBig && <p className="muted small">{view === "output" ? t.outputDragHint : cutting ? t.shapeHint : t.dragHint}</p>}
       </section>
+
+      <aside className="auth-form pat-lib">
+        <h2>{t.libTitle}</h2>
+        {s.current && lib.some((l) => l.id === s.current) ? (
+          <p className="muted small">✓ {t.libSynced}</p>
+        ) : (
+          <button type="button" className="btn sm primary" onClick={saveScreen}>
+            ★ {t.libSave}
+          </button>
+        )}
+        {lib.length ? (
+          <ul className="pat-mine">
+            {lib.map((l) => {
+              const { w, h } = screenSize(l.s);
+              return (
+                <li key={l.id} className={l.id === s.current && view === "screen" ? "on" : undefined}>
+                  <button type="button" className="pat-mine-use" onClick={() => openScreen(l)} title={t.libOpen}>
+                    {l.name}
+                    <span className="muted">
+                      {l.s.cols} × {l.s.rows} · {w} × {h} px
+                    </span>
+                  </button>
+                  <span className="pat-lib-acts">
+                    {view === "output" && (
+                      <button type="button" className="link small" title={t.outputAdd} aria-label={`${t.outputAdd}: ${l.name}`} onClick={() => place(l)}>
+                        ＋
+                      </button>
+                    )}
+                    <button type="button" className="link small" title={t.libDuplicate} aria-label={`${t.libDuplicate}: ${l.name}`} onClick={() => duplicate(l)}>
+                      ⧉
+                    </button>
+                    <button
+                      type="button"
+                      className="link small"
+                      title={t.remove}
+                      aria-label={`${t.remove}: ${l.name}`}
+                      onClick={() => window.confirm(fmt(t.libRemoveAsk, { name: l.name })) && removeScreen(l)}
+                    >
+                      ✕
+                    </button>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="muted small">{t.libEmpty}</p>
+        )}
+        <button type="button" className="link small" onClick={newScreen}>
+          + {t.libNew}
+        </button>
+      </aside>
     </div>
   );
 }

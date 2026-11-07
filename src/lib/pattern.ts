@@ -54,6 +54,155 @@ export interface PatternSettings {
   /** curve between neighbouring panels, in degrees (0 = flat) */
   curve?: number;
   curveDir?: "in" | "out";
+  /** the screens saved so far, to open again or duplicate */
+  library?: SavedScreen[];
+  /** which saved screen is open in the editor */
+  current?: string | null;
+  /** several screens placed on one output canvas (a 4K output feeding four walls…) */
+  output?: OutputMap;
+  view?: "screen" | "output";
+}
+
+/** A screen kept in the list: its own settings, without the list or the output. */
+export interface SavedScreen {
+  id: string;
+  name: string;
+  s: PatternSettings;
+}
+
+/** A saved screen placed on the output, its top-left corner in output pixels. */
+export interface OutputItem {
+  id: string;
+  screen: string;
+  x: number;
+  y: number;
+}
+
+export interface OutputMap {
+  name: string;
+  w: number;
+  h: number;
+  items: OutputItem[];
+}
+
+export const OUTPUT_SIZES = [
+  { id: "hd", name: "HD 1920 × 1080", w: 1920, h: 1080 },
+  { id: "qhd", name: "QHD 2560 × 1440", w: 2560, h: 1440 },
+  { id: "uhd", name: "4K UHD 3840 × 2160", w: 3840, h: 2160 },
+  { id: "dci", name: "4K DCI 4096 × 2160", w: 4096, h: 2160 },
+  { id: "8k", name: "8K 7680 × 4320", w: 7680, h: 4320 },
+];
+
+/** One screen's own settings: the list, the output and the view left out. */
+export function screenOf(s: PatternSettings): PatternSettings {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- left out on purpose
+  const { library, current, output, view, ...rest } = s;
+  return rest;
+}
+
+export const screenSize = (s: PatternSettings) => ({ w: s.cols * s.pw, h: s.rows * s.ph });
+
+/** Where each placed screen sits on the output, with its size. */
+export function outputRects(out: OutputMap, library: SavedScreen[]) {
+  return out.items
+    .map((it) => {
+      const sc = library.find((l) => l.id === it.screen);
+      if (!sc) return null;
+      const { w, h } = screenSize(sc.s);
+      return { item: it, screen: sc, x: it.x, y: it.y, w, h };
+    })
+    .filter((r): r is NonNullable<typeof r> => !!r);
+}
+
+/** Placed screens that overlap another, or run off the output. */
+export function outputProblems(out: OutputMap, library: SavedScreen[]) {
+  const rects = outputRects(out, library);
+  const bad = new Map<string, "overlap" | "outside">();
+  rects.forEach((a, i) => {
+    if (a.x < 0 || a.y < 0 || a.x + a.w > out.w || a.y + a.h > out.h) bad.set(a.item.id, "outside");
+    rects.forEach((b, j) => {
+      if (i !== j && a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) bad.set(a.item.id, "overlap");
+    });
+  });
+  return bad;
+}
+
+/** The output: black, each screen's own pattern where it's placed, and a tag with the output's name and size. */
+export function drawOutput(ctx: CanvasRenderingContext2D, out: OutputMap, library: SavedScreen[], images: Map<string, HTMLImageElement>) {
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, out.w, out.h);
+  // a faint grid every 10% so empty pixels still read as part of the output
+  ctx.strokeStyle = "rgba(255,255,255,0.12)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 1; i < 10; i++) {
+    ctx.moveTo(Math.round((out.w * i) / 10) + 0.5, 0);
+    ctx.lineTo(Math.round((out.w * i) / 10) + 0.5, out.h);
+    ctx.moveTo(0, Math.round((out.h * i) / 10) + 0.5);
+    ctx.lineTo(out.w, Math.round((out.h * i) / 10) + 0.5);
+  }
+  ctx.stroke();
+  const rects = outputRects(out, library);
+  for (const r of rects) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(r.x, r.y, r.w, r.h);
+    ctx.clip();
+    ctx.translate(r.x, r.y);
+    drawPattern(ctx, r.screen.s, images);
+    ctx.restore();
+  }
+  // the output's own tag, bottom left, with where each screen starts
+  const tag = Math.max(14, Math.round(Math.min(out.w, out.h) / 45));
+  const lines = [`${out.name.trim() || "OUTPUT"} · ${out.w} × ${out.h}`, ...rects.map((r) => `${r.screen.s.name.trim() || r.screen.name} · ${r.w}×${r.h} @ ${r.x},${r.y}`)];
+  ctx.font = `700 ${tag}px system-ui, sans-serif`;
+  const tw = Math.max(...lines.map((l) => ctx.measureText(l).width)) + tag;
+  const th = lines.length * tag * 1.35 + tag * 0.6;
+  ctx.fillStyle = "rgba(0,0,0,0.78)";
+  ctx.fillRect(0, out.h - th, tw, th);
+  ctx.fillStyle = "#fff";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  lines.forEach((l, i) => {
+    ctx.font = `${i ? 600 : 800} ${i ? Math.round(tag * 0.8) : tag}px system-ui, sans-serif`;
+    ctx.fillText(l, tag / 2, out.h - th + tag * 0.3 + tag * 1.35 * (i + 0.5));
+  });
+  return rects;
+}
+
+/** Every picture a set of screens uses. */
+export const screenImages = (list: PatternSettings[]) => [...new Set(list.flatMap((s) => [s.logo, ...s.pips.map((p) => p.img)]).filter((x): x is string => !!x))];
+
+async function loadImages(srcs: string[]) {
+  const images = new Map<string, HTMLImageElement>();
+  await Promise.all(
+    srcs.map(
+      (src) =>
+        new Promise<void>((done) => {
+          const img = new Image();
+          img.onload = () => {
+            images.set(src, img);
+            done();
+          };
+          img.onerror = () => done();
+          img.src = src;
+        }),
+    ),
+  );
+  return images;
+}
+
+/** The output map as a PNG at its exact resolution. */
+export async function outputPng(out: OutputMap, library: SavedScreen[]): Promise<Blob | null> {
+  if (out.w > 16384 || out.h > 16384) return null;
+  const images = await loadImages(screenImages(outputRects(out, library).map((r) => r.screen.s)));
+  const c = document.createElement("canvas");
+  c.width = out.w;
+  c.height = out.h;
+  const ctx = c.getContext("2d");
+  if (!ctx) return null;
+  drawOutput(ctx, out, library, images);
+  return new Promise((resolve) => c.toBlob(resolve, "image/png"));
 }
 
 export interface Rect {

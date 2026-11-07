@@ -1230,6 +1230,16 @@ a.co:hover { text-decoration-color: currentColor; }
 .ptc-logo { height: 28px; width: auto; max-width: 140px; object-fit: contain; background: #fff; border-radius: 4px; padding: 2px; }
 @media (max-width: 800px) { .ptc-print-cols { grid-template-columns: 1fr; } .ptc-find { width: 100% !important; } }
 
+/* LED pattern: saved screens on the right, screen / output tabs */
+.pat-tool { grid-template-columns: minmax(280px, 340px) minmax(0, 1fr) minmax(200px, 240px); }
+.pat-lib { position: sticky; top: 80px; display: grid; gap: 10px; }
+.pat-lib h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.12em; margin: 0; }
+.pat-lib-acts { display: flex; gap: 2px; flex: none; }
+.pat-views { max-width: 320px; }
+.pat-pip.on { border-color: #ffcc00; }
+@media (max-width: 1200px) { .pat-tool { grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); } .pat-lib { grid-column: 1 / -1; position: static; } }
+@media (max-width: 900px) { .pat-tool { grid-template-columns: 1fr; } }
+
 /* Labels: the way to the Patch tool */
 .lab-patch { display: grid; gap: 8px; justify-items: start; padding: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface-2); }
 .lab-patch p { margin: 0; }

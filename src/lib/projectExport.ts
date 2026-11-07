@@ -6,7 +6,7 @@ import type { jsPDF as JsPDF } from "jspdf";
 import type { Dict } from "./i18n/en";
 import { fmt, plural } from "./i18n/config";
 import { PAPER, buildLabels, inkFor, partSize, sheetOf, type LabelSettings } from "./labels";
-import { patternPng, type PatternSettings } from "./pattern";
+import { outputPng, patternPng, type PatternSettings } from "./pattern";
 import type { PatchSettings } from "./patch";
 import { cuesCsv, type ShowCall } from "./showcall";
 import { fmtTc } from "./timecode";
@@ -558,6 +558,11 @@ export async function projectZip(
   if (data.pattern) {
     const png = await patternPng(data.pattern);
     if (png) add(`Pattern/${safeName(data.pattern.name || "led-test-pattern")}-${data.pattern.cols * data.pattern.pw}x${data.pattern.rows * data.pattern.ph}.png`, new Uint8Array(await png.arrayBuffer()));
+    const out = data.pattern.output;
+    if (out?.items?.length) {
+      const map = await outputPng(out, data.pattern.library ?? []);
+      if (map) add(`Pattern/${safeName(out.name || "output")}-${out.w}x${out.h}.png`, new Uint8Array(await map.arrayBuffer()));
+    }
   }
   if (data.labels && buildLabels(data.labels).length) add("Labels/labels.pdf", await labelsPdf(data.labels));
   if (data.patch?.rows?.length) {
