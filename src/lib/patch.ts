@@ -21,6 +21,10 @@ export interface PatchRow {
   /** DMX channels the fixture takes */
   foot: string;
   notes: string;
+  /** the console's folders it sits in, outermost first: "OG FIXTURES › SPOTS" (grandMA3 groupings, MVR groups) */
+  group?: string;
+  /** that group's color in the console, #hex */
+  gcolor?: string;
 }
 
 /** A fixture type from a GDTF file (or an MVR): its name and the footprint of each mode. */
@@ -48,6 +52,8 @@ export interface PatchSettings {
   pad: boolean;
   /** stickers colored by position (for white paper); off = black on colored label paper */
   fill: boolean;
+  /** report pages: one per fixture type, or one per console group (keeping the console's structure) */
+  reportBy?: "type" | "group";
 }
 
 export const PATCH_START: PatchSettings = {
@@ -213,6 +219,32 @@ function typeName(v: string) {
     .trim();
 }
 
+/**
+ * A color written on an element, as #hex: "#ff8800", "0xff8800", "255,136,0", "1.0,0.53,0.0,1.0" (0–1 floats),
+ * or an MVR CIE color "0.3127,0.3290,100.0" (x, y, Y).
+ */
+function colorAttr(el: Element): string {
+  const raw = attr(el, ["Color", "Colour", "ColorRGB", "RGB"]) || text(child(el, ["Color"]));
+  const v = raw.trim();
+  if (!v) return "";
+  const hex = v.match(/^(?:#|0x)?([0-9a-f]{6})(?:[0-9a-f]{2})?$/i);
+  if (hex && !/^\d+$/.test(v)) return `#${hex[1].toLowerCase()}`;
+  const n = v.split(/[,\s]+/).map(Number);
+  if (n.length < 3 || n.some((x) => !Number.isFinite(x))) return "";
+  const to = (x: number) => Math.max(0, Math.min(255, Math.round(x))).toString(16).padStart(2, "0");
+  // CIE xyY (MVR): to sRGB
+  if (child(el, ["Color"]) && n[2] > 1 && n[0] <= 1 && n[1] <= 1 && n[1] > 0) {
+    const [x, y, Y] = [n[0], n[1], n[2] / 100];
+    const X = (x * Y) / y;
+    const Z = ((1 - x - y) * Y) / y;
+    const lin = [3.2406 * X - 1.5372 * Y - 0.4986 * Z, -0.9689 * X + 1.8758 * Y + 0.0415 * Z, 0.0557 * X - 0.204 * Y + 1.057 * Z];
+    const g = lin.map((c) => 255 * (c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(Math.max(0, c), 1 / 2.4) - 0.055));
+    return `#${g.map(to).join("")}`;
+  }
+  const k = n.slice(0, 3).every((x) => x <= 1) ? 255 : 1;
+  return `#${n.slice(0, 3).map((x) => to(x * k)).join("")}`;
+}
+
 /** The fixtures of an MVR scene or a console's XML export. */
 export function fromXml(xml: string, gdtf: FixtureType[] = []): PatchRow[] {
   const doc = new DOMParser().parseFromString(xml, "application/xml");
@@ -223,6 +255,7 @@ export function fromXml(xml: string, gdtf: FixtureType[] = []): PatchRow[] {
     if (/^(position|class)$/i.test(p.localName) && p.getAttribute("uuid") && p.getAttribute("name")) names.set(p.getAttribute("uuid")!.toLowerCase(), p.getAttribute("name")!);
   }
   const isFixture = (el: Element) => /^fixture$/i.test(el.localName);
+  const isFolder = (el: Element) => (isFixture(el) && isGroup(el)) || /^groupobject$/i.test(el.localName);
   const patchAttr = (el: Element) => attr(el, ["Patch", "Address", "DMX"]);
   /**
    * A group, not a fixture: grandMA3 "Grouping" fixtures (SPOTS, MK3 WASH…) are folders on a stage that hold
@@ -259,16 +292,22 @@ export function fromXml(xml: string, gdtf: FixtureType[] = []): PatchRow[] {
     // MVR: a position's uuid; MA3: its layer, "1 'Lighting - Floor'" → "Lighting - Floor"
     const posRef = (text(child(el, ["Position"])) || attr(el, ["Position", "Layer"])).replace(/^\d+\s+(?=\D)/, "").replace(/^['"]|['"]$/g, "");
     const pos = names.get(posRef.toLowerCase()) ?? (/^[0-9a-f-]{36}$/i.test(posRef) ? "" : posRef);
+    // the folders above it, and the color of the nearest one that has a color (else its own)
+    const folders: Element[] = [];
+    for (let p = el.parentElement; p; p = p.parentElement) if (isFolder(p)) folders.unshift(p);
+    const gcolor = [...folders].reverse().map(colorAttr).find(Boolean) || colorAttr(el);
     const t = typeFor(gdtf, type);
     const m = t?.modes.find((x) => norm(x.name) === norm(mode));
     rows.push(
       finish({
         fid: unit && /^\d+$/.test(unit) && !fid ? unit : fid || unit,
         type: type || attr(el, ["name"]),
-        mode: cleanMode(mode),
+        mode: mode.replace(/\.lit$/i, "").trim(),
         pos,
         ...patchOf(patch),
         foot: m ? String(m.foot) : "",
+        group: folders.map((f) => attr(f, ["name"])).filter(Boolean).join(" › "),
+        gcolor,
       }),
     );
   }
@@ -535,6 +574,31 @@ export function repatch(rows: PatchRow[], keys: Set<string>, types: FixtureType[
       aa = 1;
     }
     return next;
+  });
+}
+
+export type SortKey = "fid" | "type" | "mode" | "pos" | "color" | "u" | "a" | "foot" | "notes";
+
+/**
+ * Sorts by a column (numbers as numbers, empty cells last), up or down. Rows stay inside their console group,
+ * and groups keep the order they came in, so the console's structure holds.
+ */
+export function sortRows(rows: PatchRow[], key: SortKey, dir: 1 | -1, types: FixtureType[]): PatchRow[] {
+  const groupAt = new Map<string, number>();
+  rows.forEach((r) => groupAt.has(r.group ?? "") || groupAt.set(r.group ?? "", groupAt.size));
+  const val = (r: PatchRow): string | number | null => {
+    if (key === "u" || key === "a") return Number(r.u) > 0 && Number(r.a) > 0 ? (Number(r.u) - 1) * 512 + Number(r.a) : null;
+    if (key === "foot") return footOf(r, types) || null;
+    return r[key].trim() || null;
+  };
+  return [...rows].sort((x, y) => {
+    const g = groupAt.get(x.group ?? "")! - groupAt.get(y.group ?? "")!;
+    if (g) return g;
+    const a = val(x);
+    const b = val(y);
+    if (a == null || b == null) return a == null ? (b == null ? 0 : 1) : -1;
+    const c = typeof a === "number" && typeof b === "number" ? a - b : String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" });
+    return c * dir;
   });
 }
 

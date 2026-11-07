@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import { AccountNeeded, useSignedIn } from "@/components/AccountGate";
 import { useI18n, useT } from "@/components/I18n";
 import { ProjectBar, useToolState } from "@/components/Projects";
@@ -11,15 +11,15 @@ import {
   COLOR_NAMES,
   PATCH_START as START,
   blankRow,
-  byId,
-  byPatch,
   colorHex,
   conflicts,
   footOf,
   readGdtf,
   readPatchFile,
   repatch,
+  sortRows,
   typeFor,
+  type SortKey,
   type FixtureType,
   type PatchRow,
   type PatchSettings as Settings,
@@ -57,6 +57,19 @@ function saveBlob(blob: Blob, name: string) {
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 
+/** A row with another fixture type: a GDTF type brings its mode (the same one if it has it, else its first) and channels. */
+function withType(r: PatchRow, v: string, types: FixtureType[]): PatchRow {
+  const ft = typeFor(types, v);
+  const m = ft?.modes.find((mm) => mm.name === r.mode) ?? ft?.modes[0];
+  return { ...r, type: v, mode: m ? m.name : r.mode, foot: m ? String(m.foot) : r.foot };
+}
+/** A row in another mode: a GDTF mode brings its channels. */
+function withMode(r: PatchRow, v: string, types: FixtureType[]): PatchRow {
+  const m = typeFor(types, r.type)?.modes.find((mm) => mm.name === v);
+  return { ...r, mode: v, foot: m ? String(m.foot) : r.foot };
+}
+const OTHER = "\u0000other";
+
 export function PatchTool() {
   const t = useT().patch;
   const { t: T } = useI18n();
@@ -71,6 +84,10 @@ export function PatchTool() {
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
   const [bulk, setBulk] = useState({ pos: "", color: "", type: "", mode: "", u: "1", a: "1" });
+  // the column the table was last sorted by, and which way
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>(null);
+  // the row last clicked, for shift-click ranges
+  const anchor = useRef<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const gdtfRef = useRef<HTMLInputElement>(null);
 
@@ -129,12 +146,7 @@ export function PatchTool() {
       if (!row) return x;
       // a position's color is the same on all its fixtures
       if (k === "color" && row.pos) return { ...x, rows: x.rows.map((r) => (r.pos === row.pos ? { ...r, color: v } : r)) };
-      const next = { ...row, [k]: v };
-      // a GDTF mode brings its footprint
-      if (k === "mode") {
-        const m = typeFor(x.types, row.type)?.modes.find((mm) => mm.name === v);
-        if (m) next.foot = String(m.foot);
-      }
+      const next = k === "type" ? withType(row, v, x.types) : k === "mode" ? withMode(row, v, x.types) : { ...row, [k]: v };
       return { ...x, rows: x.rows.map((r) => (r.key === key ? next : r)) };
     });
 
@@ -147,28 +159,54 @@ export function PatchTool() {
         rows: x.rows.map((r) => {
           if (color) return sel.has(r.key) || (r.pos && color.has(r.pos)) ? { ...r, color: v } : r;
           if (!sel.has(r.key)) return r;
-          if (k === "mode") {
-            const m = typeFor(x.types, r.type)?.modes.find((mm) => mm.name === v);
-            return { ...r, mode: v, foot: m ? String(m.foot) : r.foot };
-          }
-          if (k === "type") {
-            const ft = typeFor(x.types, v);
-            const keep = ft?.modes.find((mm) => mm.name === r.mode);
-            const m = keep ?? ft?.modes[0];
-            return { ...r, type: v, mode: m ? m.name : r.mode, foot: m ? String(m.foot) : r.foot };
-          }
+          if (k === "mode") return withMode(r, v, x.types);
+          if (k === "type") return withType(r, v, x.types);
           return { ...r, [k]: v };
         }),
       };
     });
   };
 
-  const toggle = (key: string) => setSel((x) => {
-    const n = new Set(x);
-    if (n.has(key)) n.delete(key);
-    else n.add(key);
-    return n;
-  });
+  /** Selects or unselects fixtures; the first ones chosen set where a re-patch starts (their own patch). */
+  const choose = (keys: string[], on: boolean) => {
+    const n = new Set(sel);
+    for (const k of keys) {
+      if (on) n.add(k);
+      else n.delete(k);
+    }
+    // a re-patch starts where the lowest of the chosen fixtures is patched now
+    const low = s.rows
+      .filter((r) => n.has(r.key) && Number(r.u) > 0 && Number(r.a) > 0)
+      .sort((x, y) => (Number(x.u) - Number(y.u)) * 512 + Number(x.a) - Number(y.a))[0];
+    if (low) setBulk((b) => ({ ...b, u: low.u, a: low.a }));
+    setSel(n);
+  };
+  /** A click on a row's box; with Shift, every row between it and the last one clicked. */
+  const toggle = (key: string, shift: boolean) => {
+    const on = !sel.has(key);
+    const from = anchor.current ? shown.findIndex((r) => r.key === anchor.current) : -1;
+    const to = shown.findIndex((r) => r.key === key);
+    anchor.current = key;
+    if (shift && from >= 0 && to >= 0) {
+      const [a, b] = from < to ? [from, to] : [to, from];
+      return choose(shown.slice(a, b + 1).map((r) => r.key), true);
+    }
+    choose([key], on);
+  };
+  /** Click a column's name: sorted up; click again: down. Rows stay in their console groups. */
+  const sortBy = (key: SortKey) => {
+    const dir: 1 | -1 = sort?.key === key && sort.dir === 1 ? -1 : 1;
+    setSort({ key, dir });
+    setS((x) => ({ ...x, rows: sortRows(x.rows, key, dir, x.types) }));
+  };
+  const grouped = s.rows.some((r) => r.group);
+  const noFoot = chosen.filter((r) => !footOf(r, s.types)).length;
+  /** "Other…" in a list: type a value that isn't in the GDTF. */
+  const pickOr = (v: string, then: (v: string) => void, label: string) => {
+    if (v !== OTHER) return then(v);
+    const typed = window.prompt(label);
+    if (typed != null && typed.trim()) then(typed.trim());
+  };
 
   // ---------- printing ----------
 
@@ -187,6 +225,8 @@ export function PatchTool() {
   const paperText = (c: string) => (c ? fmt(t.paperColor, { c }) : t.noColor);
 
   const modesFor = (r: PatchRow) => typeFor(s.types, r.type)?.modes ?? [];
+  // the modes the chosen fixtures' GDTF types have (each once)
+  const bulkModes = [...new Map(chosen.flatMap((r) => modesFor(r)).map((m) => [m.name, m])).values()];
   const allSel = shown.length > 0 && shown.every((r) => sel.has(r.key));
 
   return (
@@ -282,17 +322,9 @@ export function PatchTool() {
           </div>
           <div className="inv-actions">
             <input className="ptc-find" value={query} placeholder={t.filter} aria-label={t.filter} onChange={(e) => setQuery(e.target.value)} />
-            <button type="button" className="link small" onClick={() => setRows((r) => [...r].sort(byId))}>
-              {t.sortId}
-            </button>
-            <button type="button" className="link small" onClick={() => setRows((r) => [...r].sort((x, y) => x.pos.localeCompare(y.pos, undefined, { numeric: true }) || byId(x, y)))}>
-              {t.sortPos}
-            </button>
-            <button type="button" className="link small" onClick={() => setRows((r) => [...r].sort(byPatch))}>
-              {t.sortPatch}
-            </button>
           </div>
         </div>
+        {s.rows.length > 0 && <p className="muted small ptc-tip">{t.tableHint}</p>}
 
         {chosen.length > 0 && (
           <div className="ptc-bulk">
@@ -313,7 +345,25 @@ export function PatchTool() {
                   applyBulk(k);
                 }}
               >
-                <input value={bulk[k]} placeholder={label} aria-label={label} list={list} onChange={(e) => setBulk({ ...bulk, [k]: e.target.value })} />
+                {(k === "type" && s.types.length > 0) || (k === "mode" && bulkModes.length > 0) ? (
+                  <select value={bulk[k]} aria-label={label} onChange={(e) => setBulk({ ...bulk, [k]: e.target.value })}>
+                    <option value="">{label}…</option>
+                    {k === "type"
+                      ? s.types.map((ft) => (
+                          <option key={ft.name} value={ft.name}>
+                            {ft.maker ? `${ft.maker} · ` : ""}
+                            {ft.name}
+                          </option>
+                        ))
+                      : bulkModes.map((m) => (
+                          <option key={m.name} value={m.name}>
+                            {m.name} · {m.foot}ch
+                          </option>
+                        ))}
+                  </select>
+                ) : (
+                  <input value={bulk[k]} placeholder={label} aria-label={label} list={list} onChange={(e) => setBulk({ ...bulk, [k]: e.target.value })} />
+                )}
                 <button className="btn sm">{t.apply}</button>
               </form>
             ))}
@@ -330,6 +380,7 @@ export function PatchTool() {
               <input className="ptc-num" type="number" min={1} max={512} value={bulk.a} aria-label={t.cols.a} onChange={(e) => setBulk({ ...bulk, a: e.target.value })} />
               <button className="btn sm">{t.repatchGo}</button>
             </form>
+            {noFoot > 0 && <span className="small ptc-bad">{plural(noFoot, t.noFoot)}</span>}
             <button type="button" className="btn sm" disabled={busy} onClick={() => pdf(() => stickersPdf(s, chosen, paperText), `${base} - Stickers (${chosen.length}).pdf`)}>
               🖨 {t.stickersSel}
             </button>
@@ -343,11 +394,6 @@ export function PatchTool() {
             >
               {t.delete}
             </button>
-            <datalist id="ptc-bulk-modes">
-              {[...new Set(chosen.flatMap((r) => modesFor(r).map((m) => m.name)))].map((m) => (
-                <option key={m} value={m} />
-              ))}
-            </datalist>
           </div>
         )}
         {ask && !signedIn && <AccountNeeded />}
@@ -378,42 +424,74 @@ export function PatchTool() {
                       type="checkbox"
                       aria-label={t.selectAll}
                       checked={allSel}
-                      onChange={() => setSel(allSel ? new Set() : new Set(shown.map((r) => r.key)))}
+                      onChange={() => choose(shown.map((r) => r.key), !allSel)}
                     />
                   </th>
                   {FIELDS.map((k) => (
-                    <th key={k} className={`ptc-c-${k}`}>
-                      {t.cols[k]}
+                    <th key={k} className={`ptc-c-${k}`} aria-sort={sort?.key === k ? (sort.dir === 1 ? "ascending" : "descending") : undefined}>
+                      <button type="button" className="ptc-sort" title={t.sortHint} onClick={() => sortBy(k)}>
+                        {t.cols[k]}
+                        <span aria-hidden="true">{sort?.key === k ? (sort.dir === 1 ? " ▲" : " ▼") : ""}</span>
+                      </button>
                     </th>
                   ))}
                   <th />
                 </tr>
               </thead>
               <tbody>
-                {shown.slice(0, 1500).map((r) => {
+                {shown.slice(0, 1500).map((r, i) => {
                   const bad = clash.get(r.key);
                   const foot = footOf(r, s.types);
                   const modes = modesFor(r);
+                  // the console's folder, with its color, above its first fixture
+                  const newGroup = grouped && (i === 0 || (shown[i - 1].group ?? "") !== (r.group ?? ""));
+                  const members = newGroup ? shown.filter((x) => (x.group ?? "") === (r.group ?? "")) : [];
+                  const allIn = members.length > 0 && members.every((x) => sel.has(x.key));
                   return (
-                    <tr key={r.key} className={sel.has(r.key) ? "on" : undefined}>
-                      <td>
-                        <input type="checkbox" checked={sel.has(r.key)} aria-label={r.fid} onChange={() => toggle(r.key)} />
+                    <Fragment key={r.key}>
+                      {newGroup && (
+                        <tr className="ptc-group" style={{ ["--g" as string]: r.gcolor || "var(--line)" }}>
+                          <td>
+                            <input type="checkbox" checked={allIn} aria-label={fmt(t.selectGroup, { g: r.group || t.noGroup })} onChange={() => choose(members.map((x) => x.key), !allIn)} />
+                          </td>
+                          <td colSpan={FIELDS.length + 1}>
+                            <strong>{r.group || t.noGroup}</strong> <span className="muted small">· {plural(members.length, t.fixtures)}</span>
+                          </td>
+                        </tr>
+                      )}
+                    <tr className={sel.has(r.key) ? "on" : undefined} style={r.gcolor ? { ["--g" as string]: r.gcolor } : undefined}>
+                      <td className={r.gcolor ? "ptc-gbar" : undefined}>
+                        <input type="checkbox" checked={sel.has(r.key)} aria-label={r.fid} onChange={() => {}} onClick={(e) => toggle(r.key, e.shiftKey)} />
                       </td>
                       {FIELDS.map((k) => {
                         const common = { value: r[k], "aria-label": `${t.cols[k]} ${r.fid}`, onChange: (e: React.ChangeEvent<HTMLInputElement>) => edit(r.key, k, e.target.value) };
-                        if (k === "mode")
+                        if (k === "mode" && modes.length)
                           return (
                             <td key={k} className="ptc-c-mode">
-                              <input {...common} list={modes.length ? `ptc-m-${r.key}` : undefined} />
-                              {modes.length > 0 && (
-                                <datalist id={`ptc-m-${r.key}`}>
-                                  {modes.map((m) => (
-                                    <option key={m.name} value={m.name}>
-                                      {m.foot}ch
-                                    </option>
-                                  ))}
-                                </datalist>
-                              )}
+                              <select value={r.mode} aria-label={common["aria-label"]} onChange={(e) => pickOr(e.target.value, (v) => edit(r.key, "mode", v), t.cols.mode)}>
+                                {!modes.some((m) => m.name === r.mode) && <option value={r.mode}>{r.mode || "—"}</option>}
+                                {modes.map((m) => (
+                                  <option key={m.name} value={m.name}>
+                                    {m.name} · {m.foot}ch
+                                  </option>
+                                ))}
+                                <option value={OTHER}>{t.other}</option>
+                              </select>
+                            </td>
+                          );
+                        if (k === "type" && s.types.length)
+                          return (
+                            <td key={k} className="ptc-c-type">
+                              <select value={r.type} aria-label={common["aria-label"]} onChange={(e) => pickOr(e.target.value, (v) => edit(r.key, "type", v), t.cols.type)}>
+                                {!s.types.some((ft) => ft.name === r.type) && <option value={r.type}>{r.type || "—"}</option>}
+                                {s.types.map((ft) => (
+                                  <option key={ft.name} value={ft.name}>
+                                    {ft.maker ? `${ft.maker} · ` : ""}
+                                    {ft.name}
+                                  </option>
+                                ))}
+                                <option value={OTHER}>{t.other}</option>
+                              </select>
                             </td>
                           );
                         if (k === "color") {
@@ -449,6 +527,7 @@ export function PatchTool() {
                         </button>
                       </td>
                     </tr>
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -501,6 +580,15 @@ export function PatchTool() {
                 <input value={s.rev} maxLength={20} placeholder="V1.0" onChange={(e) => set({ rev: e.target.value })} />
               </label>
             </div>
+            {grouped && (
+              <label className="field">
+                <span>{t.reportBy}</span>
+                <select value={s.reportBy ?? "type"} onChange={(e) => set({ reportBy: e.target.value as Settings["reportBy"] })}>
+                  <option value="type">{t.reportByType}</option>
+                  <option value="group">{t.reportByGroup}</option>
+                </select>
+              </label>
+            )}
             <label className="field">
               <span>{t.page}</span>
               <select value={s.page} onChange={(e) => set({ page: e.target.value as Settings["page"] })}>

@@ -83,11 +83,11 @@ function fit(doc: import("jspdf").jsPDF, s: string, w: number) {
   return `${t}…`;
 }
 
-/** Fixture types in the order they first appear, each with its positions in order. */
-function grouped(rows: PatchRow[]) {
+/** Pages by fixture type (or by console group) in the order they first appear, each with its positions in order. */
+function grouped(rows: PatchRow[], by: "type" | "group" = "type") {
   const out = new Map<string, Map<string, PatchRow[]>>();
   for (const r of rows) {
-    const t = r.type || "—";
+    const t = (by === "group" ? r.group : r.type) || r.type || "—";
     if (!out.has(t)) out.set(t, new Map());
     const byPos = out.get(t)!;
     const p = r.pos || "No Position";
@@ -135,10 +135,12 @@ export async function patchReportPdf(s: PatchSettings, rows = s.rows): Promise<A
     doc.setTextColor(GREY).setFontSize(6.5).text(`Page ${pg} of ${total}`, W / 2, H - 14, { align: "center" });
     doc.setTextColor(BLUE).setFontSize(8.5).text(`Last Sync with VWX Revision: ${s.rev || "—"}`, R, H - 36, { align: "right" });
   };
-  const banner = (type: string, mode: string, y: number) => {
+  const banner = (type: string, mode: string, y: number, color?: string) => {
     doc.setFillColor(BANNER).roundedRect(20, y, W - 36, 26, 4, 4, "F");
+    // the console group's color, as a band on the left
+    if (color) doc.setFillColor(color).rect(20, y, 8, 26, "F");
     doc.setDrawColor(NAVY).setLineWidth(1.6).line(20, y + 26, W, y + 26);
-    doc.setTextColor("#000000").setFont("helvetica", "bold").setFontSize(13.5).text(fit(doc, type, W - 200), 27, y + 18);
+    doc.setTextColor("#000000").setFont("helvetica", "bold").setFontSize(13.5).text(fit(doc, type, W - 200), color ? 35 : 27, y + 18);
     doc.setTextColor(GREY).setFont("helvetica", "normal").setFontSize(15).text(mode, R - 6, y + 19, { align: "right" });
     return y + 36;
   };
@@ -175,10 +177,12 @@ export async function patchReportPdf(s: PatchSettings, rows = s.rows): Promise<A
       pg += 1;
       header();
     };
-    for (const [type, positions] of grouped(rows)) {
+    const by = s.reportBy === "group" && rows.some((r) => r.group) ? "group" : "type";
+    for (const [type, positions] of grouped(rows, by)) {
       newPage();
       const first = [...positions.values()][0][0];
-      y = banner(type, first.mode, 62);
+      // by group: the group's name and color, with the fixture type on the right
+      y = by === "group" ? banner(type, first.type, 62, first.gcolor) : banner(type, first.mode, 62);
       for (const [pos, recs] of positions) {
         const color = recs.find((r) => r.color)?.color ?? positionColor(rows, pos);
         let i = 0;
@@ -215,20 +219,20 @@ export async function patchReportPdf(s: PatchSettings, rows = s.rows): Promise<A
     return pg;
   };
   // "Page n of N": the page count comes from the same layout walk, without drawing
-  render(countPages(rows, H));
+  render(countPages(rows, H, s.reportBy === "group" && rows.some((r) => r.group) ? "group" : "type"));
   doc.setProperties({ title: `Address Patch By Fixture ${s.job}`.trim() });
   return doc.output("arraybuffer");
 }
 
 /** How many pages the report takes: the same layout walk as the drawing, without drawing. */
-function countPages(rows: PatchRow[], H: number) {
+function countPages(rows: PatchRow[], H: number, by: "type" | "group") {
   const ROW_H = 18,
     TH_H = 18,
     BH_H = 19,
     GAP = 8;
   const BOTTOM = H - 62;
   let pg = 0;
-  for (const [, positions] of grouped(rows)) {
+  for (const [, positions] of grouped(rows, by)) {
     pg += 1;
     let y = 98;
     for (const [, recs] of positions) {

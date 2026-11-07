@@ -1226,6 +1226,17 @@ a.co:hover { text-decoration-color: currentColor; }
 .ptc-grid .ptc-c-color { display: flex; align-items: center; gap: 4px; padding-left: 6px; }
 .ptc-grid .ptc-c-color input { min-width: 80px; width: 90px; }
 .ptc-swatch { flex: none; width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--line); }
+.ptc-sort { all: unset; cursor: pointer; font-weight: 700; white-space: nowrap; }
+.ptc-sort:hover, .ptc-sort:focus-visible { color: var(--tally); }
+.ptc-tip { margin: -4px 0 0; }
+.ptc-grid tr.ptc-group td { background: color-mix(in srgb, var(--g) 30%, var(--surface-2)); border-left: 6px solid var(--g); padding: 6px 8px; font-size: 13px; }
+.ptc-grid tr.ptc-group td + td { border-left: 0; }
+.ptc-grid td.ptc-gbar { box-shadow: inset 4px 0 0 var(--g); }
+.ptc-grid td select { width: 100%; min-width: 120px; border: 0; background: transparent; color: var(--ink); padding: 6px 4px; font: inherit; font-size: 13px; cursor: pointer; }
+.ptc-grid td.ptc-c-type select { min-width: 190px; }
+.ptc-grid td.ptc-c-mode select { min-width: 160px; }
+.ptc-grid td select:focus { outline: 2px solid var(--tally); outline-offset: -2px; }
+.ptc-bulk select { border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); color: var(--ink); padding: 7px 9px; font: inherit; font-size: 14px; width: 170px; }
 .ptc-grid td.ptc-clash { background: color-mix(in srgb, #e5484d 22%, transparent); }
 .ptc-print-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 .ptc-print-col { display: grid; gap: 12px; align-content: start; }
