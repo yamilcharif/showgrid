@@ -54,6 +54,204 @@ export interface PatternSettings {
   /** curve between neighbouring panels, in degrees (0 = flat) */
   curve?: number;
   curveDir?: "in" | "out";
+  /** power and data planning for the wall */
+  power?: Partial<PowerData>;
+}
+
+export type Volts = 110 | 120 | 208 | 230;
+export type Corner = "tl" | "tr" | "bl" | "br";
+
+export interface PowerData {
+  /** draw the data and power runs on the wall (and the totals on the plate) */
+  overlay: boolean;
+  volts: Volts;
+  /** breaker size, in amps */
+  breaker: number;
+  /** most panels on one power chain */
+  perPower: number;
+  /** per panel: watts at full white, typical watts, kg; null when unknown */
+  wMax: number | null;
+  wAvg: number | null;
+  kg: number | null;
+  /** pixels one processor port can drive */
+  portPx: number;
+  /** panels on one data chain; null = as many as fit on a port */
+  perData: number | null;
+  /** the snake: along rows or columns, from which corner */
+  order: "h" | "v";
+  start: Corner;
+}
+
+/** A 1 G port at 8 bit, 60 Hz. */
+export const PORT_1G = 655360;
+/** Breakers are loaded to 80 % for a continuous load. */
+export const BREAKER_LOAD = 0.8;
+
+export const POWER_START: PowerData = {
+  overlay: false,
+  volts: 208,
+  breaker: 20,
+  perPower: 10,
+  wMax: null,
+  wAvg: null,
+  kg: null,
+  portPx: PORT_1G,
+  perData: null,
+  order: "h",
+  start: "tl",
+};
+
+export const powerOf = (s: PatternSettings): PowerData => ({ ...POWER_START, ...s.power });
+
+/** The panels in cabling order: a snake along rows (or columns) from the start corner, skipping panels left out. */
+export function snake(s: PatternSettings, p: PowerData): [number, number][] {
+  const off = offPanels(s);
+  const fromLeft = p.start === "tl" || p.start === "bl";
+  const fromTop = p.start === "tl" || p.start === "tr";
+  const out: [number, number][] = [];
+  const lines = p.order === "h" ? s.rows : s.cols;
+  const along = p.order === "h" ? s.cols : s.rows;
+  for (let i = 0; i < lines; i++) {
+    // first direction along a line, flipping every line
+    const forward = (p.order === "h" ? fromLeft : fromTop) !== (i % 2 === 1);
+    const line = (p.order === "h" ? fromTop : fromLeft) ? i : lines - 1 - i;
+    for (let j = 0; j < along; j++) {
+      const k = forward ? j : along - 1 - j;
+      const [c, r] = p.order === "h" ? [k, line] : [line, k];
+      if (!off.has(`${c},${r}`)) out.push([c, r]);
+    }
+  }
+  return out;
+}
+
+const chunk = <T,>(list: T[], n: number): T[][] => {
+  const out: T[][] = [];
+  for (let i = 0; i < list.length; i += n) out.push(list.slice(i, i + n));
+  return out;
+};
+
+/** Watts, amps, circuits, data ports and the runs themselves, for the lit panels. */
+export function powerPlan(s: PatternSettings) {
+  const p = powerOf(s);
+  const path = snake(s, p);
+  const n = path.length;
+  const panelPx = s.pw * s.ph;
+  /** panels that fit on one port */
+  const fit = Math.floor(p.portPx / panelPx);
+  const perData = Math.max(1, p.perData ?? fit);
+  const perPower = Math.max(1, p.perPower);
+  const dataRuns = chunk(path, perData);
+  const powerRuns = chunk(path, perPower);
+  const usable = p.volts * p.breaker * BREAKER_LOAD;
+  const wMax = p.wMax && p.wMax > 0 ? p.wMax : null;
+  const wAvg = p.wAvg && p.wAvg > 0 ? p.wAvg : null;
+  const totalMax = wMax ? n * wMax : null;
+  const totalAvg = wAvg ? n * wAvg : null;
+  // whole power chains go on a circuit: fill each circuit until the next chain won't fit
+  let circuits: number | null = null;
+  if (wMax) {
+    circuits = 0;
+    let load = Infinity;
+    for (const run of powerRuns) {
+      const w = run.length * wMax;
+      if (w > usable) {
+        // a chain too big for one breaker: it has to be split, so count what it really needs
+        circuits += Math.ceil(w / usable);
+        load = Infinity;
+        continue;
+      }
+      if (load + w > usable) {
+        circuits++;
+        load = 0;
+      }
+      load += w;
+    }
+  }
+  return {
+    p,
+    lit: n,
+    fit,
+    perData,
+    perPower,
+    dataRuns,
+    powerRuns,
+    usable,
+    totalMax,
+    totalAvg,
+    ampsMax: totalMax != null ? totalMax / p.volts : null,
+    ampsAvg: totalAvg != null ? totalAvg / p.volts : null,
+    circuits,
+    /** one power chain draws more than a breaker holds */
+    chainOver: wMax != null && Math.min(perPower, n) * wMax > usable,
+    /** the data chain holds more pixels than a port */
+    dataOver: perData * panelPx > p.portPx,
+    kg: p.kg && p.kg > 0 ? n * p.kg : null,
+  };
+}
+
+export type PowerPlan = ReturnType<typeof powerPlan>;
+
+const kw = (w: number) => (w >= 1000 ? `${(w / 1000).toFixed(1)} kW` : `${Math.round(w)} W`);
+export { kw as fmtWatts };
+
+const RUN_COLORS = ["#ffcc00", "#00e5ff", "#ff5ad1", "#7dff4d", "#ff8a3d", "#b28cff", "#ff4d4d", "#4dd0ff"];
+
+/** Data runs (top-left labels, solid lines) and power runs (bottom-left labels, dashed lines) over the panels. */
+function drawRuns(ctx: CanvasRenderingContext2D, s: PatternSettings, plan: PowerPlan) {
+  const unit = Math.min(s.pw, s.ph);
+  const lw = Math.max(2, Math.round(unit / 36));
+  const font = Math.max(9, Math.round(unit / 7));
+  const pad = Math.round(font * 0.35);
+  const o = unit * 0.18;
+  const centre = ([c, r]: [number, number]) => [c * s.pw + s.pw / 2, r * s.ph + s.ph / 2];
+  const runs = (list: [number, number][][], tag: string, dy: number, dashed: boolean, top: boolean) =>
+    list.forEach((run, i) => {
+      const color = RUN_COLORS[i % RUN_COLORS.length];
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = lw;
+      ctx.lineJoin = "round";
+      ctx.shadowColor = "rgba(0,0,0,0.9)";
+      ctx.shadowBlur = lw * 2;
+      if (dashed) ctx.setLineDash([lw * 3, lw * 2]);
+      ctx.beginPath();
+      run.forEach((k, j) => {
+        const [x, y] = centre(k);
+        if (j) ctx.lineTo(x + dy, y + dy);
+        else ctx.moveTo(x + dy, y + dy);
+      });
+      ctx.stroke();
+      // the start of the run: a dot where the cable comes in
+      const [sx, sy] = centre(run[0]);
+      ctx.setLineDash([]);
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(sx + dy, sy + dy, lw * 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      ctx.font = `800 ${font}px system-ui, sans-serif`;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      run.forEach(([c, r], j) => {
+        const text = `${tag}${i + 1}.${j + 1}`;
+        const w = ctx.measureText(text).width + pad * 2;
+        const h = font * 1.3;
+        const x = c * s.pw + lw * 2;
+        const y = top ? r * s.ph + lw * 2 : r * s.ph + s.ph - lw * 2 - h;
+        ctx.fillStyle = dashed ? "rgba(0,0,0,0.8)" : color;
+        ctx.fillRect(x, y, w, h);
+        if (dashed) {
+          ctx.strokeStyle = color;
+          ctx.lineWidth = Math.max(1, lw / 2);
+          ctx.strokeRect(x, y, w, h);
+        }
+        ctx.fillStyle = dashed ? color : "#000";
+        ctx.fillText(text, x + pad, y + h / 2);
+      });
+    });
+  runs(plan.dataRuns, "D", -o, false, true);
+  runs(plan.powerRuns, "P", o, true, false);
+  ctx.textAlign = "center";
 }
 
 export interface Rect {
@@ -259,6 +457,9 @@ export function drawPattern(ctx: CanvasRenderingContext2D, s: PatternSettings, i
     ctx.textAlign = "center";
   }
 
+  const plan = s.power?.overlay ? powerPlan(s) : null;
+  if (plan) drawRuns(ctx, s, plan);
+
   // name, sizes in pixels, metres and feet, on a dark plate so they read over anything
   const wm = wallLen(s.cols * s.mw);
   const hm = wallLen(s.rows * s.mh);
@@ -270,6 +471,10 @@ export function drawPattern(ctx: CanvasRenderingContext2D, s: PatternSettings, i
     curve
       ? `${curve.dir === "out" ? "Convex" : "Concave"} curve ${+curve.deg.toFixed(2)}° / panel · ${+curve.total.toFixed(1)}° · R ${wallLen(curve.radius).m}`
       : "",
+    plan
+      ? `Power ${plan.totalMax != null ? `${kw(plan.totalMax)} max · ${Math.ceil(plan.ampsMax!)} A @ ${plan.p.volts} V · ${plan.circuits} × ${plan.p.breaker} A circuits · ` : ""}${plan.powerRuns.length} runs × ${plan.perPower}`
+      : "",
+    plan ? `Data ${plan.dataRuns.length} ports · ${plan.perData} panels / port${plan.kg != null ? ` · ${Math.round(plan.kg)} kg` : ""}` : "",
   ].filter(Boolean);
   const big = Math.max(12, Math.round(Math.min(W / 22, H / 9)));
   const small = Math.round(big * 0.5);
