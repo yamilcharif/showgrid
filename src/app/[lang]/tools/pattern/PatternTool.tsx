@@ -9,7 +9,7 @@ import { BRANDS, LED_PANELS, type LedPanel } from "@/lib/ledPanels";
 import { createClient } from "@/lib/supabase/browser";
 import { useI18n } from "@/components/I18n";
 import { fmt } from "@/lib/i18n/config";
-import { PATTERN_START as START, drawPattern as draw, wallLen, type Hits, type LogoAt, type PatternSettings as Settings, type Pip, type Rect } from "@/lib/pattern";
+import { PATTERN_START as START, colName, drawPattern as draw, offPanels, wallCurve, wallLen, type Hits, type LogoAt, type PatternSettings as Settings, type Pip, type Rect } from "@/lib/pattern";
 
 const MINE_KEY = "sg_led_panels";
 
@@ -76,6 +76,9 @@ export function PatternTool() {
   // what's being dragged on the canvas, and where in it it was grabbed
   const grab = useRef<{ what: "plate" | "logo" | string; dx: number; dy: number } | null>(null);
   const [cursor, setCursor] = useState("default");
+  // cutting mode: clicks take panels out of the wall (or put them back)
+  const [cutting, setCutting] = useState(false);
+  const paint = useRef<{ remove: boolean; done: Set<string> } | null>(null);
   const W = s.cols * s.pw;
   const H = s.rows * s.ph;
   const tooBig = W > MAX_SIDE || H > MAX_SIDE;
@@ -85,6 +88,8 @@ export function PatternTool() {
   const [panelName, setPanelName] = useState("");
   const same = (p: LedPanel) => p.w === s.pw && p.h === s.ph && p.mw === s.mw && p.mh === s.mh;
   const mineAt = mine.findIndex(same);
+  const off = offPanels(s);
+  const curve = wallCurve(s);
   const libAt = LED_PANELS.findIndex(same);
   const preset = mineAt >= 0 ? `mine:${mineAt}` : libAt >= 0 ? `lib:${libAt}` : "custom";
   const wm = wallLen(s.cols * s.mw);
@@ -110,8 +115,28 @@ export function PatternTool() {
     c.height = H;
     const ready = new Map([...images.current].filter(([, img]) => img.complete && img.naturalWidth));
     const ctx = c.getContext("2d");
-    if (ctx) hits.current = draw(ctx, s, ready);
-  }, [s, W, H, tooBig, imgTick]);
+    if (!ctx) return;
+    hits.current = draw(ctx, s, ready);
+    if (cutting) {
+      // only on screen: a red cross on every panel taken out, a faint outline on the rest
+      const lw = Math.max(2, Math.round(Math.min(s.pw, s.ph) / 40));
+      ctx.lineWidth = lw;
+      for (let r = 0; r < s.rows; r++)
+        for (let c = 0; c < s.cols; c++) {
+          const x = c * s.pw, y = r * s.ph;
+          if (offPanels(s).has(`${c},${r}`)) {
+            ctx.strokeStyle = "rgba(255,59,59,0.9)";
+            ctx.beginPath();
+            ctx.moveTo(x + lw * 3, y + lw * 3);
+            ctx.lineTo(x + s.pw - lw * 3, y + s.ph - lw * 3);
+            ctx.moveTo(x + s.pw - lw * 3, y + lw * 3);
+            ctx.lineTo(x + lw * 3, y + s.ph - lw * 3);
+            ctx.stroke();
+            ctx.strokeRect(x + lw / 2, y + lw / 2, s.pw - lw, s.ph - lw);
+          }
+        }
+    }
+  }, [s, W, H, tooBig, imgTick, cutting]);
 
 
 
@@ -134,8 +159,35 @@ export function PatternTool() {
   // windows land on panel edges when dropped near one
   const snapTo = (v: number, step: number) => (Math.abs(v - Math.round(v / step) * step) < step * 0.12 ? Math.round(v / step) * step : Math.round(v));
 
+  /** The panel under the pointer, as "col,row". */
+  const panelAt = (p: { x: number; y: number }) => {
+    const c = Math.floor(p.x / s.pw);
+    const r = Math.floor(p.y / s.ph);
+    return c >= 0 && r >= 0 && c < s.cols && r < s.rows ? `${c},${r}` : null;
+  };
+  const cut = (k: string) => {
+    const g = paint.current;
+    if (!g || g.done.has(k)) return;
+    g.done.add(k);
+    setS((x) => {
+      const now = new Set(offPanels(x));
+      if (g.remove) now.add(k);
+      else now.delete(k);
+      return { ...x, off: [...now] };
+    });
+  };
+
   const onDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const p = at(e);
+    if (cutting) {
+      const k = panelAt(p);
+      if (!k) return;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      // the first panel decides: dragging from a lit panel takes panels out, from a dark one puts them back
+      paint.current = { remove: !off.has(k), done: new Set() };
+      cut(k);
+      return;
+    }
     const hit = hitTest(p);
     if (!hit) return;
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -144,6 +196,11 @@ export function PatternTool() {
   };
   const onMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const p = at(e);
+    if (cutting) {
+      const k = paint.current && panelAt(p);
+      if (k) cut(k);
+      return setCursor("crosshair");
+    }
     const g = grab.current;
     if (!g) return setCursor(hitTest(p) ? "grab" : "default");
     if (g.what === "plate" || g.what === "logo") {
@@ -163,6 +220,7 @@ export function PatternTool() {
   };
   const onUp = () => {
     grab.current = null;
+    paint.current = null;
     setCursor("default");
   };
 
@@ -266,32 +324,101 @@ export function PatternTool() {
             <input type="number" min={1} max={5000} value={s.mh} onChange={(e) => set({ mh: num(e.target.value, 5000) })} />
           </label>
         </div>
-        {mineAt >= 0 ? (
-          <button type="button" className="link small" onClick={() => saveMine(mine.filter((_, i) => i !== mineAt))}>
-            {fmt(t.removePanel, { name: mine[mineAt].name })}
-          </button>
-        ) : (
-          <form
-            className="pat-save-panel"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const name = panelName.trim();
-              if (!name) return;
-              saveMine([...mine, { brand: "", name: name.slice(0, 60), w: s.pw, h: s.ph, mw: s.mw, mh: s.mh }]);
-              setPanelName("");
-            }}
-          >
-            <input value={panelName} maxLength={60} placeholder={t.panelName} aria-label={t.panelName} onChange={(e) => setPanelName(e.target.value)} />
-            <button className="btn sm" disabled={!panelName.trim()}>
-              ★ {t.savePanel}
-            </button>
-          </form>
+        {mine.length > 0 && (
+          <ul className="pat-mine" aria-label={t.myPanels}>
+            {mine.map((p, i) => (
+              <li key={i} className={same(p) ? "on" : undefined}>
+                <button type="button" className="pat-mine-use" onClick={() => set({ pw: p.w, ph: p.h, mw: p.mw, mh: p.mh })}>
+                  ★ {p.name}
+                  <span className="muted">
+                    {p.w} × {p.h} px · {p.mw} × {p.mh} mm
+                  </span>
+                </button>
+                <button type="button" className="link small" aria-label={fmt(t.removePanel, { name: p.name })} title={fmt(t.removePanel, { name: p.name })} onClick={() => saveMine(mine.filter((_, j) => j !== i))}>
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
+        <form
+          className="pat-save-panel"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const name = panelName.trim().slice(0, 60);
+            if (!name || mine.some((p) => p.name === name && same(p))) return;
+            saveMine([...mine, { brand: "", name, w: s.pw, h: s.ph, mw: s.mw, mh: s.mh }]);
+            setPanelName("");
+          }}
+        >
+          <input value={panelName} maxLength={60} placeholder={t.panelName} aria-label={t.panelName} onChange={(e) => setPanelName(e.target.value)} />
+          <button className="btn sm" disabled={!panelName.trim() || mine.some((p) => p.name === panelName.trim() && same(p))}>
+            ★ {t.savePanel}
+          </button>
+        </form>
         <p className="muted small">{t.panelsNote}</p>
         <p className="muted small pat-sizes">
           {fmt(t.panelSize, { m: `${pm.w.m} × ${pm.h.m}`, ft: `${pm.w.ft} × ${pm.h.ft}` })}
           <br />
           <strong>{fmt(t.wallSize, { m: `${wm.m} × ${hm.m}`, ft: `${wm.ft} × ${hm.ft}` })}</strong>
+        </p>
+
+        <h2>{t.shape}</h2>
+        <p className="muted small">{t.shapeHint}</p>
+        <div className="pat-logo">
+          <button type="button" className={cutting ? "btn sm primary" : "btn sm"} aria-pressed={cutting} onClick={() => setCutting((v) => !v)}>
+            {cutting ? t.shapeDone : t.shapeEdit}
+          </button>
+          {off.size > 0 && (
+            <button type="button" className="link small" onClick={() => set({ off: [] })}>
+              {fmt(t.shapeReset, { n: off.size })}
+            </button>
+          )}
+        </div>
+        {off.size > 0 && (
+          <p className="muted small">
+            {fmt(t.shapeOff, {
+              list: [...off]
+                .map((k) => k.split(",").map(Number))
+                .sort((a, b) => a[1] - b[1] || a[0] - b[0])
+                .slice(0, 24)
+                .map(([c, r]) => `${colName(c)}${r + 1}`)
+                .join(", ") + (off.size > 24 ? "…" : ""),
+            })}
+          </p>
+        )}
+
+        <h2>{t.curve}</h2>
+        <div className="pat-two">
+          <label className="field">
+            <span>{t.curveDeg}</span>
+            <input
+              type="number"
+              min={0}
+              max={30}
+              step={0.5}
+              value={s.curve ?? 0}
+              onChange={(e) => set({ curve: Math.max(0, Math.min(30, Number(e.target.value) || 0)) })}
+            />
+          </label>
+          {curve && (
+            <label className="field">
+              <span>{t.curveDir}</span>
+              <select value={curve.dir} onChange={(e) => set({ curveDir: e.target.value as "in" | "out" })}>
+                <option value="in">{t.curveIn}</option>
+                <option value="out">{t.curveOut}</option>
+              </select>
+            </label>
+          )}
+        </div>
+        <p className="muted small">
+          {curve
+            ? fmt(t.curveSummary, {
+                total: +curve.total.toFixed(1),
+                r: `${wallLen(curve.radius).m} · ${wallLen(curve.radius).ft}`,
+                chord: curve.chord ? `${wallLen(curve.chord).m} · ${wallLen(curve.chord).ft}` : "—",
+              })
+            : t.curveHint}
         </p>
 
         <h2>{t.style}</h2>
@@ -439,7 +566,7 @@ export function PatternTool() {
             <strong className="num">{fmt(t.size, { w: W.toLocaleString("en-US"), h: H.toLocaleString("en-US") })}</strong>
             <span className="muted small">
               {" "}
-              · {fmt(t.panels, { n: s.cols * s.rows })} · {wm.m} × {hm.m} · {wm.ft} × {hm.ft}
+              · {fmt(t.panels, { n: s.cols * s.rows - off.size })} · {wm.m} × {hm.m} · {wm.ft} × {hm.ft}
             </span>
           </div>
         </div>
@@ -452,7 +579,7 @@ export function PatternTool() {
             onPointerUp={onUp}
             onPointerCancel={onUp}
           />}
-        {!tooBig && <p className="muted small">{t.dragHint}</p>}
+        {!tooBig && <p className="muted small">{cutting ? t.shapeHint : t.dragHint}</p>}
       </section>
     </div>
   );

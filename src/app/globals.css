@@ -1068,6 +1068,11 @@ a.co:hover { text-decoration-color: currentColor; }
 .route-row a.link, .route-row .pat-check { white-space: nowrap; }
 
 .pat-save-panel { display: flex; gap: 8px; }
+.pat-mine { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.pat-mine li { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
+.pat-mine li.on { border-color: var(--tally); }
+.pat-mine-use { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; background: none; border: 0; padding: 2px 0; color: var(--ink); font: inherit; font-size: 13.5px; font-weight: 600; text-align: left; cursor: pointer; }
+.pat-mine-use .muted { font-size: 11.5px; font-weight: 400; }
 .pat-save-panel input { flex: 1; min-width: 0; }
 
 .route-bus { border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: grid; gap: 8px; }

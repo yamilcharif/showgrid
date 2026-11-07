@@ -49,6 +49,11 @@ export interface PatternSettings {
   /** where the title plate was dragged to (its centre); unset keeps it in the middle */
   titleX?: number | null;
   titleY?: number | null;
+  /** panels left out of the wall ("col,row"), for doors, pyramids and other shapes; drawn black */
+  off?: string[];
+  /** curve between neighbouring panels, in degrees (0 = flat) */
+  curve?: number;
+  curveDir?: "in" | "out";
 }
 
 export interface Rect {
@@ -91,6 +96,25 @@ export const PATTERN_START: PatternSettings = {
 
 /** A1, B1 … Z1, AA1: columns as letters, rows as numbers, the way LED crews call panels. */
 export const colName = (i: number): string => (i < 26 ? String.fromCharCode(65 + i) : colName(Math.floor(i / 26) - 1) + colName(i % 26));
+
+/** The panels left out of the wall, only those still inside it. */
+export function offPanels(s: PatternSettings): Set<string> {
+  return new Set((s.off ?? []).filter((k) => {
+    const [c, r] = k.split(",").map(Number);
+    return c < s.cols && r < s.rows;
+  }));
+}
+
+/** A curved wall: the angle it sweeps, its radius and how wide it is in a straight line, in mm. */
+export function wallCurve(s: PatternSettings) {
+  const deg = s.curve ?? 0;
+  if (!deg) return null;
+  const a = (deg * Math.PI) / 180;
+  const radius = s.mw / (2 * Math.sin(a / 2));
+  const total = deg * s.cols;
+  const chord = total >= 360 ? 0 : 2 * radius * Math.sin((total * Math.PI) / 360);
+  return { deg, total, radius, chord, dir: s.curveDir ?? "in" };
+}
 
 /** 4.5 m · 14' 9" */
 export function wallLen(mm: number) {
@@ -185,6 +209,14 @@ export function drawPattern(ctx: CanvasRenderingContext2D, s: PatternSettings, i
     }
   }
 
+  // panels that aren't there: black, the way the processor leaves them
+  const off = offPanels(s);
+  ctx.fillStyle = "#000";
+  for (const k of off) {
+    const [c, r] = k.split(",").map(Number);
+    ctx.fillRect(c * s.pw, r * s.ph, s.pw, s.ph);
+  }
+
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   if (s.numbers) {
@@ -192,7 +224,7 @@ export function drawPattern(ctx: CanvasRenderingContext2D, s: PatternSettings, i
     const size = Math.max(8, Math.round(Math.min(s.pw, s.ph) / 5));
     ctx.font = `700 ${size}px system-ui, sans-serif`;
     for (let r = 0; r < s.rows; r++)
-      for (let c = 0; c < s.cols; c++) ctx.fillText(`${colName(c)}${r + 1}`, c * s.pw + s.pw / 2, r * s.ph + s.ph / 2);
+      for (let c = 0; c < s.cols; c++) if (!off.has(`${c},${r}`)) ctx.fillText(`${colName(c)}${r + 1}`, c * s.pw + s.pw / 2, r * s.ph + s.ph / 2);
   }
 
   // content windows: the picture (or a tint), a thick frame, and the name with its pixel size
@@ -230,10 +262,14 @@ export function drawPattern(ctx: CanvasRenderingContext2D, s: PatternSettings, i
   // name, sizes in pixels, metres and feet, on a dark plate so they read over anything
   const wm = wallLen(s.cols * s.mw);
   const hm = wallLen(s.rows * s.mh);
+  const curve = wallCurve(s);
   const lines = [
     s.name.trim(),
-    `${W} × ${H} px · ${s.cols} × ${s.rows} · ${s.pw} × ${s.ph}`,
+    `${W} × ${H} px · ${s.cols} × ${s.rows}${off.size ? ` (${s.cols * s.rows - off.size} panels)` : ""} · ${s.pw} × ${s.ph}`,
     `${wm.m} × ${hm.m} · ${wm.ft} × ${hm.ft}`,
+    curve
+      ? `${curve.dir === "out" ? "Convex" : "Concave"} curve ${+curve.deg.toFixed(2)}° / panel · ${+curve.total.toFixed(1)}° · R ${wallLen(curve.radius).m}`
+      : "",
   ].filter(Boolean);
   const big = Math.max(12, Math.round(Math.min(W / 22, H / 9)));
   const small = Math.round(big * 0.5);
@@ -272,7 +308,7 @@ export function drawPattern(ctx: CanvasRenderingContext2D, s: PatternSettings, i
     if (s.logoAt === "each") {
       // above the panel number
       const lh = s.ph * Math.min(0.5, s.logoSize * 2);
-      for (let r = 0; r < s.rows; r++) for (let c = 0; c < s.cols; c++) put(c * s.pw + s.pw / 2, r * s.ph + s.ph * 0.28, lh, s.pw * 0.8);
+      for (let r = 0; r < s.rows; r++) for (let c = 0; c < s.cols; c++) if (!off.has(`${c},${r}`)) put(c * s.pw + s.pw / 2, r * s.ph + s.ph * 0.28, lh, s.pw * 0.8);
     } else {
       const lh = H * s.logoSize;
       const lw = W * 0.4;
