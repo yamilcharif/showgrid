@@ -9,7 +9,7 @@ import { BRANDS, LED_PANELS, type LedPanel } from "@/lib/ledPanels";
 import { createClient } from "@/lib/supabase/browser";
 import { useI18n } from "@/components/I18n";
 import { fmt } from "@/lib/i18n/config";
-import { OUTPUT_SIZES, PATTERN_START as START, colName, drawOutput, drawPattern as draw, offPanels, outputPng, outputProblems, outputRects, screenImages, screenOf, screenSize, wallCurve, wallLen, type OutputMap, type SavedScreen, type Hits, type LogoAt, type PatternSettings as Settings, type Pip, type Rect } from "@/lib/pattern";
+import { OUTPUT_SIZES, PATTERN_START as START, colName, drawOutput, drawPattern as draw, offPanels, outputPng, outputProblems, outputRects, screenImages, screenOf, screenSize, wallCurve, wallLen, type OutputMap, type SavedScreen, type Hits, type LogoAt, type PatternSettings as Settings, type Pip, type Rect, BREAKER_LOAD, PORT_1G, fmtWatts, powerOf, powerPlan, type Corner, type PowerData, type Volts } from "@/lib/pattern";
 
 const MINE_KEY = "sg_led_panels";
 
@@ -95,6 +95,12 @@ export function PatternTool() {
   const wm = wallLen(s.cols * s.mw);
   const hm = wallLen(s.rows * s.mh);
   const pm = { w: wallLen(s.mw), h: wallLen(s.mh) };
+  const pw = powerOf(s);
+  const plan = powerPlan(s);
+  const setPower = (patch: Partial<PowerData>) => setS((x) => ({ ...x, power: { ...x.power, ...patch } }));
+  /** A panel picked from the list brings its spec-sheet watts and weight (or clears them when unknown). */
+  const applyPanel = (p: LedPanel) => set({ pw: p.w, ph: p.h, mw: p.mw, mh: p.mh, power: { ...s.power, wMax: p.wMax ?? null, wAvg: p.wAvg ?? null, kg: p.kg ?? null } });
+  const optNum = (v: string, max: number) => (v.trim() === "" ? null : Math.max(0, Math.min(max, Number(v) || 0)));
 
   // ---------- saved screens and the output map ----------
   const lib = useMemo(() => s.library ?? [], [s.library]);
@@ -506,7 +512,7 @@ export function PatternTool() {
             onChange={(e) => {
               const [from, i] = e.target.value.split(":");
               const p = (from === "mine" ? mine : LED_PANELS)[Number(i)];
-              if (p) set({ pw: p.w, ph: p.h, mw: p.mw, mh: p.mh });
+              if (p) applyPanel(p);
             }}
           >
             {mine.length > 0 && (
@@ -554,7 +560,7 @@ export function PatternTool() {
           <ul className="pat-mine" aria-label={t.myPanels}>
             {mine.map((p, i) => (
               <li key={i} className={same(p) ? "on" : undefined}>
-                <button type="button" className="pat-mine-use" onClick={() => set({ pw: p.w, ph: p.h, mw: p.mw, mh: p.mh })}>
+                <button type="button" className="pat-mine-use" onClick={() => applyPanel(p)}>
                   ★ {p.name}
                   <span className="muted">
                     {p.w} × {p.h} px · {p.mw} × {p.mh} mm
@@ -573,7 +579,7 @@ export function PatternTool() {
             e.preventDefault();
             const name = panelName.trim().slice(0, 60);
             if (!name || mine.some((p) => p.name === name && same(p))) return;
-            saveMine([...mine, { brand: "", name, w: s.pw, h: s.ph, mw: s.mw, mh: s.mh }]);
+            saveMine([...mine, { brand: "", name, w: s.pw, h: s.ph, mw: s.mw, mh: s.mh, ...(pw.wMax ? { wMax: pw.wMax } : {}), ...(pw.wAvg ? { wAvg: pw.wAvg } : {}), ...(pw.kg ? { kg: pw.kg } : {}) }]);
             setPanelName("");
           }}
         >
@@ -646,6 +652,106 @@ export function PatternTool() {
               })
             : t.curveHint}
         </p>
+
+        <h2>{t.power}</h2>
+        <p className="muted small">{t.powerHint}</p>
+        <div className="pat-two">
+          <label className="field">
+            <span>{t.wMax}</span>
+            <input type="number" min={0} max={5000} placeholder="—" value={pw.wMax ?? ""} onChange={(e) => setPower({ wMax: optNum(e.target.value, 5000) })} />
+          </label>
+          <label className="field">
+            <span>{t.wAvg}</span>
+            <input type="number" min={0} max={5000} placeholder="—" value={pw.wAvg ?? ""} onChange={(e) => setPower({ wAvg: optNum(e.target.value, 5000) })} />
+          </label>
+          <label className="field">
+            <span>{t.kg}</span>
+            <input type="number" min={0} max={500} step={0.01} placeholder="—" value={pw.kg ?? ""} onChange={(e) => setPower({ kg: optNum(e.target.value, 500) })} />
+          </label>
+          <label className="field">
+            <span>{t.volts}</span>
+            <select value={pw.volts} onChange={(e) => setPower({ volts: Number(e.target.value) as Volts })}>
+              {([110, 120, 208, 230] as const).map((v) => (
+                <option key={v} value={v}>
+                  {v} V
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>{t.breaker}</span>
+            <input type="number" min={1} max={400} value={pw.breaker} onChange={(e) => setPower({ breaker: num(e.target.value, 400) })} />
+          </label>
+          <label className="field">
+            <span>{t.perPower}</span>
+            <input type="number" min={1} max={200} value={pw.perPower} onChange={(e) => setPower({ perPower: num(e.target.value, 200) })} />
+          </label>
+          <label className="field">
+            <span>{t.portPx}</span>
+            <input type="number" min={1} max={100000000} step={1} value={pw.portPx} onChange={(e) => setPower({ portPx: num(e.target.value, 100000000) })} />
+          </label>
+          <label className="field">
+            <span>{t.perData}</span>
+            <input
+              type="number"
+              min={1}
+              max={1000}
+              placeholder={fmt(t.perDataAuto, { n: Math.max(1, plan.fit) })}
+              value={pw.perData ?? ""}
+              onChange={(e) => setPower({ perData: e.target.value.trim() === "" ? null : num(e.target.value, 1000) })}
+            />
+          </label>
+          <label className="field">
+            <span>{t.order}</span>
+            <select value={pw.order} onChange={(e) => setPower({ order: e.target.value as "h" | "v" })}>
+              <option value="h">{t.orderH}</option>
+              <option value="v">{t.orderV}</option>
+            </select>
+          </label>
+          <label className="field">
+            <span>{t.start}</span>
+            <select value={pw.start} onChange={(e) => setPower({ start: e.target.value as Corner })}>
+              {(["tl", "tr", "bl", "br"] as const).map((k) => (
+                <option key={k} value={k}>
+                  {t.corners[k]}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {pw.portPx !== PORT_1G && (
+          <button type="button" className="link small" onClick={() => setPower({ portPx: PORT_1G })}>
+            {t.port1g}
+          </button>
+        )}
+        <p className="muted small">{t.portHint}</p>
+        <label className="pat-check">
+          <input type="checkbox" checked={pw.overlay} onChange={(e) => setPower({ overlay: e.target.checked })} />
+          {t.overlay}
+        </label>
+        <ul className="muted small pat-power">
+          {plan.totalMax != null ? (
+            <>
+              <li>
+                <strong>{fmt(t.totWatts, { max: fmtWatts(plan.totalMax), avg: plan.totalAvg != null ? fmtWatts(plan.totalAvg) : "—" })}</strong>
+              </li>
+              <li>{fmt(t.totAmps, { max: plan.ampsMax!.toFixed(1), avg: plan.ampsAvg != null ? plan.ampsAvg.toFixed(1) : "—", v: pw.volts })}</li>
+              <li>
+                <strong>{fmt(t.circuits, { n: plan.circuits ?? 0, a: pw.breaker, w: fmtWatts(plan.usable), pct: BREAKER_LOAD * 100 })}</strong>
+              </li>
+            </>
+          ) : (
+            <li>{t.noWatts}</li>
+          )}
+          <li>{fmt(t.powerRuns, { n: plan.powerRuns.length, per: plan.perPower })}</li>
+          <li>
+            <strong>{fmt(t.dataPorts, { n: plan.dataRuns.length, per: plan.perData })}</strong>
+          </li>
+          <li>{fmt(t.panelPx, { px: (s.pw * s.ph).toLocaleString("en-US"), fit: plan.fit })}</li>
+          {plan.kg != null && <li>{fmt(t.weight, { kg: Math.round(plan.kg).toLocaleString("en-US"), lb: Math.round(plan.kg * 2.20462).toLocaleString("en-US") })}</li>}
+        </ul>
+        {plan.chainOver && <p className="auth-err small">{fmt(t.chainOver, { n: plan.perPower, w: fmtWatts(plan.perPower * pw.wMax!), a: pw.breaker, v: pw.volts })}</p>}
+        {plan.fit < 1 ? <p className="auth-err small">{t.portTooSmall}</p> : plan.dataOver && <p className="auth-err small">{fmt(t.dataOver, { n: plan.perData, max: plan.fit })}</p>}
 
         <h2>{t.style}</h2>
         <div className="seg seg3" role="radiogroup">

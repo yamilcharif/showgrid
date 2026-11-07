@@ -855,6 +855,8 @@ a.co:hover { text-decoration-color: currentColor; }
 .cl-on { font-size: 10pt; font-weight: 700; }
 .pat-sizes { margin: -4px 0 0; line-height: 1.6; }
 .pat-sizes strong { color: var(--ink); }
+.pat-power { margin: 6px 0 0; padding-left: 18px; line-height: 1.6; }
+.pat-power strong { color: var(--ink); }
 .pat-logo { display: flex; align-items: center; gap: 12px; }
 .pat-logo .btn { cursor: pointer; }
 .pat-side input[type="range"] { padding: 0; accent-color: var(--tally); }
