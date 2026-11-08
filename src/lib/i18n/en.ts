@@ -1119,6 +1119,9 @@ export const en = {
     menuType: "Change type to",
     menuNoGdtf: "No GDTF for {type}: add it to pick the mode and know its channels.",
     menuAddGdtf: "Add GDTF…",
+    menuOpen: "Actions",
+    ok: "OK",
+    cancel: "Cancel",
     labelsLink: "Other labels (cases, cables, anything): Label maker →",
   },
   labels: {

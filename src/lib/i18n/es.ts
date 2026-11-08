@@ -1119,6 +1119,9 @@ export const es: Dict = {
     menuType: "Cambiar tipo a",
     menuNoGdtf: "Sin GDTF para {type}: agrégalo para elegir el modo y saber sus canales.",
     menuAddGdtf: "Agregar GDTF…",
+    menuOpen: "Acciones",
+    ok: "Listo",
+    cancel: "Cancelar",
     labelsLink: "Otras etiquetas (cases, cables, lo que sea): Etiquetas →",
   },
   labels: {

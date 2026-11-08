@@ -1250,6 +1250,14 @@ a.co:hover { text-decoration-color: currentColor; }
 .ptc-menu-item { all: unset; display: flex; justify-content: space-between; gap: 8px; padding: 5px 8px; border-radius: 5px; font-size: 13.5px; cursor: pointer; }
 .ptc-menu-item:hover, .ptc-menu-item:focus-visible { background: var(--surface-2); }
 .ptc-menu-item.on { font-weight: 700; box-shadow: inset 3px 0 0 var(--tally); }
+.ptc-grid tbody tr { -webkit-touch-callout: none; }
+.ptc-ask { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ptc-other { width: 300px; left: 50%; top: 30%; transform: translateX(-50%); }
+@media (max-width: 600px) {
+  .ptc-menu { left: 8px !important; right: 8px; top: auto !important; bottom: 8px; width: auto; max-height: 70vh; }
+  .ptc-other { transform: none; }
+  .ptc-menu-item { padding: 10px 8px; }
+}
 .ptc-grid td.ptc-clash { background: color-mix(in srgb, #e5484d 22%, transparent); }
 .ptc-print-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 .ptc-print-col { display: grid; gap: 12px; align-content: start; }

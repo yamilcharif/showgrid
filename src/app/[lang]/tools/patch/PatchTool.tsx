@@ -5,7 +5,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { AccountNeeded, useSignedIn } from "@/components/AccountGate";
 import { useI18n, useT } from "@/components/I18n";
 import { ProjectBar, useToolState } from "@/components/Projects";
-import { ToolFiles } from "@/components/ToolFiles";
+import { ToolFiles, saveBlob } from "@/components/ToolFiles";
 import { fmt, plural } from "@/lib/i18n/config";
 import {
   COLOR_NAMES,
@@ -49,14 +49,6 @@ function readLogo(file: File): Promise<string> {
   });
 }
 
-function saveBlob(blob: Blob, name: string) {
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-}
-
 /** A row with another fixture type: a GDTF type brings its mode (the same one if it has it, else its first) and channels. */
 function withType(r: PatchRow, v: string, types: FixtureType[]): PatchRow {
   const ft = typeFor(types, v);
@@ -93,6 +85,11 @@ export function PatchTool() {
   // the right-click menu, where it opened
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [dragging, setDragging] = useState(false);
+  // "Other…" in a list: an in-page field (no browser prompt), and the in-page "clear all?" question
+  const [other, setOther] = useState<{ label: string; then: (v: string) => void; v: string } | null>(null);
+  const [askClear, setAskClear] = useState(false);
+  // a long press on a row (touch) opens the menu
+  const press = useRef<{ t: ReturnType<typeof setTimeout>; x: number; y: number } | null>(null);
   // fixtures a GDTF picked from the menu goes to
   const gdtfFor = useRef<Set<string> | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -224,7 +221,39 @@ export function PatchTool() {
       anchor.current = key;
       choose([key], true, new Set());
     }
-    setMenu({ x: Math.min(e.clientX, window.innerWidth - 300), y: Math.min(e.clientY, window.innerHeight - 380) });
+    openMenu(e.clientX, e.clientY);
+  };
+  /** Opens the menu at a point (clamped to the screen; on a phone it shows as a sheet at the bottom). */
+  const openMenu = (x: number, y: number) => setMenu({ x: Math.max(8, Math.min(x, window.innerWidth - 300)), y: Math.max(8, Math.min(y, window.innerHeight - 380)) });
+  /** A finger held on a row for half a second: the same menu as a right click. */
+  const rowPress = (e: React.PointerEvent, key: string) => {
+    if (e.pointerType === "mouse") return;
+    const { clientX: x, clientY: y } = e;
+    if (press.current) clearTimeout(press.current.t);
+    press.current = {
+      x,
+      y,
+      t: setTimeout(() => {
+        press.current = null;
+        if (!sel.has(key)) {
+          anchor.current = key;
+          choose([key], true, new Set());
+        }
+        navigator.vibrate?.(10);
+        openMenu(x, y);
+      }, 500),
+    };
+  };
+  const pressMove = (e: React.PointerEvent) => {
+    const p = press.current;
+    if (p && Math.hypot(e.clientX - p.x, e.clientY - p.y) > 8) {
+      clearTimeout(p.t);
+      press.current = null;
+    }
+  };
+  const pressEnd = () => {
+    if (press.current) clearTimeout(press.current.t);
+    press.current = null;
   };
   useEffect(() => {
     if (!menu) return;
@@ -262,8 +291,7 @@ export function PatchTool() {
   /** "Other…" in a list: type a value that isn't in the GDTF. */
   const pickOr = (v: string, then: (v: string) => void, label: string) => {
     if (v !== OTHER) return then(v);
-    const typed = window.prompt(label);
-    if (typed != null && typed.trim()) then(typed.trim());
+    setOther({ label, then, v: "" });
   };
 
   // ---------- printing ----------
@@ -402,6 +430,18 @@ export function PatchTool() {
         {chosen.length > 0 && (
           <div className="ptc-bulk">
             <strong className="small">{plural(chosen.length, t.selected)}</strong>
+            <button
+              type="button"
+              className="btn sm ptc-more"
+              aria-haspopup="menu"
+              aria-label={t.menuOpen}
+              onClick={(e) => {
+                const b = e.currentTarget.getBoundingClientRect();
+                openMenu(b.left, b.bottom + 4);
+              }}
+            >
+              ⋯ {t.menuOpen}
+            </button>
             {(
               [
                 ["pos", t.setPos, "ptc-pos-list"],
@@ -538,6 +578,10 @@ export function PatchTool() {
                       style={r.gcolor ? { ["--g" as string]: r.gcolor } : undefined}
                       onMouseDown={(e) => rowDown(e, r.key)}
                       onContextMenu={(e) => rowMenu(e, r.key)}
+                      onPointerDown={(e) => rowPress(e, r.key)}
+                      onPointerMove={pressMove}
+                      onPointerUp={pressEnd}
+                      onPointerCancel={pressEnd}
                     >
                       <td className={r.gcolor ? "ptc-gbar" : undefined}>
                         <input type="checkbox" checked={sel.has(r.key)} aria-label={r.fid} onChange={() => {}} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => toggle(r.key, e.shiftKey)} />
@@ -619,33 +663,43 @@ export function PatchTool() {
           <button type="button" className="btn sm" onClick={() => setRows((r) => [...r, blankRow()])}>
             {t.addRow}
           </button>
-          {s.rows.length > 0 && (
-            <button
-              type="button"
-              className="link small"
-              onClick={() => {
-                if (window.confirm(t.clearAsk)) {
-                  set({ rows: [] });
-                  setSel(new Set());
-                }
-              }}
-            >
-              {t.clear}
-            </button>
-          )}
+          {s.rows.length > 0 &&
+            (askClear ? (
+              <span className="ptc-ask small" role="alert">
+                {t.clearAsk}
+                <button
+                  type="button"
+                  className="btn sm ptc-bad"
+                  onClick={() => {
+                    set({ rows: [] });
+                    setSel(new Set());
+                    setAskClear(false);
+                  }}
+                >
+                  {t.clear}
+                </button>
+                <button type="button" className="btn sm" onClick={() => setAskClear(false)}>
+                  {t.cancel}
+                </button>
+              </span>
+            ) : (
+              <button type="button" className="link small" onClick={() => setAskClear(true)}>
+                {t.clear}
+              </button>
+            ))}
         </div>
       </section>
 
       {menu && chosen.length > 0 && (
         <div
           className="ptc-menu-back"
-          onMouseDown={() => setMenu(null)}
+          onPointerDown={() => setMenu(null)}
           onContextMenu={(e) => {
             e.preventDefault();
             setMenu(null);
           }}
         >
-          <div className="ptc-menu" role="menu" style={{ left: menu.x, top: menu.y }} onMouseDown={(e) => e.stopPropagation()}>
+          <div className="ptc-menu" role="menu" style={{ left: menu.x, top: menu.y }} onPointerDown={(e) => e.stopPropagation()}>
             <strong className="small">{plural(chosen.length, t.fixtures)}</strong>
             <form
               className="ptc-menu-patch"
@@ -750,6 +804,35 @@ export function PatchTool() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {other && (
+        <div className="ptc-menu-back" onPointerDown={() => setOther(null)}>
+          <form
+            className="ptc-menu ptc-other"
+            role="dialog"
+            aria-label={other.label}
+            onPointerDown={(e) => e.stopPropagation()}
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (other.v.trim()) other.then(other.v.trim());
+              setOther(null);
+            }}
+          >
+            <label className="field">
+              <span>{other.label}</span>
+              <input autoFocus value={other.v} maxLength={80} onChange={(e) => setOther({ ...other, v: e.target.value })} onKeyDown={(e) => e.key === "Escape" && setOther(null)} />
+            </label>
+            <div className="ptc-menu-patch">
+              <button type="submit" className="btn sm primary" disabled={!other.v.trim()}>
+                {t.ok}
+              </button>
+              <button type="button" className="btn sm" onClick={() => setOther(null)}>
+                {t.cancel}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
