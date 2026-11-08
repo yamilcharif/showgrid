@@ -1023,6 +1023,12 @@ export const en = {
     dlFlowPdf: "Signal flow PDF",
     dlRackPng: "Rack PNG",
     dlRackPdf: "Rack PDF",
+    zoomIn: "Zoom in",
+    zoomOut: "Zoom out",
+    zoomFit: "Fit",
+    zoomActual: "Actual size (100%)",
+    zoomHint: "Wheel or pinch to zoom · drag to move around",
+    wireHint: "Wheel or pinch to zoom · drag the background to move · drag from an output ● to an input ○ or a screen to cable it · drag a cable's end to move it, drop it in the open (or double-click the cable) to remove it",
   },
   patch: {
     metaTitle: "Patch and fixture stickers · ShowGrid",

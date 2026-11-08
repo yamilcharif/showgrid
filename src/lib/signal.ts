@@ -199,7 +199,10 @@ export function signalSvg(flow: SignalFlow, library: SavedScreen[], output: Outp
   const shortScreens = new Set(check.problems.flatMap((p) => (p.kind === "short" ? [p.screen] : [])));
   const devs = new Map(flow.devices.map((d) => [d.id, d]));
   const links = flow.links.filter((l) => devs.has(split(l.from)[0]) && (l.to.startsWith("screen:") ? library.some((s) => `screen:${s.id}` === l.to) : devs.has(split(l.to)[0])));
-  const screenIds = [...new Set(links.filter((l) => l.to.startsWith("screen:")).map((l) => l.to.slice(7)))];
+  // the walls: the ones cabled, and the ones on the output map still waiting for a cable
+  const linked = links.filter((l) => l.to.startsWith("screen:")).map((l) => l.to.slice(7));
+  const mapped = (output?.items ?? []).map((it) => it.screen).filter((id) => library.some((s) => s.id === id));
+  const screenIds = flow.devices.length ? [...new Set([...linked, ...mapped])] : [];
 
   // columns: each device one step right of whatever feeds it
   const col = new Map(flow.devices.map((d) => [d.id, 0]));
@@ -288,7 +291,10 @@ export function signalSvg(flow: SignalFlow, library: SavedScreen[], output: Outp
     const c1 = { x: a.x + dx, y: a.y };
     const c2 = { x: b.x - dx, y: b.y };
     const color = badPorts.has(l.from) ? BAD : CABLE_COLORS[l.cable];
-    parts.push(`<path d="M${a.x} ${a.y} C${c1.x} ${c1.y} ${c2.x} ${c2.y} ${b.x} ${b.y}" fill="none" stroke="${color}" stroke-width="2.2"${l.cable === "Fiber" ? ` stroke-dasharray="7 4"` : ""}/>`);
+    const d = `M${a.x} ${a.y} C${c1.x} ${c1.y} ${c2.x} ${c2.y} ${b.x} ${b.y}`;
+    parts.push(`<path d="${d}" fill="none" stroke="${color}" stroke-width="2.2"${l.cable === "Fiber" ? ` stroke-dasharray="7 4"` : ""}/>`);
+    // a wide, invisible twin to grab the cable by (on screen only; it draws nothing)
+    parts.push(`<path d="${d}" fill="none" stroke="#000" stroke-opacity="0" stroke-width="12" data-link="${esc(l.id)}"/>`);
     // the tag sits a third of the way along, where cables from one port haven't merged yet
     const t = 0.32;
     const u = 1 - t;
@@ -309,7 +315,7 @@ export function signalSvg(flow: SignalFlow, library: SavedScreen[], output: Outp
     parts.push(`<line x1="${b.x}" y1="${b.y + HEAD}" x2="${b.x + b.w}" y2="${b.y + HEAD}" stroke="${LINE}"/>`);
     d.ins.forEach((n, i) => {
       const y = b.y + HEAD + i * ROW + ROW / 2 + 4;
-      parts.push(`<circle cx="${b.x}" cy="${y}" r="3.5" fill="#ffffff" stroke="${INK}" stroke-width="1.4"/><text x="${b.x + 9}" y="${y + 3.5}" font-size="10.5" fill="${INK}">${esc(fitText(n, b.w / 2 - 14, 10.5))}</text>`);
+      parts.push(`<circle cx="${b.x}" cy="${y}" r="3.5" fill="#ffffff" stroke="${INK}" stroke-width="1.4"/><circle cx="${b.x}" cy="${y}" r="9" fill="#000" fill-opacity="0" data-port="i|${esc(d.id)}|${i}"/><text x="${b.x + 9}" y="${y + 3.5}" font-size="10.5" fill="${INK}">${esc(fitText(n, b.w / 2 - 14, 10.5))}</text>`);
     });
     d.outs.forEach((n, i) => {
       const k = `${d.id}:${i}`;
@@ -317,7 +323,7 @@ export function signalSvg(flow: SignalFlow, library: SavedScreen[], output: Outp
       const over = badPorts.has(k);
       const px = check.load.get(k);
       const lab = d.kind === "processor" && px ? `${n} · ${mpx(px)}` : d.kind === "server" && d.mapOut === i && output ? `${n} ▣` : n;
-      parts.push(`<circle cx="${b.x + b.w}" cy="${y}" r="3.5" fill="${over ? BAD : INK}"/><text x="${b.x + b.w - 9}" y="${y + 3.5}" text-anchor="end" font-size="10.5" font-weight="${over ? 800 : 400}" fill="${over ? BAD : INK}">${esc(fitText(lab, b.w / 2 + 20, 10.5))}</text>`);
+      parts.push(`<circle cx="${b.x + b.w}" cy="${y}" r="3.5" fill="${over ? BAD : INK}"/><circle cx="${b.x + b.w}" cy="${y}" r="9" fill="#000" fill-opacity="0" data-port="o|${esc(d.id)}|${i}"/><text x="${b.x + b.w - 9}" y="${y + 3.5}" text-anchor="end" font-size="10.5" font-weight="${over ? 800 : 400}" fill="${over ? BAD : INK}">${esc(fitText(lab, b.w / 2 + 20, 10.5))}</text>`);
     });
     const foot = b.y + b.h - 10;
     if (d.kind === "processor") {
@@ -343,6 +349,7 @@ export function signalSvg(flow: SignalFlow, library: SavedScreen[], output: Outp
     parts.push(`<text x="${b.x + 12}" y="${b.y + 38}" font-size="10" font-weight="600" fill="#c9ced8">${w} × ${h} px · ${mpx(screenPx(sc.s))}</text>`);
     const n = check.fed.get(id)?.length ?? 0;
     parts.push(`<text x="${b.x + 12}" y="${b.y + 54}" font-size="10" font-weight="700" fill="${short ? "#ff8a80" : "#c9ced8"}">${esc(`${n} ${L.ports} · ${sc.s.cols} × ${sc.s.rows}`)}</text>`);
+    parts.push(`<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx="8" fill="#000" fill-opacity="0" data-port="s|${esc(id)}"/>`);
   }
   parts.push(...labels);
 

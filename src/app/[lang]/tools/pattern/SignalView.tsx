@@ -25,6 +25,7 @@ import {
   type SignalFlow,
   type SigLink,
 } from "@/lib/signal";
+import { ZoomSheet, type Wiring } from "./SignalCanvas";
 
 type T = Dict["ledSignal"];
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -130,6 +131,21 @@ export function SignalView({
       const cable: Cable = patch.to.startsWith("screen:") || fromDev?.kind === "processor" ? "Cat6" : fromDev?.kind === "fiber" ? "Fiber" : "HDMI";
       return { ...x, links: [...x.links, { id: uid(), from, to: patch.to, cable, ...patch }] };
     });
+  // the node editor: cables drawn by dragging on the diagram
+  const wiring: Wiring = {
+    connect: (from, to) =>
+      setFlow((x) => {
+        const fromDev = x.devices.find((d) => from.startsWith(`${d.id}:`));
+        const now = x.links.find((l) => l.from === from);
+        const cable: Cable = now?.cable ?? (to.startsWith("screen:") || fromDev?.kind === "processor" ? "Cat6" : fromDev?.kind === "fiber" ? "Fiber" : "HDMI");
+        // an input takes one cable (a screen can take several); the new one pushes the old one out
+        const links = x.links.filter((l) => l.from !== from && (to.startsWith("screen:") || l.to !== to));
+        return { ...x, links: [...links, { id: now?.id ?? uid(), from, to, cable, m: now?.m ?? null }] };
+      }),
+    remove: (id) => setFlow((x) => ({ ...x, links: x.links.filter((l) => l.id !== id) })),
+    linkAt: ({ to, from }) => flow.links.find((l) => (to ? l.to === to : l.from === from)),
+  };
+  const zoomLabels = { zoomIn: t.zoomIn, zoomOut: t.zoomOut, fit: t.zoomFit, actual: t.zoomActual, hint: t.zoomHint };
   const draft = () => {
     if (!output?.items.length) return;
     if (flow.devices.length && !window.confirm(t.draftAsk)) return;
@@ -358,7 +374,7 @@ export function SignalView({
         ) : (
           flow.links.some((l) => l.to.startsWith("screen:")) && <p className="sig-ok small">✓ {t.allGood}</p>
         )}
-        <div className="sig-sheet" dangerouslySetInnerHTML={{ __html: flowDraw.svg }} />
+        <ZoomSheet svg={flowDraw.svg} w={flowDraw.w} h={flowDraw.h} labels={{ ...zoomLabels, hint: t.wireHint }} wiring={wiring} />
         {library.length > 0 && (
           <p className="muted small">
             {library
@@ -378,7 +394,7 @@ export function SignalView({
             </span>
           </div>
         </div>
-        <div className="sig-sheet sig-rack" dangerouslySetInnerHTML={{ __html: rackDraw.svg }} />
+        <ZoomSheet svg={rackDraw.svg} w={rackDraw.w} h={rackDraw.h} labels={zoomLabels} className="sig-rack" maxH={0.8} />
       </section>
     </>
   );

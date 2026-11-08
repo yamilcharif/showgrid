@@ -1290,3 +1290,21 @@ a.co:hover { text-decoration-color: currentColor; }
 .sig-rack svg { width: auto; max-width: 100%; min-width: 0; margin: 0 auto; }
 .sig-warn { margin: 0; padding: 10px 12px; list-style: none; border: 1px solid #e5484d; border-radius: 6px; color: #e5484d; font-size: 13px; font-weight: 600; display: grid; gap: 4px; }
 .sig-ok { margin: 0; color: #35d07f; font-weight: 700; }
+
+/* LED signal: zoom, pan and wiring on the diagram and the rack */
+.sig-zoom { display: grid; gap: 6px; }
+.sig-zoom-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.sig-zoom-bar .btn { min-width: 34px; justify-content: center; }
+.sig-pct { font-variant-numeric: tabular-nums; min-width: 58px !important; }
+.sig-zoom-hint { flex: 1 1 220px; margin-left: 6px; line-height: 1.35; }
+.sig-zoom-box { position: relative; overflow: hidden; cursor: grab; border: 1px solid var(--line); border-radius: 6px; background: #fff; touch-action: none; user-select: none; }
+.sig-zoom-sheet { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.sig-zoom-sheet svg { display: block; }
+.sig-live { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+.sig-rack .sig-zoom-box { background: #f3f4f6; }
+.sig-zoom.can-wire [data-port^="o|"] { cursor: crosshair; }
+.sig-zoom.can-wire [data-port^="o|"]:hover, .sig-zoom.can-wire [data-port^="i|"]:hover { fill-opacity: 0.18; fill: #2563eb; }
+.sig-zoom.can-wire [data-link] { cursor: pointer; }
+.sig-zoom.can-wire [data-link]:hover { stroke-opacity: 0.12; stroke: #2563eb; }
+.sig-zoom.wiring [data-port^="i|"], .sig-zoom.wiring [data-port^="s|"] { fill: #2563eb; fill-opacity: 0.16; }
+.sig-zoom-box:active { cursor: grabbing; }

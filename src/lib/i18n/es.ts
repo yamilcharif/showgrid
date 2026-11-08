@@ -1023,6 +1023,12 @@ export const es: Dict = {
     dlFlowPdf: "Flujo de señal PDF",
     dlRackPng: "Rack PNG",
     dlRackPdf: "Rack PDF",
+    zoomIn: "Acercar",
+    zoomOut: "Alejar",
+    zoomFit: "Ajustar",
+    zoomActual: "Tamaño real (100%)",
+    zoomHint: "Rueda o pellizco para zoom · arrastra para moverte",
+    wireHint: "Rueda o pellizco para zoom · arrastra el fondo para moverte · arrastra de una salida ● a una entrada ○ o a una pantalla para cablear · arrastra la punta de un cable para moverlo; suéltalo afuera (o doble clic en el cable) para quitarlo",
   },
   patch: {
     metaTitle: "Patch y stickers de fixtures · ShowGrid",
