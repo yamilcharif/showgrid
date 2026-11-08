@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.show_grid.www.twa",
+        "sha256_cert_fingerprints": ["BA:6D:44:42:33:13:2F:D2:A1:9A:86:70:B1:73:DF:03:12:9E:8B:C0:90:61:40:94:77:CE:AB:D5:21:9F:9F:B6"]
+      }
+    }]
