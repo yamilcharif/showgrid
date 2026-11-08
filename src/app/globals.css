@@ -1316,3 +1316,20 @@ a.co:hover { text-decoration-color: currentColor; }
 .sig-zoom.can-wire [data-link]:hover { stroke-opacity: 0.12; stroke: #2563eb; }
 .sig-zoom.wiring [data-port^="i|"], .sig-zoom.wiring [data-port^="s|"] { fill: #2563eb; fill-opacity: 0.16; }
 .sig-zoom-box:active { cursor: grabbing; }
+
+/* App: offline / update notice, install sheet (the site is built to also run as an installed app) */
+.linkish { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.app-note { position: fixed; z-index: 60; left: 50%; transform: translateX(-50%); bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  width: max-content; max-width: calc(100vw - 32px); display: flex; gap: 12px; align-items: center; padding: 10px 14px;
+  background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); border-radius: var(--r); font-size: 14px; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+.app-note.off { border-color: var(--warn); }
+.app-sheet-scrim { position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,.55); display: grid; place-items: center; padding: 16px; }
+.app-sheet { width: min(420px, 100%); background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 14px; padding: 22px; text-align: center; }
+.app-sheet h2 { margin: 10px 0 6px; font-size: 20px; }
+.app-sheet p { margin: 0 0 10px; }
+.app-sheet .muted { color: var(--muted); font-size: 14px; }
+@media (max-width: 640px) {
+  .app-sheet-scrim { place-items: end stretch; padding: 0; }
+  .app-sheet { width: 100%; border-radius: 14px 14px 0 0; padding-bottom: max(22px, env(safe-area-inset-bottom, 0px)); }
+}
+@media print { .app-note, .app-sheet-scrim { display: none !important; } }

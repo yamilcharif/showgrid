@@ -3,6 +3,7 @@ import { Archivo, JetBrains_Mono } from "next/font/google";
 import Link from "next/link";
 import { Suspense } from "react";
 import { AccountLink } from "@/components/AccountLink";
+import { AppShell, InstallApp } from "@/components/AppShell";
 import { AppStateProvider } from "@/components/AppState";
 import { GearListDrawer } from "@/components/GearListDrawer";
 import { Header } from "@/components/Header";
@@ -45,10 +46,13 @@ export async function generateMetadata(): Promise<Metadata> {
       apple: "/apple-touch-icon.png",
     },
     manifest: "/manifest.webmanifest",
+    // installed on iPhone/iPad from Safari: open full screen with a dark status bar
+    appleWebApp: { capable: true, title: "ShowGrid", statusBarStyle: "black" },
+    formatDetection: { telephone: false },
   };
 }
 
-export const viewport: Viewport = { themeColor: "#0a0a0b" };
+export const viewport: Viewport = { themeColor: "#0a0a0b", viewportFit: "cover" };
 
 export default async function RootLayout({ children }: LayoutProps<"/[lang]">) {
   const [locale, t, listings] = await Promise.all([getLocale(), getDictionary(), getListings()]);
@@ -77,6 +81,7 @@ export default async function RootLayout({ children }: LayoutProps<"/[lang]">) {
                     <Link href="/countries">{t.footer.countries}</Link>
                     <Link href="/suggestions">{t.footer.suggestions}</Link>
                     <Link href="/terms">{t.footer.terms}</Link>
+                    <InstallApp />
                     <LanguageSelect className="lang" />
                     <span className="mono">show-grid.com</span>
                   </span>
@@ -84,6 +89,7 @@ export default async function RootLayout({ children }: LayoutProps<"/[lang]">) {
               </footer>
               <GearListDrawer />
               <Toast />
+              <AppShell />
             </AppStateProvider>
           </ListingsProvider>
         </I18nProvider>

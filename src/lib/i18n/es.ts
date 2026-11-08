@@ -28,6 +28,18 @@ export const es: Dict = {
     signOut: "Salir",
   },
   footer: { tagline: "Un problema a la vez", suggestions: "Sugerencias", companies: "Empresas de renta", crew: "Crew", countries: "Países", terms: "Términos" },
+  app: {
+    install: "Instalar app",
+    installTitle: "Instalar ShowGrid",
+    installLede: "Usa ShowGrid como una app en esta computadora o teléfono. Las herramientas que ya abriste siguen funcionando sin internet.",
+    iosSteps: "En iPhone o iPad: toca Compartir en Safari y luego Agregar a pantalla de inicio.",
+    otherSteps: "En el menú del navegador, elige Instalar ShowGrid o Agregar a pantalla de inicio.",
+    close: "Cerrar",
+    offline: "Sin internet. Las herramientas que ya abriste funcionan sin conexión; guardar en proyectos espera a que vuelva.",
+    backOnline: "Conexión de vuelta",
+    update: "Hay una versión nueva de ShowGrid.",
+    reload: "Actualizar",
+  },
   home: {
     eyebrow: "Renta B2B de equipo y crew para eventos en vivo · en todo el mundo",
     title: "¿Te falta equipo o crew?",

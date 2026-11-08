@@ -28,6 +28,18 @@ export const en = {
     signOut: "Sign out",
   },
   footer: { tagline: "One problem at a time", suggestions: "Suggestions", companies: "Rental houses", crew: "Crew", countries: "Countries", terms: "Terms" },
+  app: {
+    install: "Install app",
+    installTitle: "Install ShowGrid",
+    installLede: "Use ShowGrid like an app on this computer or phone. The tools you have opened keep working without internet.",
+    iosSteps: "On iPhone or iPad: tap Share in Safari, then Add to Home Screen.",
+    otherSteps: "In your browser's menu, choose Install ShowGrid or Add to Home Screen.",
+    close: "Close",
+    offline: "No internet. Tools you've opened work offline; saving to projects waits for the connection.",
+    backOnline: "Back online",
+    update: "A new version of ShowGrid is ready.",
+    reload: "Update",
+  },
   home: {
     eyebrow: "B2B rentals & crew for live events · worldwide",
     title: "Short on gear or crew?",

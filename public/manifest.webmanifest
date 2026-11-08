@@ -1,14 +1,25 @@
 {
+  "id": "/",
   "name": "ShowGrid",
   "short_name": "ShowGrid",
-  "description": "Gear and crew for live events, near you.",
-  "start_url": "/",
+  "description": "Gear, crew and paperwork tools for live events.",
+  "start_url": "/?source=app",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#0a0a0b",
   "theme_color": "#0a0a0b",
+  "categories": ["productivity", "business", "utilities"],
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
     { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ],
+  "shortcuts": [
+    { "name": "Tools", "url": "/tools?source=app", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "LED test pattern", "url": "/tools/pattern?source=app", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Patch & stickers", "url": "/tools/patch?source=app", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
   ]
 }
