@@ -130,7 +130,7 @@ export function ProjectsPanel() {
       {signedIn === false ? (
         <div className="inv-actions">
           <span className="muted">{t.signInLede}</span>
-          <Link className="btn primary" href="/sign-in">
+          <Link className="btn primary" href="/sign-in?new=1">
             {t.signIn}
           </Link>
         </div>

@@ -8,12 +8,9 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function SignInPage({ searchParams }: PageProps<"/[lang]/sign-in">) {
-  const t = await getDictionary();
   return (
     <main className="wrap auth-page">
-      <h1>{t.signIn.title}</h1>
-      <p className="muted">{t.signIn.lede}</p>
-      <Suspense fallback={<SignInForm linkError={false} />}>
+      <Suspense fallback={<SignInForm linkError={false} start="password" />}>
         <Form searchParams={searchParams} />
       </Suspense>
     </main>
@@ -21,6 +18,6 @@ export default async function SignInPage({ searchParams }: PageProps<"/[lang]/si
 }
 
 async function Form({ searchParams }: { searchParams: PageProps<"/[lang]/sign-in">["searchParams"] }) {
-  const { error } = await searchParams;
-  return <SignInForm linkError={error === "link"} />;
+  const { error, new: join } = await searchParams;
+  return <SignInForm linkError={error === "link"} start={join ? "join" : "password"} />;
 }

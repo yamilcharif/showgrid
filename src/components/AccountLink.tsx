@@ -10,9 +10,15 @@ export async function AccountLink() {
   const [acc, t] = await Promise.all([getAccount(), getDictionary()]);
   if (!acc) {
     return (
-      <Link className="btn ghost-dark" href="/sign-in">
-        {t.header.signIn}
-      </Link>
+      <>
+        <Link className="btn ghost-dark" href="/sign-in">
+          {t.header.signIn}
+        </Link>
+        <Link className="btn join" href="/sign-in?new=1">
+          <span className="hide-sm">{t.header.join}</span>
+          <span className="show-sm">{t.header.joinShort}</span>
+        </Link>
+      </>
     );
   }
   const unread = acc.profile ? (await getConversations()).reduce((n, c) => n + c.unread, 0) : 0;

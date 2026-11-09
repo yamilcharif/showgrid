@@ -63,7 +63,7 @@ export function Landing() {
             </span>
             <h3>{L.companiesTitle}</h3>
             <p>{L.companiesText}</p>
-            <Link className="btn primary" href="/sign-in">
+            <Link className="btn primary" href="/sign-in?new=1">
               {L.companiesCta}
             </Link>
           </article>
@@ -73,7 +73,7 @@ export function Landing() {
             </span>
             <h3>{L.crewTitle}</h3>
             <p>{L.crewText}</p>
-            <Link className="btn primary" href="/sign-in">
+            <Link className="btn primary" href="/sign-in?new=1">
               {L.crewCta}
             </Link>
           </article>

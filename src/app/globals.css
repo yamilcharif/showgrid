@@ -1333,3 +1333,18 @@ a.co:hover { text-decoration-color: currentColor; }
   .app-sheet { width: 100%; border-radius: 14px 14px 0 0; padding-bottom: max(22px, env(safe-area-inset-bottom, 0px)); }
 }
 @media print { .app-note, .app-sheet-scrim { display: none !important; } }
+
+/* sign up: the header button and the perks on the sign-in page */
+.btn.join { background: var(--hero-ink); color: #0a0a0b; border-color: var(--hero-ink); }
+.btn.join:hover { opacity: 0.88; border-color: var(--hero-ink); }
+.join-perks { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.join-perks li { position: relative; padding-left: 26px; }
+.join-perks li::before { content: "✓"; position: absolute; left: 0; top: 0; width: 18px; height: 18px; border-radius: 50%; background: var(--ok-soft); color: var(--ok); font-size: 12px; font-weight: 700; display: grid; place-items: center; margin-top: 2px; }
+.join-switch { align-items: center; justify-content: space-between; gap: 10px; }
+.join-switch span { font-weight: 600; }
+.btn.join-btn { background: var(--accent-soft); border-color: var(--line); }
+/* the tagline wraps into a narrow column once the header also has the sign-up button */
+@media (max-width: 1080px) { .top .tagline { display: none; } }
+.top .tagline { white-space: nowrap; }
+/* small phones: the logo alone, so Sign in and Join both fit */
+@media (max-width: 420px) { .top .wordmark { display: none; } }

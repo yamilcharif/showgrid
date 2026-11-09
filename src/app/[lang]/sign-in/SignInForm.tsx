@@ -13,44 +13,75 @@ import {
   type SignInState,
 } from "./actions";
 
-export function SignInForm({ linkError }: { linkError: boolean }) {
+type Mode = "join" | "password" | "code";
+
+export function SignInForm({ linkError, start }: { linkError: boolean; start: Mode }) {
   const t = useT();
-  const [mode, setMode] = useState<"password" | "code">("password");
+  const [mode, setMode] = useState<Mode>(start);
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState("");
 
   if (sent) return <CodeForm email={sent} />;
 
+  const s = t.signIn;
+  const link = (to: Mode, label: string) => (
+    <button type="button" className="link" onClick={() => setMode(to)}>
+      {label}
+    </button>
+  );
+
   return (
-    <div className="auth-form">
-      {linkError && (
-        <p className="auth-err" role="alert">
-          {t.signIn.linkError}
-        </p>
-      )}
-      {mode === "password" ? (
-        <PasswordForm email={email} setEmail={setEmail} />
-      ) : (
-        <SendCodeForm email={email} setEmail={setEmail} onSent={setSent} />
-      )}
-      <div className="auth-switch">
+    <>
+      <h1>{mode === "join" ? s.joinTitle : mode === "code" ? s.codeTitle : s.title}</h1>
+      <p className="muted">{mode === "join" ? s.joinLede : s.lede}</p>
+      <div className="auth-form">
+        {linkError && (
+          <p className="auth-err" role="alert">
+            {s.linkError}
+          </p>
+        )}
+        {mode === "join" && (
+          <ul className="join-perks">
+            {s.joinPerks.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        )}
         {mode === "password" ? (
-          <>
-            <span className="muted">{t.signIn.firstTime}</span>
-            <button type="button" className="link" onClick={() => setMode("code")}>
-              {t.signIn.emailCode}
-            </button>
-          </>
+          <PasswordForm email={email} setEmail={setEmail} />
+        ) : (
+          <SendCodeForm email={email} setEmail={setEmail} onSent={setSent} join={mode === "join"} />
+        )}
+        {mode === "join" ? (
+          <div className="auth-switch">
+            <span className="muted">{s.haveAccount}</span>
+            {link("password", s.signInLink)}
+          </div>
         ) : (
           <>
-            <span className="muted">{t.signIn.havePassword}</span>
-            <button type="button" className="link" onClick={() => setMode("password")}>
-              {t.signIn.withPassword}
-            </button>
+            <div className="auth-switch join-switch">
+              <span>{s.newToShowGrid}</span>
+              <button type="button" className="btn join-btn" onClick={() => setMode("join")}>
+                {s.joinLink}
+              </button>
+            </div>
+            <div className="auth-switch">
+              {mode === "password" ? (
+                <>
+                  <span className="muted">{s.forgot}</span>
+                  {link("code", s.emailCode)}
+                </>
+              ) : (
+                <>
+                  <span className="muted">{s.havePassword}</span>
+                  {link("password", s.withPassword)}
+                </>
+              )}
+            </div>
           </>
         )}
       </div>
-    </div>
+    </>
   );
 }
 
@@ -100,7 +131,7 @@ function PasswordForm(props: EmailProps) {
   );
 }
 
-function SendCodeForm({ onSent, ...props }: EmailProps & { onSent: (email: string) => void }) {
+function SendCodeForm({ onSent, join, ...props }: EmailProps & { onSent: (email: string) => void; join: boolean }) {
   const t = useT();
   const [state, action, pending] = useActionState<SignInState, FormData>(sendSignInLink, {});
   useEffect(() => {
@@ -115,9 +146,9 @@ function SendCodeForm({ onSent, ...props }: EmailProps & { onSent: (email: strin
         </p>
       )}
       <button className="btn primary" disabled={pending}>
-        {pending ? t.signIn.sending : t.signIn.emailCode}
+        {pending ? t.signIn.sending : join ? t.signIn.joinCta : t.signIn.emailCode}
       </button>
-      <p className="muted small">{t.signIn.newHere}</p>
+      {!join && <p className="muted small">{t.signIn.newHere}</p>}
       <p className="muted small">
         {t.signIn.termsNote}{" "}
         <Link href="/terms" target="_blank">

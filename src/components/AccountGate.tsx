@@ -23,7 +23,7 @@ export function AccountNeeded() {
   return (
     <p className="account-needed" role="alert">
       🔒 {t.needAccount}{" "}
-      <Link className="btn sm primary" href="/sign-in">
+      <Link className="btn sm primary" href="/sign-in?new=1">
         {t.needAccountCta}
       </Link>
     </p>
