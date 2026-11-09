@@ -6,6 +6,7 @@ import { useApp } from "./AppState";
 import { fmt } from "@/lib/i18n/config";
 import { useT } from "./I18n";
 import { ListIcon } from "./icons";
+import { LanguageToggle } from "./LanguageSelect";
 import { LogoMark } from "./Logo";
 
 export function Header({ account }: { account: ReactNode }) {
@@ -23,6 +24,7 @@ export function Header({ account }: { account: ReactNode }) {
           <span className="tagline">{t.header.tagline}</span>
         </Link>
         <nav>
+          <LanguageToggle />
           <Link className="btn ghost-dark" href="/tools" aria-label={t.header.tools}>
             <span className="hide-sm">{t.header.tools}</span>
             <span className="show-sm" aria-hidden="true">

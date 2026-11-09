@@ -1348,3 +1348,11 @@ a.co:hover { text-decoration-color: currentColor; }
 .top .tagline { white-space: nowrap; }
 /* small phones: the logo alone, so Sign in and Join both fit */
 @media (max-width: 420px) { .top .wordmark { display: none; } }
+
+/* EN | ES switch in the header */
+.lang-toggle { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--hero-line); border-radius: var(--r); padding: 2px; }
+.lang-toggle .globe { padding: 0 4px 0 6px; font-size: 14px; }
+.lang-toggle button { background: transparent; color: var(--hero-muted); border: 0; border-radius: 6px; padding: 5px 8px; font: inherit; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; cursor: pointer; min-width: 34px; }
+.lang-toggle button:hover { color: var(--hero-ink); }
+.lang-toggle button[aria-pressed="true"] { background: var(--hero-ink); color: #0a0a0b; cursor: default; }
+@media (max-width: 420px) { .lang-toggle button { padding: 5px 6px; min-width: 30px; } }
