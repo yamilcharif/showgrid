@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, type ReactNode } from "react";
+import { NumInput } from "@/components/NumInput";
 import type { Dict } from "@/lib/i18n/en";
 import { fmt } from "@/lib/i18n/config";
 import type { OutputMap, PatternSettings, SavedScreen } from "@/lib/pattern";
@@ -207,15 +208,14 @@ export function SignalView({
               </label>
               <label className="field">
                 <span>{t.rackUnits}</span>
-                <input type="number" min={0} max={12} value={d.u} onChange={(e) => setDev(d.id, { u: Math.max(0, Math.min(12, Math.round(Number(e.target.value) || 0))) })} />
+                <NumInput min={0} max={12} value={d.u} onChange={(e) => setDev(d.id, { u: Math.max(0, Math.min(12, Math.round(Number(e.target.value) || 0))) })} />
               </label>
             </div>
             {d.kind === "processor" && (
               <div className="pat-two">
                 <label className="field">
                   <span>{t.portCount}</span>
-                  <input
-                    type="number"
+                  <NumInput
                     min={1}
                     max={64}
                     value={d.outs.length}
@@ -227,11 +227,11 @@ export function SignalView({
                 </label>
                 <label className="field">
                   <span>{t.portPx}</span>
-                  <input type="number" min={1} step={1000} value={d.portPx ?? PORT_PX} onChange={(e) => setDev(d.id, { portPx: Math.max(1, Math.round(Number(e.target.value) || PORT_PX)) })} />
+                  <NumInput min={1} step={1000} value={d.portPx ?? PORT_PX} onChange={(e) => setDev(d.id, { portPx: Math.max(1, Math.round(Number(e.target.value) || PORT_PX)) })} />
                 </label>
                 <label className="field">
                   <span>{t.maxPx}</span>
-                  <input type="number" min={0} step={1000} value={d.maxPx ?? 0} onChange={(e) => setDev(d.id, { maxPx: Math.max(0, Math.round(Number(e.target.value) || 0)) })} />
+                  <NumInput min={0} step={1000} value={d.maxPx ?? 0} onChange={(e) => setDev(d.id, { maxPx: Math.max(0, Math.round(Number(e.target.value) || 0)) })} />
                 </label>
                 <span className="muted small sig-load">
                   {t.load} {Math.round(check.total.get(d.id) ?? 0).toLocaleString("en-US")} px
@@ -313,8 +313,7 @@ export function SignalView({
                               </option>
                             ))}
                           </select>
-                          <input
-                            type="number"
+                          <NumInput
                             min={0}
                             max={9999}
                             className="sig-m"
@@ -348,7 +347,7 @@ export function SignalView({
           </label>
           <label className="field">
             <span>{t.rackSize}</span>
-            <input type="number" min={1} max={48} value={flow.rackU} onChange={(e) => setFlow((x) => ({ ...x, rackU: Math.max(1, Math.min(48, Math.round(Number(e.target.value) || 1))) }))} />
+            <NumInput min={1} max={48} value={flow.rackU} onChange={(e) => setFlow((x) => ({ ...x, rackU: Math.max(1, Math.min(48, Math.round(Number(e.target.value) || 1))) }))} />
           </label>
         </div>
         <p className="muted small">{fmt(t.rackHint, { used: usedU, total: flow.rackU })}</p>

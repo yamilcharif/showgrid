@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/browser";
 import { useI18n } from "@/components/I18n";
 import { fmt } from "@/lib/i18n/config";
 import { OUTPUT_SIZES, PATTERN_START as START, colName, drawOutput, drawPattern as draw, offPanels, outputPng, outputProblems, outputRects, screenImages, screenOf, screenSize, wallCurve, wallLen, type OutputMap, type SavedScreen, type Hits, type LogoAt, type PatternSettings as Settings, type Pip, type Rect, BREAKER_LOAD, PORT_1G, fmtWatts, powerOf, powerPlan, type Corner, type PowerData, type Volts } from "@/lib/pattern";
+import { NumInput } from "@/components/NumInput";
 
 const MINE_KEY = "sg_led_panels";
 
@@ -438,11 +439,11 @@ export function PatternTool() {
           <div className="pat-two">
             <label className="field">
               <span>{t.outputW}</span>
-              <input type="number" min={16} max={MAX_SIDE} value={out.w} onChange={(e) => setOut({ w: num(e.target.value, MAX_SIDE, 16) })} />
+              <NumInput min={16} max={MAX_SIDE} value={out.w} onChange={(e) => setOut({ w: num(e.target.value, MAX_SIDE, 16) })} />
             </label>
             <label className="field">
               <span>{t.outputH}</span>
-              <input type="number" min={16} max={MAX_SIDE} value={out.h} onChange={(e) => setOut({ h: num(e.target.value, MAX_SIDE, 16) })} />
+              <NumInput min={16} max={MAX_SIDE} value={out.h} onChange={(e) => setOut({ h: num(e.target.value, MAX_SIDE, 16) })} />
             </label>
           </div>
           {out.items.length > 0 && (
@@ -479,8 +480,7 @@ export function PatternTool() {
                   {(["x", "y"] as const).map((k) => (
                     <label key={k} className="field">
                       <span>{k.toUpperCase()} px</span>
-                      <input
-                        type="number"
+                      <NumInput
                         value={r.item[k]}
                         onChange={(e) => setOut({ items: out.items.map((it) => (it.id === r.item.id ? { ...it, [k]: Math.round(Number(e.target.value) || 0) } : it)) })}
                       />
@@ -517,11 +517,11 @@ export function PatternTool() {
         <div className="pat-two">
           <label className="field">
             <span>{t.across}</span>
-            <input type="number" min={1} max={200} value={s.cols} onChange={(e) => set({ cols: num(e.target.value, 200) })} />
+            <NumInput min={1} max={200} value={s.cols} onChange={(e) => set({ cols: num(e.target.value, 200) })} />
           </label>
           <label className="field">
             <span>{t.down}</span>
-            <input type="number" min={1} max={200} value={s.rows} onChange={(e) => set({ rows: num(e.target.value, 200) })} />
+            <NumInput min={1} max={200} value={s.rows} onChange={(e) => set({ rows: num(e.target.value, 200) })} />
           </label>
         </div>
         <label className="field">
@@ -560,19 +560,19 @@ export function PatternTool() {
         <div className="pat-two">
           <label className="field">
             <span>{t.pxW}</span>
-            <input type="number" min={1} max={2048} value={s.pw} onChange={(e) => set({ pw: num(e.target.value, 2048) })} />
+            <NumInput min={1} max={2048} value={s.pw} onChange={(e) => set({ pw: num(e.target.value, 2048) })} />
           </label>
           <label className="field">
             <span>{t.pxH}</span>
-            <input type="number" min={1} max={2048} value={s.ph} onChange={(e) => set({ ph: num(e.target.value, 2048) })} />
+            <NumInput min={1} max={2048} value={s.ph} onChange={(e) => set({ ph: num(e.target.value, 2048) })} />
           </label>
           <label className="field">
             <span>{t.mmW}</span>
-            <input type="number" min={1} max={5000} value={s.mw} onChange={(e) => set({ mw: num(e.target.value, 5000) })} />
+            <NumInput min={1} max={5000} value={s.mw} onChange={(e) => set({ mw: num(e.target.value, 5000) })} />
           </label>
           <label className="field">
             <span>{t.mmH}</span>
-            <input type="number" min={1} max={5000} value={s.mh} onChange={(e) => set({ mh: num(e.target.value, 5000) })} />
+            <NumInput min={1} max={5000} value={s.mh} onChange={(e) => set({ mh: num(e.target.value, 5000) })} />
           </label>
         </div>
         {mine.length > 0 && (
@@ -643,8 +643,7 @@ export function PatternTool() {
         <div className="pat-two">
           <label className="field">
             <span>{t.curveDeg}</span>
-            <input
-              type="number"
+            <NumInput
               min={0}
               max={30}
               step={0.5}
@@ -677,15 +676,15 @@ export function PatternTool() {
         <div className="pat-two">
           <label className="field">
             <span>{t.wMax}</span>
-            <input type="number" min={0} max={5000} placeholder="—" value={pw.wMax ?? ""} onChange={(e) => setPower({ wMax: optNum(e.target.value, 5000) })} />
+            <NumInput min={0} max={5000} placeholder="—" value={pw.wMax ?? ""} onChange={(e) => setPower({ wMax: optNum(e.target.value, 5000) })} />
           </label>
           <label className="field">
             <span>{t.wAvg}</span>
-            <input type="number" min={0} max={5000} placeholder="—" value={pw.wAvg ?? ""} onChange={(e) => setPower({ wAvg: optNum(e.target.value, 5000) })} />
+            <NumInput min={0} max={5000} placeholder="—" value={pw.wAvg ?? ""} onChange={(e) => setPower({ wAvg: optNum(e.target.value, 5000) })} />
           </label>
           <label className="field">
             <span>{t.kg}</span>
-            <input type="number" min={0} max={500} step={0.01} placeholder="—" value={pw.kg ?? ""} onChange={(e) => setPower({ kg: optNum(e.target.value, 500) })} />
+            <NumInput min={0} max={500} step={0.01} placeholder="—" value={pw.kg ?? ""} onChange={(e) => setPower({ kg: optNum(e.target.value, 500) })} />
           </label>
           <label className="field">
             <span>{t.volts}</span>
@@ -699,20 +698,19 @@ export function PatternTool() {
           </label>
           <label className="field">
             <span>{t.breaker}</span>
-            <input type="number" min={1} max={400} value={pw.breaker} onChange={(e) => setPower({ breaker: num(e.target.value, 400) })} />
+            <NumInput min={1} max={400} value={pw.breaker} onChange={(e) => setPower({ breaker: num(e.target.value, 400) })} />
           </label>
           <label className="field">
             <span>{t.perPower}</span>
-            <input type="number" min={1} max={200} value={pw.perPower} onChange={(e) => setPower({ perPower: num(e.target.value, 200) })} />
+            <NumInput min={1} max={200} value={pw.perPower} onChange={(e) => setPower({ perPower: num(e.target.value, 200) })} />
           </label>
           <label className="field">
             <span>{t.portPx}</span>
-            <input type="number" min={1} max={100000000} step={1} value={pw.portPx} onChange={(e) => setPower({ portPx: num(e.target.value, 100000000) })} />
+            <NumInput min={1} max={100000000} step={1} value={pw.portPx} onChange={(e) => setPower({ portPx: num(e.target.value, 100000000) })} />
           </label>
           <label className="field">
             <span>{t.perData}</span>
-            <input
-              type="number"
+            <NumInput
               min={1}
               max={1000}
               placeholder={fmt(t.perDataAuto, { n: Math.max(1, plan.fit) })}
@@ -876,8 +874,7 @@ export function PatternTool() {
               {(["x", "y", "w", "h"] as const).map((k) => (
                 <label key={k} className="field">
                   <span>{k.toUpperCase()} px</span>
-                  <input
-                    type="number"
+                  <NumInput
                     min={k === "x" || k === "y" ? 0 : 1}
                     max={k === "x" || k === "w" ? W : H}
                     value={p[k]}
