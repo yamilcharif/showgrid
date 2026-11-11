@@ -113,8 +113,11 @@ export function PatternTool() {
   const CW = view === "output" ? out.w : W;
   const CH = view === "output" ? out.h : H;
   const canvasTooBig = view === "output" ? CW > MAX_SIDE || CH > MAX_SIDE : tooBig;
-  const problems = view === "output" ? outputProblems(out, lib) : new Map();
   const [selItem, setSelItem] = useState<string | null>(null);
+  // while a screen is dragged on the output, the warning texts stay as they were when the drag started (the red outline
+  // on the canvas stays live): text coming and going would move the canvas under the finger
+  const [frozen, setFrozen] = useState<ReturnType<typeof outputProblems> | null>(null);
+  const problems = view === "output" ? (frozen ?? outputProblems(out, lib)) : new Map();
 
   // the screen open in the editor stays in sync with its entry in the list
   useEffect(() => {
@@ -235,8 +238,11 @@ export function PatternTool() {
   // ---------- dragging on the canvas ----------
 
   /** Pointer position in wall pixels. */
+  // the canvas's place on the page, measured when a drag starts: warnings that appear mid-drag (overlap, off the
+  // output) push the canvas down, and measuring again each move made the dragged screen shake on phones
+  const dragBox = useRef<DOMRect | null>(null);
   const at = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    const r = e.currentTarget.getBoundingClientRect();
+    const r = (grab.current || paint.current) && dragBox.current ? dragBox.current : e.currentTarget.getBoundingClientRect();
     return { x: ((e.clientX - r.left) / r.width) * CW, y: ((e.clientY - r.top) / r.height) * CH };
   };
   const inside = (p: { x: number; y: number }, r: Rect) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
@@ -286,13 +292,16 @@ export function PatternTool() {
   };
 
   const onDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    dragBox.current = null;
     const p = at(e);
+    dragBox.current = e.currentTarget.getBoundingClientRect();
     if (view === "output") {
       const hit = [...outputRects(out, lib)].reverse().find((r) => inside(p, r));
       setSelItem(hit?.item.id ?? null);
       if (!hit) return;
       e.currentTarget.setPointerCapture(e.pointerId);
       grab.current = { what: hit.item.id, dx: p.x - hit.x, dy: p.y - hit.y };
+      setFrozen(outputProblems(out, lib));
       setCursor("grabbing");
       return;
     }
@@ -345,7 +354,9 @@ export function PatternTool() {
     }
   };
   const onUp = () => {
+    dragBox.current = null;
     grab.current = null;
+    setFrozen(null);
     paint.current = null;
     setCursor("default");
   };
