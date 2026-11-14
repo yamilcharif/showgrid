@@ -10,6 +10,7 @@ import { ToolFiles } from "@/components/ToolFiles";
 import { useI18n } from "@/components/I18n";
 import { fmt, plural } from "@/lib/i18n/config";
 import { LABELS_START as START, MAX_ROWS, PAPER, SHEETS, buildLabels, colorKey, partSize, type LabelPart, customSheet, detectFixture, inkFor, parseTable, readTable, type Band, type FixtureCols, type Label, type LabelSettings as Settings, type LabelSide as Side, type Sheet } from "@/lib/labels";
+import { NumInput } from "@/components/NumInput";
 
 const STORE_KEY = "sg_labels";
 /** Shrinks an uploaded logo so the settings stay small enough to keep on this device. */
@@ -425,7 +426,7 @@ export function LabelTool() {
             <div className="pat-two">
               <label className="field">
                 <span>{t.copiesEach}</span>
-                <input type="number" min={1} max={100} disabled={s.qtyCol >= 0} value={s.copies} onChange={(e) => set({ copies: Math.max(1, Math.min(100, Math.round(Number(e.target.value) || 1))) })} />
+                <NumInput min={1} max={100} disabled={s.qtyCol >= 0} value={s.copies} onChange={(e) => set({ copies: Math.max(1, Math.min(100, Math.round(Number(e.target.value) || 1))) })} />
               </label>
               <label className="field">
                 <span>{t.copiesFrom}</span>
@@ -601,8 +602,7 @@ export function LabelTool() {
               <span>
                 {label} ({unit})
               </span>
-              <input
-                type="number"
+              <NumInput
                 min={0}
                 step={s.metric ? 0.5 : 0.0625}
                 value={shown(sheet[k])}
@@ -615,8 +615,7 @@ export function LabelTool() {
           {(["cols", "rows"] as const).map((k) => (
             <label key={k} className="field">
               <span>{k === "cols" ? t.perRow : t.perCol}</span>
-              <input
-                type="number"
+              <NumInput
                 min={1}
                 max={30}
                 value={sheet[k]}
@@ -643,7 +642,7 @@ export function LabelTool() {
         <p className="muted small">{fmt(t.perSheet, { cols: sheet.cols, rows: sheet.rows, n: perSheet })} · {fmtSize(sheet.w)} × {fmtSize(sheet.h)}</p>
         <label className="field">
           <span>{t.startAt}</span>
-          <input type="number" min={1} max={perSheet} value={s.startAt} onChange={(e) => set({ startAt: Math.max(1, Math.min(perSheet, Math.round(Number(e.target.value) || 1))) })} />
+          <NumInput min={1} max={perSheet} value={s.startAt} onChange={(e) => set({ startAt: Math.max(1, Math.min(perSheet, Math.round(Number(e.target.value) || 1))) })} />
         </label>
         <p className="muted small">{t.startHint}</p>
         <label className="pat-check">

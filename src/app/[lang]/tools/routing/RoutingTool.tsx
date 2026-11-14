@@ -1,5 +1,6 @@
 "use client";
 
+import { NumInput } from "@/components/NumInput";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@/components/I18n";
@@ -106,8 +107,7 @@ export function RoutingTool() {
       <div className="route-bus-grid">
         <label className="field">
           <span>{v.kind === "truck" ? t.truckCount : t.vehicles}</span>
-          <input
-            type="number"
+          <NumInput
             min={1}
             max={50}
             value={v.count}
@@ -117,24 +117,23 @@ export function RoutingTool() {
         </label>
         <label className="field">
           <span>{t.perMile}</span>
-          <input type="number" min={0} step={0.1} value={v.perMile} onChange={(e) => setVehicle(v.id, { perMile: money0(e.target.value) })} />
+          <NumInput min={0} step={0.1} value={v.perMile} onChange={(e) => setVehicle(v.id, { perMile: money0(e.target.value) })} />
         </label>
         <label className="field">
           <span>{t.drivers}</span>
-          <input type="number" min={0} max={10} value={v.drivers} onChange={(e) => setVehicle(v.id, { drivers: Math.max(0, Math.min(10, Math.round(Number(e.target.value) || 0))) })} />
+          <NumInput min={0} max={10} value={v.drivers} onChange={(e) => setVehicle(v.id, { drivers: Math.max(0, Math.min(10, Math.round(Number(e.target.value) || 0))) })} />
         </label>
         <label className="field">
           <span>{t.driverDay}</span>
-          <input type="number" min={0} value={v.driverDay} onChange={(e) => setVehicle(v.id, { driverDay: money0(e.target.value) })} />
+          <NumInput min={0} value={v.driverDay} onChange={(e) => setVehicle(v.id, { driverDay: money0(e.target.value) })} />
         </label>
         <label className="field">
           <span>{t.dayRate}</span>
-          <input type="number" min={0} value={v.dayRate || ""} placeholder="0" onChange={(e) => setVehicle(v.id, { dayRate: money0(e.target.value) })} />
+          <NumInput min={0} value={v.dayRate || ""} placeholder="0" onChange={(e) => setVehicle(v.id, { dayRate: money0(e.target.value) })} />
         </label>
         <label className="field">
           <span>{t.days}</span>
-          <input
-            type="number"
+          <NumInput
             min={0}
             max={400}
             value={v.days ?? ""}
@@ -262,7 +261,7 @@ export function RoutingTool() {
             <div key={p.id} className="route-party">
               <input type="color" className="swatch-pick" value={p.color} aria-label={p.name} onChange={(e) => setParty({ color: e.target.value })} />
               <input value={p.name} aria-label={t.partyName} onChange={(e) => setParty({ name: e.target.value })} />
-              <input type="number" min={1} max={500} value={p.pax} aria-label={t.pax} title={t.pax} onChange={(e) => setParty({ pax: Math.max(1, Math.min(500, Math.round(Number(e.target.value) || 1))) })} />
+              <NumInput min={1} max={500} value={p.pax} aria-label={t.pax} title={t.pax} onChange={(e) => setParty({ pax: Math.max(1, Math.min(500, Math.round(Number(e.target.value) || 1))) })} />
               <select value={p.cabin} aria-label={t.cabins[p.cabin]} onChange={(e) => setParty({ cabin: e.target.value as Cabin })}>
                 {CABINS.map((c) => (
                   <option key={c} value={c}>
@@ -481,8 +480,7 @@ export function RoutingTool() {
                     <input className="sm" type="time" value={f.time ?? ""} aria-label={t.time} onChange={(ev) => e({ time: ev.target.value })} />
                     <label className="route-fare">
                       <span>$</span>
-                      <input
-                        type="number"
+                      <NumInput
                         min={0}
                         value={f.own ? f.price ?? "" : ""}
                         placeholder={f.estimate != null ? String(f.estimate) : t.fare}
@@ -535,8 +533,7 @@ export function RoutingTool() {
                     </label>
                     <span className="muted small">{dayLabel(leg.date)}</span>
                     <label className="route-fare">
-                      <input
-                        type="number"
+                      <NumInput
                         min={0}
                         value={r.roadMiles?.[leg.key] ?? ""}
                         placeholder={mi != null ? String(mi) : "?"}

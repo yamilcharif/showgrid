@@ -14,6 +14,7 @@ import { fmt, plural } from "@/lib/i18n/config";
 import { readTable } from "@/lib/labels";
 import { estimateRider, parseRider, parseRiderRows, pdfText, readPlotGear, quoteRider, summarize, type CompanyQuote, type RentalMode, type RiderLine, type SubChoice } from "@/lib/rider";
 import { RADII, dayCount, fmtDist, isoIn, money, rangeLabel, unitFor } from "@/lib/search";
+import { NumInput } from "@/components/NumInput";
 
 const MAX_BYTES = 300 * 1024 * 1024;
 
@@ -246,8 +247,7 @@ export function RiderTool() {
                           <input type="checkbox" checked={l.on} aria-label={l.name} onChange={(e) => edit(l.key, { on: e.target.checked })} />
                         </td>
                         <td>
-                          <input
-                            type="number"
+                          <NumInput
                             min={1}
                             max={500}
                             value={l.qty}

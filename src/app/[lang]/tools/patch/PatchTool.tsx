@@ -1,5 +1,6 @@
 "use client";
 
+import { NumInput } from "@/components/NumInput";
 import Link from "next/link";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { AccountNeeded, useSignedIn } from "@/components/AccountGate";
@@ -488,9 +489,9 @@ export function PatchTool() {
               }}
             >
               <span className="small">{t.repatch}</span>
-              <input className="ptc-num" type="number" min={1} max={32768} value={bulk.u} aria-label={t.cols.u} onChange={(e) => setBulk({ ...bulk, u: e.target.value })} />
+              <NumInput className="ptc-num" min={1} max={32768} value={bulk.u} aria-label={t.cols.u} onChange={(e) => setBulk({ ...bulk, u: e.target.value })} />
               <span>/</span>
-              <input className="ptc-num" type="number" min={1} max={512} value={bulk.a} aria-label={t.cols.a} onChange={(e) => setBulk({ ...bulk, a: e.target.value })} />
+              <NumInput className="ptc-num" min={1} max={512} value={bulk.a} aria-label={t.cols.a} onChange={(e) => setBulk({ ...bulk, a: e.target.value })} />
               <button className="btn sm">{t.repatchGo}</button>
             </form>
             {noFoot > 0 && <span className="small ptc-bad">{plural(noFoot, t.noFoot)}</span>}
@@ -710,9 +711,9 @@ export function PatchTool() {
               }}
             >
               <span className="small">{t.menuPatch}</span>
-              <input className="ptc-num" type="number" min={1} max={32768} value={bulk.u} aria-label={t.cols.u} autoFocus onChange={(e) => setBulk({ ...bulk, u: e.target.value })} />
+              <NumInput className="ptc-num" min={1} max={32768} value={bulk.u} aria-label={t.cols.u} autoFocus onChange={(e) => setBulk({ ...bulk, u: e.target.value })} />
               <span>.</span>
-              <input className="ptc-num" type="number" min={1} max={512} value={bulk.a} aria-label={t.cols.a} onChange={(e) => setBulk({ ...bulk, a: e.target.value })} />
+              <NumInput className="ptc-num" min={1} max={512} value={bulk.a} aria-label={t.cols.a} onChange={(e) => setBulk({ ...bulk, a: e.target.value })} />
               <button className="btn sm primary">{t.repatchGo}</button>
             </form>
             {noFoot > 0 && <span className="small ptc-bad">{plural(noFoot, t.noFoot)}</span>}
@@ -928,11 +929,11 @@ export function PatchTool() {
             <div className="pat-two">
               <label className="field">
                 <span>{t.offX}</span>
-                <input type="number" step={1} min={-72} max={72} value={s.offX} onChange={(e) => set({ offX: Math.max(-72, Math.min(72, Number(e.target.value) || 0)) })} />
+                <NumInput step={1} min={-72} max={72} value={s.offX} onChange={(e) => set({ offX: Math.max(-72, Math.min(72, Number(e.target.value) || 0)) })} />
               </label>
               <label className="field">
                 <span>{t.offY}</span>
-                <input type="number" step={1} min={-72} max={72} value={s.offY} onChange={(e) => set({ offY: Math.max(-72, Math.min(72, Number(e.target.value) || 0)) })} />
+                <NumInput step={1} min={-72} max={72} value={s.offY} onChange={(e) => set({ offY: Math.max(-72, Math.min(72, Number(e.target.value) || 0)) })} />
               </label>
             </div>
             <p className="muted small">{t.offHint}</p>

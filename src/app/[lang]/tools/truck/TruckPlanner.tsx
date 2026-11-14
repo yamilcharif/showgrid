@@ -1,5 +1,6 @@
 "use client";
 
+import { NumInput } from "@/components/NumInput";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AccountNeeded, useSignedIn } from "@/components/AccountGate";
@@ -318,8 +319,7 @@ export function TruckPlanner() {
           {(["l", "w", "h"] as const).map((k) => (
             <label key={k} className="field">
               <span>{k === "l" ? t.length : k === "w" ? t.width : t.height}</span>
-              <input
-                type="number"
+              <NumInput
                 min={1}
                 value={toShown(truck[k])}
                 onChange={(e) => update((s) => ({ ...s, truck: { ...s.truck, key: "custom", [k]: fromShown(e.target.value) } }))}
@@ -337,8 +337,7 @@ export function TruckPlanner() {
             <span>
               {t.payload} ({metric ? "kg" : "lb"})
             </span>
-            <input
-              type="number"
+            <NumInput
               min={0}
               value={toShownWt(truck.payload)}
               onChange={(e) => update((s) => ({ ...s, truck: { ...s.truck, payload: fromShownWt(e.target.value) } }))}
@@ -364,8 +363,7 @@ export function TruckPlanner() {
             ).map(([k, label]) => (
               <label key={k} className="field">
                 <span>{label}</span>
-                <input
-                  type="number"
+                <NumInput
                   min={0}
                   value={toShown(truck.bar![k])}
                   onChange={(e) => update((s) => ({ ...s, truck: { ...s.truck, bar: { ...s.truck.bar!, [k]: k === "depth" || k === "clear" ? fromShown(e.target.value) : Math.max(0, Number(e.target.value) ? fromShown(e.target.value) : 0) } } }))}
@@ -501,14 +499,14 @@ export function TruckPlanner() {
                   </td>
                   {(["l", "w", "h"] as const).map((k) => (
                     <td key={k}>
-                      <input type="number" min={1} aria-label={k} value={toShown(ty[k])} onChange={(e) => set({ [k]: fromShown(e.target.value) })} />
+                      <NumInput min={1} aria-label={k} value={toShown(ty[k])} onChange={(e) => set({ [k]: fromShown(e.target.value) })} />
                     </td>
                   ))}
                   <td>
-                    <input type="number" min={0} aria-label={t.weight} value={toShownWt(ty.wt)} onChange={(e) => set({ wt: fromShownWt(e.target.value) })} />
+                    <NumInput min={0} aria-label={t.weight} value={toShownWt(ty.wt)} onChange={(e) => set({ wt: fromShownWt(e.target.value) })} />
                   </td>
                   <td>
-                    <input type="number" min={0} max={500} aria-label={t.qty} value={ty.qty} onChange={(e) => set({ qty: Math.max(0, Math.min(500, Math.round(Number(e.target.value) || 0))) })} />
+                    <NumInput min={0} max={500} aria-label={t.qty} value={ty.qty} onChange={(e) => set({ qty: Math.max(0, Math.min(500, Math.round(Number(e.target.value) || 0))) })} />
                   </td>
                   <td>
                     <button type="button" className="link small" onClick={() => update((s) => ({ ...s, types: s.types.filter((x) => x.id !== ty.id) }))}>

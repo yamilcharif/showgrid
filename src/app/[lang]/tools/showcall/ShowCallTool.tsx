@@ -1,5 +1,6 @@
 "use client";
 
+import { NumInput } from "@/components/NumInput";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@/components/I18n";
 import { ProjectBar, useToolState } from "@/components/Projects";
@@ -764,7 +765,7 @@ export function ShowCallTool() {
                   ))}
                   <label className="field sc-merge">
                     <span>{t.ma3Merge}</span>
-                    <input type="number" min={0} max={10} step={0.5} value={ma3.pick.merge} onChange={(e) => setPick({ merge: Math.max(0, Math.min(10, Number(e.target.value) || 0)) })} />
+                    <NumInput min={0} max={10} step={0.5} value={ma3.pick.merge} onChange={(e) => setPick({ merge: Math.max(0, Math.min(10, Number(e.target.value) || 0)) })} />
                   </label>
                 </div>
                 <div className="sc-ma3-songs">
@@ -873,7 +874,7 @@ export function ShowCallTool() {
               <div className="sc-detail-grid">
                 <label className="field">
                   <span>{t.standbySec}</span>
-                  <input type="number" min={0} max={120} value={sel.standby ?? ""} placeholder={String(s.standby)} onChange={(e) => setCue(sel.id, { standby: e.target.value === "" ? null : Math.max(0, Math.min(120, Number(e.target.value))) })} />
+                  <NumInput min={0} max={120} value={sel.standby ?? ""} placeholder={String(s.standby)} onChange={(e) => setCue(sel.id, { standby: e.target.value === "" ? null : Math.max(0, Math.min(120, Number(e.target.value))) })} />
                 </label>
                 <label className="pat-check small">
                   <input type="checkbox" checked={!!sel.off} onChange={(e) => setCue(sel.id, { off: e.target.checked })} />
@@ -932,11 +933,11 @@ export function ShowCallTool() {
               </label>
               <label className="field">
                 <span>{t.standbySec}</span>
-                <input type="number" min={0} max={120} value={s.standby} onChange={(e) => set({ standby: Math.max(0, Math.min(120, Number(e.target.value) || 0)) })} />
+                <NumInput min={0} max={120} value={s.standby} onChange={(e) => set({ standby: Math.max(0, Math.min(120, Number(e.target.value) || 0)) })} />
               </label>
               <label className="field">
                 <span>{t.callAhead}</span>
-                <input type="number" min={0} max={5} step={0.1} value={s.callAhead} onChange={(e) => set({ callAhead: Math.max(0, Math.min(5, Number(e.target.value) || 0)) })} />
+                <NumInput min={0} max={5} step={0.1} value={s.callAhead} onChange={(e) => set({ callAhead: Math.max(0, Math.min(5, Number(e.target.value) || 0)) })} />
               </label>
               <label className="field">
                 <span>{t.standbyWord}</span>
