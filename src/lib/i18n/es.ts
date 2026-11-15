@@ -1042,7 +1042,7 @@ export const es: Dict = {
     legend: "Cables",
     map: "Output map",
     portsWord: "puertos",
-    needs: "necesita {need} puertos, tiene {n}",
+    needs: ["necesita {need} puerto, tiene {n}", "necesita {need} puertos, tiene {n}"],
     allGood: "Cada puerto aguanta lo que tiene asignado.",
     warnPort: "{dev} · {port}: {px} px asignados, el puerto aguanta {max} px.",
     warnTotal: "{dev}: {px} px asignados, el equipo carga {max} px.",

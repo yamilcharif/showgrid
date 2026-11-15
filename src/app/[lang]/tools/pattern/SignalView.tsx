@@ -379,7 +379,8 @@ export function SignalView({
             {library
               .map((sc) => {
                 const fed = check.fed.get(sc.id)?.length ?? 0;
-                return `${sc.s.name.trim() || sc.name}: ${fmt(t.needs, { need: portsNeeded(sc.s), n: fed })}`;
+                const need = portsNeeded(sc.s);
+                return `${sc.s.name.trim() || sc.name}: ${fmt(t.needs[need === 1 ? 0 : 1], { need, n: fed })}`;
               })
               .join(" · ")}
           </p>

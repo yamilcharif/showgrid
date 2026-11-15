@@ -1042,7 +1042,7 @@ export const en = {
     legend: "Cables",
     map: "Output map",
     portsWord: "ports",
-    needs: "needs {need} ports, has {n}",
+    needs: ["needs {need} port, has {n}", "needs {need} ports, has {n}"],
     allGood: "Every port carries what's assigned to it.",
     warnPort: "{dev} · {port}: {px} px assigned, the port carries {max} px.",
     warnTotal: "{dev}: {px} px assigned, the unit loads {max} px.",
