@@ -162,6 +162,15 @@ export function readStops(rows: string[][], year = new Date().getFullYear()): St
       if (city || i === dateCell) return;
       if (findAirport(c)) [city, cityCell] = [c, i];
     });
+    // date and city in one cell, as people type a line with single spaces: "20 nov Miami", "2026-12-01 Bogotá"
+    if (!city) {
+      const words = cells[dateCell].split(/\s+/);
+      for (let k = 1; k < words.length && !city; k++) {
+        if (/^\d{4}$/.test(words[k])) continue; // the year still belongs to the date
+        const rest = words.slice(k).join(" ");
+        if (parseDate(words.slice(0, k).join(" "), year, dayFirst) === date && findAirport(rest)) city = rest;
+      }
+    }
     if (!city) continue;
     const venue = cells.filter((_, i) => i !== dateCell && i !== cityCell && !/^(mon|tue|wed|thu|fri|sat|sun|lun|mar|mie|jue|vie|sab|dom)[a-z]*\.?$/i.test(cells[i])).join(" · ");
     stops.push({ id: newId(), date, city, venue: venue.slice(0, 120) });
