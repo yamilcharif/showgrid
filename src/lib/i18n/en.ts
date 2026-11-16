@@ -924,7 +924,7 @@ export const en = {
     pipImgChange: "Change picture",
     pipImgRemove: "Remove picture",
     pipAdd: "+ Add window",
-    dragHint: "Drag the windows, the title and the logo with the mouse. Windows snap to panel edges.",
+    dragHint: "Drag the windows, the title and the logo. Windows snap to panel edges.",
     recenter: "Center the title",
     logoColor: "Logo color",
     logoOriginal: "Original colors",

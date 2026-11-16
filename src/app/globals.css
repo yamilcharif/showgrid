@@ -1269,6 +1269,8 @@ a.co:hover { text-decoration-color: currentColor; }
 .pat-lib { position: sticky; top: 80px; display: grid; gap: 10px; }
 .pat-lib h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.12em; margin: 0; }
 .pat-lib-acts { display: flex; gap: 2px; flex: none; }
+/* finger-sized: the icons alone were 10-13 px wide */
+.pat-lib-acts .link { min-width: 36px; min-height: 36px; display: inline-flex; align-items: center; justify-content: center; }
 .pat-views { max-width: 320px; }
 .pat-pip.on { border-color: #ffcc00; }
 @media (max-width: 1200px) { .pat-tool { grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); } .pat-lib { grid-column: 1; position: static; } }
