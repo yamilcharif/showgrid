@@ -1358,3 +1358,31 @@ a.co:hover { text-decoration-color: currentColor; }
 .lang-toggle button:hover { color: var(--hero-ink); }
 .lang-toggle button[aria-pressed="true"] { background: var(--hero-ink); color: #0a0a0b; cursor: default; }
 @media (max-width: 420px) { .lang-toggle button { padding: 5px 6px; min-width: 30px; } }
+
+/* phones: the page never gets wider than the screen, so the phone never shrinks it to fit */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { overflow-x: clip; }
+.top nav { min-width: 0; }
+@media (max-width: 420px) {
+  .top .wrap { gap: 10px; }
+  .top nav { gap: 6px; }
+  .top nav .btn { padding-inline: 10px; }
+}
+@media (max-width: 360px) {
+  .top nav { gap: 4px; }
+  .top .wrap { gap: 8px; }
+  .top nav .btn { padding-inline: 7px; font-size: 14px; }
+  .lang-toggle button { padding: 5px 4px; min-width: 28px; font-size: 12px; }
+}
+/* touch screens: form fields at 16px, so iPhone doesn't zoom in when one is tapped and leave the page out of scale */
+@media (pointer: coarse) {
+  html :is(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]), select, textarea) { font-size: 16px !important; }
+}
+/* truck tool: columns may shrink below their content so the 16px touch fields can't push the page wider */
+.seg, .truck-dims { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.truck-main { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 980px) { .truck-tool { grid-template-columns: minmax(0, 1fr); } }
+.truck-side { grid-template-columns: minmax(0, 1fr); }
+.truck-numbering { min-width: 0; max-width: 100%; flex-wrap: wrap; } .truck-numbering select { min-width: 0; max-width: 100%; }
+/* phones: only the cases table scrolls sideways, the rest of the truck panel stays put */
+@media (max-width: 640px) { .truck-cases { display: block; overflow-x: auto; min-width: 0; max-width: 100%; } }
