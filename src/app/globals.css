@@ -1360,7 +1360,8 @@ a.co:hover { text-decoration-color: currentColor; }
 @media (max-width: 420px) { .lang-toggle button { padding: 5px 6px; min-width: 30px; } }
 
 /* phones: the page never gets wider than the screen, so the phone never shrinks it to fit */
-html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+/* on html too: otherwise the body rule is handed to the window, which iPhone Safari ignores and widens the page */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; overflow-x: clip; }
 body { overflow-x: clip; }
 .top nav { min-width: 0; }
 @media (max-width: 420px) {
@@ -1386,3 +1387,19 @@ body { overflow-x: clip; }
 .truck-numbering { min-width: 0; max-width: 100%; flex-wrap: wrap; } .truck-numbering select { min-width: 0; max-width: 100%; }
 /* phones: only the cases table scrolls sideways, the rest of the truck panel stays put */
 @media (max-width: 640px) { .truck-cases { display: block; overflow-x: auto; min-width: 0; max-width: 100%; } }
+
+/* phones: the language switch is one button for the other language, so the header has room to spare on iPhone */
+@media (max-width: 420px) {
+  .lang-toggle { padding: 0; border: 0; }
+  .lang-toggle button[aria-pressed="true"] { display: none; }
+  .lang-toggle button { border: 1px solid var(--hero-line); border-radius: var(--r); padding: 7px 8px; min-width: 0; }
+}
+/* iPhone date fields have their own minimum width unless their native look is turned off */
+.dt input { width: 100%; -webkit-appearance: none; appearance: none; text-align: left; }
+.dt input::-webkit-date-and-time-value { text-align: left; }
+
+/* gear strip: whole cards per screen (2 on phones, 3-4 on tablets, 6 on desktop), never one cut at the edge */
+.strip { --n: 6; grid-auto-columns: calc((100% - (var(--n) - 1) * 12px) / var(--n)); scroll-snap-type: x mandatory; }
+@media (max-width: 1000px) { .strip { --n: 4; } }
+@media (max-width: 760px) { .strip { --n: 3; } }
+@media (max-width: 520px) { .strip { --n: 2; } }
